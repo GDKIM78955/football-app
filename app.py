@@ -22,8 +22,8 @@ if "last_saved_msg" not in st.session_state:
 
 st.title("⚽ 축구 선수 적정 이적료 & 구글 시트 자동 저장 시스템")
 st.markdown("""
-이 앱은 **리그 수준(Opta 점수)**, **선수 나이 곡선(보수적 모델)**, **영입 구단 규모(빅클럽 프리미엄)**, 
-그리고 **선수의 잔여 계약 기간(보수적 할인/할증 모델)**을 종합 반영하여 적정가를 산출하고 구글 시트에 누적 저장합니다.
+이 앱은 **리그 수준(Opta 점수)**, **선수 나이 곡선(보수적 모델)**, **영입 구단 규모**, 
+**잔여 계약 기간**, 그리고 **포지션 희소성 & 멀티 포지션 능력**을 종합 반영하여 적정가를 산출하고 구글 시트에 저장합니다.
 """)
 
 # 이전 저장 성공 메시지 출력
@@ -86,13 +86,30 @@ CLUB_TIERS = {
     "Tier 5: 소형/셀링 클럽 (중소리그, 2부리그, K/J리그)": 0.80
 }
 
-# 보수적/현실적 잔여 계약 가중치
+# 보수적 잔여 계약 가중치
 CONTRACT_WEIGHTS = {
     "6개월 이하 (FA 임박/겨울 이적, -40%)": 0.60,
     "1년 남음 (재계약 분기점, -15%)": 0.85,
     "2년 남음 (표준 계약 기준선, 1.00)": 1.00,
     "3년 남음 (구단 협상 우위, +8%)": 1.08,
     "4년 이상 (장기 계약/바이아웃, +15%)": 1.15
+}
+
+# 포지션별 기본 가중치
+POSITION_WEIGHTS = {
+    "스트라이커 / 센터포워드 (ST/CF, +10%)": 1.10,
+    "윙어 / 공격형 미드필더 (WG/CAM, +5%)": 1.05,
+    "중앙 / 수비형 미드필더 (CM/CDM, 기준)": 1.00,
+    "센터백 (CB, -5%)": 0.95,
+    "풀백 / 윙백 (RB/LB/WB, -5%)": 0.95,
+    "골키퍼 (GK, -15%)": 0.85
+}
+
+# 멀티 포지션 능력 가중치
+VERSATILITY_WEIGHTS = {
+    "단일 포지션 전담 (1개 포지션만 소화, 기준)": 1.00,
+    "듀얼 롤 (2개 포지션 소화 가능, +5%)": 1.05,
+    "만능 유틸리티 (3개 이상 포지션 소화 가능, +10%)": 1.10
 }
 
 # 보수적 나이 가중치
@@ -112,7 +129,6 @@ with st.sidebar.expander("💱 실시간 환산 기준 환율 설정"):
     rate_krw = st.number_input("1 유로(€)당 원화(KRW)", value=1500, step=10, help="기본: 1€ = 1,500원")
     rate_gbp = st.number_input("1 유로(€)당 파운드(GBP)", value=0.86, step=0.01, format="%.2f", help="기본: 1€ = £0.86")
 
-# 환산 텍스트 헬퍼 함수
 def format_currency_desc(eur_man_euro):
     if eur_man_euro <= 0:
         return "₩0억 | £0만"
@@ -120,6 +136,12 @@ def format_currency_desc(eur_man_euro):
     krw_eok = (total_eur * rate_krw) / 100000000.0
     gbp_man = (eur_man_euro * rate_gbp)
     return f"약 {krw_eok:,.1f}억원 | £{gbp_man:,.1f}만"
+
+with st.sidebar.expander("📊 포지션 및 멀티 능력 가중치"):
+    st.markdown("**[포지션 희소성 가중치]**")
+    st.dataframe(pd.DataFrame(list(POSITION_WEIGHTS.items()), columns=["포지션", "가중치"]), hide_index=True, use_container_width=True)
+    st.markdown("**[멀티 포지션 가중치]**")
+    st.dataframe(pd.DataFrame(list(VERSATILITY_WEIGHTS.items()), columns=["멀티 능력", "가중치"]), hide_index=True, use_container_width=True)
 
 with st.sidebar.expander("📊 잔여 계약 기간 가중치 (보수적 모델)"):
     df_contract = pd.DataFrame(list(CONTRACT_WEIGHTS.items()), columns=["잔여 계약", "가중치"])
@@ -132,16 +154,6 @@ with st.sidebar.expander("📊 구매 구단 규모(티어) 기준"):
 with st.sidebar.expander("📊 적용 리그 가중치 (Opta 점수 기반)"):
     df_league = pd.DataFrame(list(LEAGUE_WEIGHTS.items()), columns=["리그명", "가중치"])
     st.dataframe(df_league, hide_index=True, use_container_width=True)
-
-with st.sidebar.expander("📈 나이 가중치 기준 (보수적 모델)"):
-    st.markdown("""
-    - **17~19세**: `1.00`
-    - **20~23세**: `1.12`
-    - **24~27세**: `1.00`
-    - **28~29세**: `0.90`
-    - **30~31세**: `0.75`
-    - **32세 이상**: `0.55`
-    """)
 
 # 4. 메인 화면 레이아웃
 k_id = st.session_state["form_key_id"]
@@ -156,6 +168,13 @@ with col1:
     player_nat = st.text_input("선수 국적", value="", placeholder="예: 브라질", key=f"nat_{k_id}")
     player_age = st.number_input("선수 나이 (만 나이)", min_value=15, max_value=45, value=24, key=f"age_{k_id}")
     
+    # 포지션 및 멀티 능력 선택
+    pos_col1, pos_col2 = st.columns(2)
+    with pos_col1:
+        main_position = st.selectbox("선수 주 포지션", list(POSITION_WEIGHTS.keys()), index=0, key=f"pos_{k_id}")
+    with pos_col2:
+        versatility = st.selectbox("멀티 포지션 소화 능력", list(VERSATILITY_WEIGHTS.keys()), index=0, key=f"vers_{k_id}")
+        
     selling_league = st.selectbox("보내는 리그 (원소속)", list(LEAGUE_WEIGHTS.keys()), key=f"league_{k_id}")
     buying_club_tier = st.selectbox("영입하는 구단 규모", list(CLUB_TIERS.keys()), key=f"tier_{k_id}")
     remaining_contract = st.selectbox("이적 당시 잔여 계약 기간", list(CONTRACT_WEIGHTS.keys()), index=2, key=f"contract_{k_id}")
@@ -184,15 +203,18 @@ with col1:
     if actual_transfer_fee > 0:
         st.caption(f"💡 실제이적료 환산: **{format_currency_desc(actual_transfer_fee)}**")
     
-    player_notes = st.text_area("개인 메모 / 기대 스탯 (xG, xA, 포지션 코멘트 등)", placeholder="예: LW 포지션, 지난 시즌 xG 14.2 기록", key=f"note_{k_id}")
+    player_notes = st.text_area("개인 메모 / 기대 스탯 (xG, xA, 스카우팅 코멘트 등)", placeholder="예: 90분당 xG 0.45 기록, 전방 압박 능력이 뛰어남", key=f"note_{k_id}")
 
 # 5. 계산 및 결과 출력
 league_w = LEAGUE_WEIGHTS[selling_league]
 age_w = get_age_weight(player_age)
 club_w = CLUB_TIERS[buying_club_tier]
 contract_w = CONTRACT_WEIGHTS[remaining_contract]
+pos_w = POSITION_WEIGHTS[main_position]
+vers_w = VERSATILITY_WEIGHTS[versatility]
 
-fair_value = tm_market_value * league_w * age_w * club_w * contract_w
+# 6대 가중치 종합 곱연산
+fair_value = tm_market_value * league_w * age_w * club_w * contract_w * pos_w * vers_w
 diff = actual_transfer_fee - fair_value
 overpay_pct = (diff / fair_value) * 100 if fair_value > 0 else 0.0
 
@@ -210,17 +232,23 @@ with col2:
     
     display_name = player_name if player_name else "선수명 미입력"
     display_nat = f"({player_nat})" if player_nat else ""
-    st.markdown(f"### **{display_name}** {display_nat} 이적 평가")
+    pos_short = main_position.split(" (")[0]
+    st.markdown(f"### **{display_name}** {display_nat} - `{pos_short}` 이적 평가")
     
-    # 4대 가중치 현황
-    kpi1, kpi2, kpi3, kpi4 = st.columns(4)
-    kpi1.metric("리그", f"{league_w:.2f}")
-    kpi2.metric("나이", f"{age_w:.2f}")
-    kpi3.metric("구단", f"{club_w:.2f}")
-    kpi4.metric("계약", f"{contract_w:.2f}")
+    # 6대 가중치 현황 표시
+    k1, k2, k3 = st.columns(3)
+    k1.metric("리그 가중치", f"{league_w:.2f}")
+    k2.metric("나이 가중치", f"{age_w:.2f}")
+    k3.metric("구단 가중치", f"{club_w:.2f}")
+    
+    k4, k5, k6 = st.columns(3)
+    k4.metric("계약 가중치", f"{contract_w:.2f}")
+    k5.metric("포지션 가중치", f"{pos_w:.2f}")
+    k6.metric("멀티 가중치", f"{vers_w:.2f}")
     
     st.divider()
     
+    # 메트릭 출력 (원화/파운드 병기)
     m_col1, m_col2 = st.columns(2)
     with m_col1:
         st.metric("산출된 적정 이적료", f"€{fair_value:,.1f}만")
@@ -250,7 +278,7 @@ with col2:
         diff_desc = format_currency_desc(abs(diff))
         st.success(f"**진단 결과**: {status_label} - 적정가 대비 €{abs(diff):,.1f}만 유로({diff_desc}) 저렴하게 영입")
 
-    # 6. 커뮤니티/메모장 공유용 요약 텍스트 박스 (복사 기능)
+    # 6. 커뮤니티/메모장 공유용 요약 텍스트 박스
     if player_name.strip() and (tm_market_value > 0 or actual_transfer_fee > 0):
         with st.expander("📋 커뮤니티 / 메모장 공유용 요약 텍스트 (클릭하여 복사)", expanded=True):
             nat_text = f"({player_nat}, " if player_nat else "("
@@ -260,6 +288,7 @@ with col2:
             
             summary_text = f"""⚽ [{season_val} 이적 분석] {player_name} {nat_text}
 ━━━━━━━━━━━━━━━━━━━━
+▪️ 포지션: {pos_short} (가중치 {pos_w:.2f}) | 멀티: {versatility.split(" (")[0]} (가중치 {vers_w:.2f})
 ▪️ 원소속 리그: {selling_league.split(" (")[0]} (가중치 {league_w:.2f})
 ▪️ 영입 구단: {buying_club_tier.split(":")[0]} (가중치 {club_w:.2f})
 ▪️ 잔여 계약: {remaining_contract.split(" (")[0]} (가중치 {contract_w:.2f})
@@ -285,7 +314,7 @@ with col2:
             with st.spinner("구글 시트에 기록 중입니다..."):
                 contract_desc = remaining_contract.split(" (")[0]
                 nat_str = player_nat if player_nat.strip() else "미상"
-                note_content = f"국적: {nat_str} | 잔여계약: {contract_desc}"
+                note_content = f"국적: {nat_str} | 포지션: {pos_short} | 멀티: {versatility.split(' (')[0]} | 잔여계약: {contract_desc}"
                 if player_notes.strip():
                     note_content += f" | {player_notes.strip()}"
                     
