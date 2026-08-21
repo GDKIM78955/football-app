@@ -11,7 +11,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# 새로 발급받으신 28개 전용 Web App URL 적용
+# 28개 전용 구글 시트 Web App URL
 GOOGLE_SHEET_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzlIZEZ6C8T1mpIErWoAgi28cCfeezNfqE2U9CR1P6vtB5t928n7VSJ3OvhCyTd-not8g/exec"
 
 # 세션 상태 초기화
@@ -134,9 +134,10 @@ INJURY_WEIGHTS = {
     "🚨 최근 2년 내 장기 부상 이력 (십자인대/골절, -6%)": 0.94
 }
 
+# 17~19세 유망주 프리미엄이 반영된 포지션별 에이징 커브
 def get_positional_age_weight(age, position_name):
     if "ST/CF" in position_name or "WG/CAM" in position_name:
-        if age <= 19: return 1.00
+        if age <= 19: return 1.05  # 10대 원더키드 최고 프리미엄
         elif age <= 23: return 1.03
         elif age <= 27: return 1.00
         elif age <= 29: return 0.97
@@ -144,7 +145,7 @@ def get_positional_age_weight(age, position_name):
         elif age <= 34: return 0.80
         else: return 0.65
     elif "GK" in position_name or "CB" in position_name:
-        if age <= 19: return 0.98
+        if age <= 19: return 1.01  # 10대 수비/키퍼 1군 검증 가산
         elif age <= 23: return 1.01
         elif age <= 27: return 1.00
         elif age <= 29: return 1.00
@@ -152,7 +153,7 @@ def get_positional_age_weight(age, position_name):
         elif age <= 34: return 0.90
         else: return 0.78
     else:
-        if age <= 19: return 1.00
+        if age <= 19: return 1.03  # 10대 미드필더/풀백 잠재력 가산
         elif age <= 23: return 1.02
         elif age <= 27: return 1.00
         elif age <= 29: return 0.98
@@ -434,7 +435,6 @@ with tab1:
         st.markdown(f"### **{display_name}** {display_nat} - `{pos_short}` 이적 평가")
         st.caption(f"📌 조항: **{ttype_short}** | 쿼터: **{reg_short}** | 실적: **{opta_w:.2f}** | UCL: **{stage_w:.2f}**")
         
-        # 11대 세부 가중치 카드 (4열 배치)
         r1_1, r1_2, r1_3, r1_4 = st.columns(4)
         r1_1.metric("1. 리그 난이도", f"{league_w:.2f}")
         r1_2.metric("2. 나이(에이징)", f"{age_w:.2f}")
@@ -472,7 +472,7 @@ with tab1:
             diff_desc = format_currency_desc(abs(diff))
             st.success(f"**진단 결과**: {status_label} - 적정가 대비 €{abs(diff):,.1f}만 유로({diff_desc}) 저렴하게 영입")
 
-        # 11대 지표가 모두 포함된 공유용 요약 텍스트
+        # 공유용 요약 텍스트
         if player_name.strip() and (tm_market_value > 0 or actual_transfer_fee > 0):
             with st.expander("📋 커뮤니티 / 메모장 공유용 상세 요약 텍스트 (클릭하여 복사)", expanded=True):
                 nat_text = f"({player_nat}, 만 {player_age}세)" if player_nat else f"(만 {player_age}세)"
