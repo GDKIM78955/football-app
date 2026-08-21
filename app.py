@@ -119,7 +119,7 @@ def format_currency_desc(eur_man_euro):
     total_eur = eur_man_euro * 10000
     krw_eok = (total_eur * rate_krw) / 100000000.0
     gbp_man = (eur_man_euro * rate_gbp)
-    return f"🇰🇷 약 {krw_eok:,.1f}억원  |  🇬🇧 약 £{gbp_man:,.1f}만"
+    return f"약 {krw_eok:,.1f}억원 | £{gbp_man:,.1f}만"
 
 with st.sidebar.expander("📊 잔여 계약 기간 가중치 (보수적 모델)"):
     df_contract = pd.DataFrame(list(CONTRACT_WEIGHTS.items()), columns=["잔여 계약", "가중치"])
@@ -192,7 +192,6 @@ age_w = get_age_weight(player_age)
 club_w = CLUB_TIERS[buying_club_tier]
 contract_w = CONTRACT_WEIGHTS[remaining_contract]
 
-# 4대 가중치 곱연산
 fair_value = tm_market_value * league_w * age_w * club_w * contract_w
 diff = actual_transfer_fee - fair_value
 overpay_pct = (diff / fair_value) * 100 if fair_value > 0 else 0.0
@@ -251,9 +250,34 @@ with col2:
         diff_desc = format_currency_desc(abs(diff))
         st.success(f"**진단 결과**: {status_label} - 적정가 대비 €{abs(diff):,.1f}만 유로({diff_desc}) 저렴하게 영입")
 
+    # 6. 커뮤니티/메모장 공유용 요약 텍스트 박스 (복사 기능)
+    if player_name.strip() and (tm_market_value > 0 or actual_transfer_fee > 0):
+        with st.expander("📋 커뮤니티 / 메모장 공유용 요약 텍스트 (클릭하여 복사)", expanded=True):
+            nat_text = f"({player_nat}, " if player_nat else "("
+            nat_text += f"만 {player_age}세)"
+            diff_text = f"적정가 대비 €{abs(diff):,.1f}만 유로({format_currency_desc(abs(diff))}) "
+            diff_text += "더 지불됨" if diff > 0 else ("저렴하게 영입" if diff < 0 else "정확히 일치")
+            
+            summary_text = f"""⚽ [{season_val} 이적 분석] {player_name} {nat_text}
+━━━━━━━━━━━━━━━━━━━━
+▪️ 원소속 리그: {selling_league.split(" (")[0]} (가중치 {league_w:.2f})
+▪️ 영입 구단: {buying_club_tier.split(":")[0]} (가중치 {club_w:.2f})
+▪️ 잔여 계약: {remaining_contract.split(" (")[0]} (가중치 {contract_w:.2f})
+▪️ TM 시장가치: €{tm_market_value:,.0f}만 ({format_currency_desc(tm_market_value)})
+▪️ 산출 적정가: €{fair_value:,.1f}만 ({format_currency_desc(fair_value)})
+▪️ 실제 이적료: €{actual_transfer_fee:,.1f}만 ({format_currency_desc(actual_transfer_fee)})
+━━━━━━━━━━━━━━━━━━━━
+📊 종합 진단: {status_label} - {diff_text}
+"""
+            if player_notes.strip():
+                summary_text += f"📝 메모: {player_notes.strip()}\n"
+                
+            st.code(summary_text.strip(), language="text")
+            st.caption("💡 오른쪽 상단의 복사 아이콘(📋)을 누르면 클립보드에 바로 복사됩니다.")
+
     st.markdown("<br>", unsafe_allow_html=True)
     
-    # 6. 구글 시트 저장 버튼
+    # 7. 구글 시트 저장 버튼
     if st.button("💾 구글 시트 데이터베이스에 저장하기", type="primary", use_container_width=True):
         if not player_name.strip():
             st.warning("⚠️ 선수 이름을 입력해 주세요.")
