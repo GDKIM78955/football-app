@@ -23,7 +23,7 @@ if "last_saved_msg" not in st.session_state:
 st.title("⚽ 축구 선수 적정 이적료 & 구글 시트 자동 저장 시스템")
 st.markdown("""
 이 앱은 **리그 수준(Opta 점수)**, **포지션별 차등 에이징 커브**, **영입 구단 규모**, 
-**잔여 계약 기간**, 그리고 **포지션 희소성 & 멀티 능력**을 종합 반영하여 적정가를 산출하고 구글 시트에 누적 저장합니다.
+**잔여 계약 기간**, **포지션 희소성 & 멀티 능력**, 그리고 **이적 형태(완전/임대/바이백 등)**를 종합 반영하여 적정가를 산출하고 구글 시트에 누적 저장합니다.
 """)
 
 # 이전 저장 성공 메시지 출력
@@ -112,9 +112,19 @@ VERSATILITY_WEIGHTS = {
     "만능 유틸리티 (3개 이상 포지션 소화 가능, +10%)": 1.10
 }
 
+# 이적 형태 목록
+TRANSFER_TYPES = [
+    "일반 완전 이적 (Permanent)",
+    "임대 후 의무 영입 (Loan w/ Obligation)",
+    "임대 후 선택 영입 (Loan w/ Option)",
+    "바이백 조항 포함 이적 (Buy-back Clause)",
+    "셀온 조항 포함 이적 (Sell-on Clause)",
+    "FA 자유계약 영입 (Free Transfer)",
+    "기타 / 스왑딜 (Swap Deal)"
+]
+
 # 3. 포지션별 차등 에이징 커브 함수
 def get_positional_age_weight(age, position_name):
-    # 1) 공격수 / 윙어 (순발력 중심, 빠른 감가)
     if "ST/CF" in position_name or "WG/CAM" in position_name:
         if age <= 19: return 1.00
         elif age <= 23: return 1.12
@@ -123,18 +133,14 @@ def get_positional_age_weight(age, position_name):
         elif age <= 31: return 0.70
         elif age <= 34: return 0.50
         else: return 0.35
-
-    # 2) 골키퍼 / 센터백 (경험/위치선정 중심, 완만한 감가)
     elif "GK" in position_name or "CB" in position_name:
-        if age <= 19: return 0.95  # 수비/키퍼 유망주는 실점 직결 리스크 감안
+        if age <= 19: return 0.95
         elif age <= 23: return 1.05
         elif age <= 27: return 1.00
-        elif age <= 29: return 1.00  # 29세까지 전성기 유지
-        elif age <= 31: return 0.88  # 완만한 감가
-        elif age <= 34: return 0.75  # 30대 중반까지 안정적
+        elif age <= 29: return 1.00
+        elif age <= 31: return 0.88
+        elif age <= 34: return 0.75
         else: return 0.60
-
-    # 3) 미드필더 / 풀백 (표준형)
     else:
         if age <= 19: return 1.00
         elif age <= 23: return 1.10
@@ -201,7 +207,12 @@ col1, col2 = st.columns([1, 1])
 with col1:
     st.subheader("📝 이적 & 선수 정보 입력")
     
-    season_val = st.selectbox("이적 시즌", ["26/27", "기타"], key=f"season_{k_id}")
+    c_s1, c_s2 = st.columns(2)
+    with c_s1:
+        season_val = st.selectbox("이적 시즌", ["26/27", "기타"], key=f"season_{k_id}")
+    with c_s2:
+        transfer_type = st.selectbox("이적 형태", TRANSFER_TYPES, index=0, key=f"ttype_{k_id}")
+        
     player_name = st.text_input("선수 이름", value="", placeholder="예: 비니시우스 주니오르", key=f"name_{k_id}")
     player_nat = st.text_input("선수 국적", value="", placeholder="예: 브라질", key=f"nat_{k_id}")
     player_age = st.number_input("선수 나이 (만 나이)", min_value=15, max_value=45, value=24, key=f"age_{k_id}")
@@ -270,12 +281,15 @@ with col2:
     display_name = player_name if player_name else "선수명 미입력"
     display_nat = f"({player_nat})" if player_nat else ""
     pos_short = main_position.split(" (")[0]
+    ttype_short = transfer_type.split(" (")[0]
+    
     st.markdown(f"### **{display_name}** {display_nat} - `{pos_short}` 이적 평가")
+    st.caption(f"📌 이적 형태: **{ttype_short}**")
     
     # 6대 가중치 현황 표시
     k1, k2, k3 = st.columns(3)
     k1.metric("리그 가중치", f"{league_w:.2f}")
-    k2.metric("나이 가중치 (포지션 맞춤)", f"{age_w:.2f}")
+    k2.metric("나이 (포지션 맞춤)", f"{age_w:.2f}")
     k3.metric("구단 가중치", f"{club_w:.2f}")
     
     k4, k5, k6 = st.columns(3)
@@ -325,8 +339,8 @@ with col2:
             
             summary_text = f"""⚽ [{season_val} 이적 분석] {player_name} {nat_text}
 ━━━━━━━━━━━━━━━━━━━━
-▪️ 포지션: {pos_short} (포지션 가중치 {pos_w:.2f} / 에이징 커브 {age_w:.2f})
-▪️ 멀티 능력: {versatility.split(" (")[0]} (가중치 {vers_w:.2f})
+▪️ 이적 형태: {ttype_short}
+▪️ 포지션: {pos_short} (가중치 {pos_w:.2f} / 에이징 {age_w:.2f}) | 멀티: {versatility.split(" (")[0]}
 ▪️ 원소속 리그: {selling_league.split(" (")[0]} (가중치 {league_w:.2f})
 ▪️ 영입 구단: {buying_club_tier.split(":")[0]} (가중치 {club_w:.2f})
 ▪️ 잔여 계약: {remaining_contract.split(" (")[0]} (가중치 {contract_w:.2f})
@@ -352,7 +366,7 @@ with col2:
             with st.spinner("구글 시트에 기록 중입니다..."):
                 contract_desc = remaining_contract.split(" (")[0]
                 nat_str = player_nat if player_nat.strip() else "미상"
-                note_content = f"국적: {nat_str} | 포지션: {pos_short} | 멀티: {versatility.split(' (')[0]} | 잔여계약: {contract_desc}"
+                note_content = f"[{ttype_short}] 국적: {nat_str} | 포지션: {pos_short} | 멀티: {versatility.split(' (')[0]} | 잔여계약: {contract_desc}"
                 if player_notes.strip():
                     note_content += f" | {player_notes.strip()}"
                     
