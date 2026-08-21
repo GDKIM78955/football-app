@@ -11,7 +11,8 @@ st.set_page_config(
     layout="wide"
 )
 
-GOOGLE_SHEET_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbxV76sZFJaVPa7tmWSPBGlLaiZHijL77b7MZ_mpr6U-ia6hNO0UEiN-6A_1qz2u7XBNKA/exec"
+# 새로 발급받으신 28개 전용 Web App URL 적용
+GOOGLE_SHEET_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzlIZEZ6C8T1mpIErWoAgi28cCfeezNfqE2U9CR1P6vtB5t928n7VSJ3OvhCyTd-not8g/exec"
 
 # 세션 상태 초기화
 if "form_key_id" not in st.session_state:
@@ -171,7 +172,7 @@ def format_currency_desc(eur_man_euro):
 # 3. 메인 탭 구성
 tab1, tab2 = st.tabs(["💰 적정 이적료 평가 & 시트 저장 (11대 지표)", "📱 FotMob 시즌 성적 & 이적 예측 리포트"])
 
-# ================= TAB 2: FotMob 시즌 성적 & 이적 예측 (데이터 계산) =================
+# ================= TAB 2: FotMob 시즌 성적 & 이적 예측 =================
 with tab2:
     st.subheader("📱 FotMob 스타일 시즌 스탯 입력 & 이적 첫 시즌 성적 프로젝션")
     st.caption("여기에 입력하신 선수의 지난 시즌 실제 기록은 [💰 적정 이적료 평가] 탭과 [구글 시트 저장]에 모두 자동 연동됩니다.")
@@ -433,6 +434,7 @@ with tab1:
         st.markdown(f"### **{display_name}** {display_nat} - `{pos_short}` 이적 평가")
         st.caption(f"📌 조항: **{ttype_short}** | 쿼터: **{reg_short}** | 실적: **{opta_w:.2f}** | UCL: **{stage_w:.2f}**")
         
+        # 11대 세부 가중치 카드 (4열 배치)
         r1_1, r1_2, r1_3, r1_4 = st.columns(4)
         r1_1.metric("1. 리그 난이도", f"{league_w:.2f}")
         r1_2.metric("2. 나이(에이징)", f"{age_w:.2f}")
@@ -470,7 +472,7 @@ with tab1:
             diff_desc = format_currency_desc(abs(diff))
             st.success(f"**진단 결과**: {status_label} - 적정가 대비 €{abs(diff):,.1f}만 유로({diff_desc}) 저렴하게 영입")
 
-        # 공유용 요약 텍스트
+        # 11대 지표가 모두 포함된 공유용 요약 텍스트
         if player_name.strip() and (tm_market_value > 0 or actual_transfer_fee > 0):
             with st.expander("📋 커뮤니티 / 메모장 공유용 상세 요약 텍스트 (클릭하여 복사)", expanded=True):
                 nat_text = f"({player_nat}, 만 {player_age}세)" if player_nat else f"(만 {player_age}세)"
