@@ -6,7 +6,7 @@ from datetime import datetime
 
 # 1. 페이지 기본 설정
 st.set_page_config(
-    page_title="축구 이적료 적정가 & Opta 기대스탯 시뮬레이터",
+    page_title="축구 이적시장 적정가 & FotMob 성적 프로젝션",
     page_icon="⚽",
     layout="wide"
 )
@@ -18,7 +18,7 @@ if "form_key_id" not in st.session_state:
 if "last_saved_msg" not in st.session_state:
     st.session_state["last_saved_msg"] = None
 
-st.title("⚽ 축구 선수 이적 가치 평가 & Opta 기대스탯 예측 시스템")
+st.title("⚽ 축구 선수 이적 가치 평가 & FotMob 시즌 성적 프로젝션")
 
 # 2. 리그 및 구단 가중치 데이터베이스
 LEAGUE_WEIGHTS = {
@@ -48,9 +48,6 @@ LEAGUE_WEIGHTS = {
     "스코틀랜드 프리미어십 (1부)": 0.88,
     "폴란드 엑스트라클라사 (1부)": 0.88,
     "프랑스 리그 2 (2부)": 0.88,
-    "그리스 슈퍼리그 (1부)": 0.87,
-    "스웨덴 알스벤스칸 (1부)": 0.87,
-    "노르웨이 엘리테세리엔 (1부)": 0.87,
     "일본 J2리그 (2부)": 0.84,
     "대한민국 K리그2 (2부)": 0.83,
     "기타 리그": 0.77
@@ -130,7 +127,6 @@ def get_positional_age_weight(age, position_name):
         elif age <= 34: return 0.84
         else: return 0.70
 
-# 환산 통화 함수
 rate_krw = 1500
 rate_gbp = 0.86
 def format_currency_desc(eur_man_euro):
@@ -141,7 +137,7 @@ def format_currency_desc(eur_man_euro):
     return f"약 {krw_eok:,.1f}억원 | £{gbp_man:,.1f}만"
 
 # 3. 메인 탭 구성
-tab1, tab2 = st.tabs(["💰 적정 이적료 평가 & 구글 시트 저장", "📊 이적 첫 시즌 Opta 기대 스탯 예측기"])
+tab1, tab2 = st.tabs(["💰 적정 이적료 평가 & 시트 저장", "📱 FotMob 시즌 성적 & 이적 예측 리포트"])
 
 # ================= TAB 1: 적정 이적료 평가 =================
 with tab1:
@@ -159,17 +155,17 @@ with tab1:
         with c_s2: transfer_type = st.selectbox("이적 형태", TRANSFER_TYPES, index=0, key=f"ttype_{k_id}")
             
         c_n1, c_n2, c_n3 = st.columns([2, 1, 1])
-        with c_n1: player_name = st.text_input("선수 이름", value="", placeholder="예: 빅터 오시멘", key=f"name_{k_id}")
-        with c_n2: player_nat = st.text_input("국적", value="", placeholder="예: 나이지리아", key=f"nat_{k_id}")
-        with c_n3: player_age = st.number_input("나이(만)", min_value=15, max_value=45, value=25, key=f"age_{k_id}")
+        with c_n1: player_name = st.text_input("선수 이름", value="", placeholder="예: 트로이 패럿 (Troy Parrott)", key=f"name_{k_id}")
+        with c_n2: player_nat = st.text_input("국적", value="", placeholder="예: 아일랜드", key=f"nat_{k_id}")
+        with c_n3: player_age = st.number_input("나이(만)", min_value=15, max_value=45, value=24, key=f"age_{k_id}")
         
         pos_col1, pos_col2 = st.columns(2)
         with pos_col1: main_position = st.selectbox("주 포지션", list(POSITION_WEIGHTS.keys()), index=0, key=f"pos_{k_id}")
         with pos_col2: versatility = st.selectbox("멀티 포지션 소화 능력", list(VERSATILITY_WEIGHTS.keys()), index=0, key=f"vers_{k_id}")
             
         reg_status = st.selectbox("스쿼드 등록 / HG 쿼터", list(REGISTRATION_WEIGHTS.keys()), index=0, key=f"reg_{k_id}")
-        selling_league = st.selectbox("보내는 리그 (원소속)", list(LEAGUE_WEIGHTS.keys()), key=f"league_{k_id}")
-        buying_club_tier = st.selectbox("영입하는 구단 규모", list(CLUB_TIERS.keys()), key=f"tier_{k_id}")
+        selling_league = st.selectbox("보내는 리그 (원소속)", list(LEAGUE_WEIGHTS.keys()), index=10, key=f"league_{k_id}") # 기본 에레디비시
+        buying_club_tier = st.selectbox("영입하는 구단 규모", list(CLUB_TIERS.keys()), index=1, key=f"tier_{k_id}")
         remaining_contract = st.selectbox("이적 당시 잔여 계약 기간", list(CONTRACT_WEIGHTS.keys()), index=2, key=f"contract_{k_id}")
         
         st.markdown("---")
@@ -179,7 +175,7 @@ with tab1:
         actual_transfer_fee = st.number_input("실제 이적료 (만 유로, €)", min_value=0, value=0, step=50, key=f"fee_{k_id}")
         if actual_transfer_fee > 0: st.caption(f"💡 실제이적료 환산: **{format_currency_desc(actual_transfer_fee)}**")
         
-        player_notes = st.text_area("개인 메모 / 스카우팅 코멘트", placeholder="예: 전방 압박 및 결정력 우수", key=f"note_{k_id}")
+        player_notes = st.text_area("개인 메모 / 스카우팅 코멘트", placeholder="예: 양발 슈팅 능력 및 라인브레이킹 탁월", key=f"note_{k_id}")
 
     league_w = LEAGUE_WEIGHTS[selling_league]
     age_w = get_positional_age_weight(player_age, main_position)
@@ -226,22 +222,6 @@ with tab1:
         elif "고평가" in status_label: st.error(f"**진단 결과**: {status_label} - 적정가 대비 €{diff:,.1f}만 유로 더 지불됨")
         else: st.success(f"**진단 결과**: {status_label} - 적정가 대비 €{abs(diff):,.1f}만 유로 저렴하게 영입")
 
-        if player_name.strip() and (tm_market_value > 0 or actual_transfer_fee > 0):
-            with st.expander("📋 커뮤니티 / 메모장 공유용 요약 텍스트 (클릭하여 복사)", expanded=True):
-                nat_text = f"({player_nat}, 만 {player_age}세)" if player_nat else f"(만 {player_age}세)"
-                summary_text = f"""⚽ [{season_val} 이적 분석] {player_name} {nat_text}
-━━━━━━━━━━━━━━━━━━━━
-▪️ 포지션: {pos_short} | 원소속 리그: {selling_league.split(" (")[0]}
-▪️ 영입 구단: {buying_club_tier.split(":")[0]} | 잔여 계약: {remaining_contract.split(" (")[0]}
-▪️ TM 시장가치: €{tm_market_value:,.0f}만 ({format_currency_desc(tm_market_value)})
-▪️ 산출 적정가: €{fair_value:,.1f}만 ({format_currency_desc(fair_value)})
-▪️ 실제 이적료: €{actual_transfer_fee:,.1f}만 ({format_currency_desc(actual_transfer_fee)})
-━━━━━━━━━━━━━━━━━━━━
-📊 종합 진단: {status_label}
-"""
-                if player_notes.strip(): summary_text += f"📝 메모: {player_notes.strip()}\n"
-                st.code(summary_text.strip(), language="text")
-
         if st.button("💾 구글 시트 데이터베이스에 저장하기", type="primary", use_container_width=True):
             if not player_name.strip(): st.warning("⚠️ 선수 이름을 입력해 주세요.")
             else:
@@ -268,136 +248,152 @@ with tab1:
                             st.rerun()
                     except Exception as e: st.error(f"⚠️ 저장 오류: {e}")
 
-# ================= TAB 2: Opta 기대 스탯 예측기 =================
+# ================= TAB 2: FotMob 시즌 성적 & 이적 예측 =================
 with tab2:
-    st.subheader("📊 Opta 이전 리그 스탯 기반 ➔ 이적 첫 시즌 기대 스탯 시뮬레이터")
-    st.markdown("""
-    선수의 **이전 소속 리그에서의 90분당 Opta 기록**과 **이적할 리그/팀 환경**을 매칭하여, 
-    새로운 리그 첫 시즌에 기록할 **예상 90분당 스탯 및 시즌 누적 기대값(Projection)**을 산출합니다.
+    st.subheader("📱 FotMob 스타일 시즌 스탯 입력 & 이적 첫 시즌 성적 프로젝션")
+    st.caption("FotMob 선수 상세 페이지의 시즌 성적(골, 도움, xG, xA, 슈팅, 패스, 경합, 평점)을 입력하면 새로운 리그 환경에서의 예상 스탯을 산출합니다.")
+    
+    # 1. 환경 설정
+    f_c1, f_c2, f_c3, f_c4 = st.columns(4)
+    with f_c1: f_pos = st.selectbox("선수 포지션", ["⚽ 스트라이커 (ST/CF)", "⚡ 윙어 / 공미 (WG/CAM)", "🏃 중앙 미드필더 (CM/CDM)", "🛡️ 수비수 (CB/FB)"])
+    with f_c2: f_from_l = st.selectbox("원소속 리그 (기록 기준)", list(LEAGUE_WEIGHTS.keys()), index=10) # 에레디비시
+    with f_c3: f_to_l = st.selectbox("이적할 리그", list(LEAGUE_WEIGHTS.keys()), index=0) # EPL
+    with f_c4: f_target_mins = st.number_input("이적 팀 예상 출전 시간(분)", 450, 3420, 2250, 90, help="2250분 = 25경기 풀타임 상당")
+    
+    # 리그 변환 계수
+    l_factor = LEAGUE_WEIGHTS[f_from_l] / LEAGUE_WEIGHTS[f_to_l]
+    
+    st.divider()
+    
+    st.markdown("### 📥 FotMob 시즌 실제 기록 입력 (예: 트로이 패럿 25/26 시즌)")
+    
+    # 기본 경기 출전 지표
+    b1, b2, b3, b4 = st.columns(4)
+    with b1: in_matches = st.number_input("출전 경기 (Matches)", 1, 60, 28)
+    with b2: in_starts = st.number_input("선발 출전 (Starts)", 0, 60, 25)
+    with b3: in_mins = st.number_input("출전 시간 (Minutes)", 90, 4500, 2206)
+    with b4: in_rating = st.number_input("FotMob 평균 평점", 5.0, 10.0, 7.32, 0.01)
+    
+    # 90분 단위 환산 계수
+    base_p90 = in_mins / 90.0 if in_mins > 0 else 1.0
+    target_p90 = f_target_mins / 90.0
+
+    st.markdown("#### 1️⃣ 슈팅 및 득점 (Shooting & Goals)")
+    s1, s2, s3, s4, s5 = st.columns(5)
+    with s1: in_goals = st.number_input("득점 (Goals)", 0, 50, 16)
+    with s2: in_xg = st.number_input("기대 득점 (xG)", 0.0, 50.0, 17.44, 0.1)
+    with s3: in_shots = st.number_input("총 슈팅 (Shots)", 0, 200, 88)
+    with s4: in_sot = st.number_input("유효 슈팅 (On Target)", 0, 100, 43)
+    with s5: in_pk_goals = st.number_input("PK 득점 (Penalty)", 0, 20, 2)
+
+    st.markdown("#### 2️⃣ 패스 및 기회 창출 (Passing & Creativity)")
+    p1, p2, p3, p4, p5 = st.columns(5)
+    with p1: in_assists = st.number_input("도움 (Assists)", 0, 30, 4)
+    with p2: in_xa = st.number_input("기대 도움 (xA)", 0.0, 30.0, 3.33, 0.1)
+    with p3: in_chances = st.number_input("기회 창출 (Chances)", 0, 150, 25)
+    with p4: in_big_chances = st.number_input("빅 찬스 메이킹", 0, 50, 6)
+    with p5: in_pass_pct = st.number_input("패스 성공률 (%)", 30.0, 100.0, 75.6, 0.1)
+
+    st.markdown("#### 3️⃣ 경합 및 수비 기여 (Duels & Defending)")
+    d1, d2, d3, d4, d5 = st.columns(5)
+    with d1: in_dribbles = st.number_input("성공한 드리블", 0, 100, 14)
+    with d2: in_touches_box = st.number_input("박스 안 터치 (Box Touches)", 0, 300, 153)
+    with d3: in_duels_pct = st.number_input("지상 경합 승률 (%)", 20.0, 100.0, 43.3, 0.1)
+    with d4: in_aerial_pct = st.number_input("공중볼 승률 (%)", 20.0, 100.0, 36.7, 0.1)
+    with d5: in_tackles = st.number_input("태클 성공 (Tackles)", 0, 150, 24)
+
+    st.divider()
+
+    # 4. 이적 후 기대 스탯 예측 계산 (Projection Engine)
+    # 90분당 기대치 환산
+    p90_xg = (in_xg / base_p90) * l_factor
+    p90_xa = (in_xa / base_p90) * l_factor
+    p90_shots = (in_shots / base_p90) * l_factor
+    p90_sot = (in_sot / base_p90) * l_factor
+    p90_chances = (in_chances / base_p90) * l_factor
+    p90_dribbles = (in_dribbles / base_p90) * l_factor
+    p90_box_touches = (in_touches_box / base_p90) * l_factor
+    p90_tackles = (in_tackles / base_p90) * (1.0 / l_factor) # 상위리그 압박 시 수비 빈도 증가
+    
+    # 결정력 비율 (Goals / xG)
+    finishing_ratio = in_goals / in_xg if in_xg > 0 else 1.0
+    
+    # 시즌 총계 예측 (새 출전 시간 기준)
+    proj_goals = round(p90_xg * target_p90 * finishing_ratio, 1)
+    proj_xg = round(p90_xg * target_p90, 1)
+    proj_assists = round(p90_xa * target_p90, 1)
+    proj_xa = round(p90_xa * target_p90, 1)
+    proj_shots = round(p90_shots * target_p90, 0)
+    proj_sot = round(p90_sot * target_p90, 0)
+    proj_chances = round(p90_chances * target_p90, 0)
+    proj_dribbles = round(p90_dribbles * target_p90, 0)
+    proj_box_touches = round(p90_box_touches * target_p90, 0)
+    proj_tackles = round(p90_tackles * target_p90, 0)
+    
+    # 예상 평점
+    proj_rating = round(max(6.2, in_rating - (1.0 - l_factor) * 0.8), 2)
+
+    st.markdown(f"### 🎯 **FotMob 스타일 이적 첫 시즌 성적 예측 리포트**")
+    st.caption(f"이적 환경: **{f_from_l.split(' ')[1]}** ➔ **{f_to_l.split(' ')[1]}** (리그 적응 계수: **{l_factor:.2f}x** | 예상 출전: **{f_target_mins:,}분 / 약 {target_p90:.1f}경기**)")
+
+    # FotMob 스타일 메인 스탯 대시보드
+    m1, m2, m3, m4, m5 = st.columns(5)
+    m1.metric("예상 평점 (Rating)", f"★ {proj_rating:.2f}", delta=f"{proj_rating - in_rating:+.2f}")
+    m2.metric("예상 득점 (xG)", f"{proj_goals:.0f} 골", delta=f"xG {proj_xg:.1f}")
+    m3.metric("예상 도움 (xA)", f"{proj_assists:.0f} 도움", delta=f"xA {proj_xa:.1f}")
+    m4.metric("예상 공격포인트", f"{proj_goals + proj_assists:.0f} P", delta=f"{proj_goals:.0f}G + {proj_assists:.0f}A")
+    m5.metric("예상 슈팅 (유효)", f"{int(proj_shots)} 회", delta=f"유효 {int(proj_sot)}회")
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    # FotMob 스타일 상세 스탯 비교표
+    df_compare = pd.DataFrame({
+        "FotMob 스탯 항목": [
+            "출전 시간 (Minutes)",
+            "득점 (Goals)",
+            "기대 득점 (xG)",
+            "도움 (Assists)",
+            "기대 도움 (xA)",
+            "90분당 슈팅 수 (Shots/90)",
+            "90분당 유효 슈팅 (SoT/90)",
+            "시즌 찬스 메이킹 (Chances)",
+            "성공한 드리블 (Dribbles)",
+            "박스 안 터치 (Box Touches)",
+            "시즌 태클 성공 (Tackles)"
+        ],
+        f"이전 시즌 ({f_from_l.split(' ')[1]})": [
+            f"{in_mins:,} 분",
+            f"{in_goals} 골",
+            f"{in_xg:.2f}",
+            f"{in_assists} 도움",
+            f"{in_xa:.2f}",
+            f"{(in_shots/base_p90):.2f} 회",
+            f"{(in_sot/base_p90):.2f} 회",
+            f"{in_chances} 회",
+            f"{in_dribbles} 회",
+            f"{in_touches_box} 회",
+            f"{in_tackles} 회"
+        ],
+        f"이적 첫 시즌 예상 ({f_to_l.split(' ')[1]})": [
+            f"{f_target_mins:,} 분",
+            f"{proj_goals:.1f} 골",
+            f"{proj_xg:.2f}",
+            f"{proj_assists:.1f} 도움",
+            f"{proj_xa:.2f}",
+            f"{p90_shots:.2f} 회",
+            f"{p90_sot:.2f} 회",
+            f"{int(proj_chances)} 회",
+            f"{int(proj_dribbles)} 회",
+            f"{int(proj_box_touches)} 회",
+            f"{int(proj_tackles)} 회"
+        ]
+    })
+    
+    st.table(df_compare)
+
+    # 결정력 및 스카우팅 총평
+    st.info(f"""
+    💡 **스카우팅 데이터 인사이트**:
+    - **골 결정력 (Finishing Efficiency)**: 이전 리그에서 xG 대비 실제 골 전환율이 **{finishing_ratio*100:.1f}%**로 매우 우수했습니다.
+    - **박스 타격력**: 90분당 약 **{p90_box_touches:.1f}회**의 상대 박스 안 터치를 기록할 것으로 예상되어, 새로운 리그에서도 주전 공격수로서의 득점 찬스를 꾸준히 창출할 것으로 기대됩니다.
     """)
-    
-    c_p1, c_p2, c_p3 = st.columns([1, 1, 1])
-    with c_p1:
-        sim_pos = st.selectbox("예측 대상 포지션", ["⚽ 스트라이커/센터포워드 (ST)", "⚡ 윙어/공격형 미드필더 (WG/CAM)", "🏃 중앙/수비형 미드필더 (CM/CDM)", "🛡️ 풀백/센터백 (FB/CB)", "🧤 골키퍼 (GK)"])
-    with c_p2:
-        sim_from_league = st.selectbox("출발 리그 (이전 기록 리그)", list(LEAGUE_WEIGHTS.keys()), index=10) # 기본: 에레디비시
-    with c_p3:
-        sim_to_league = st.selectbox("도착 리그 (이적할 리그)", list(LEAGUE_WEIGHTS.keys()), index=0) # 기본: EPL
-
-    c_t1, c_t2 = st.columns(2)
-    with c_t1:
-        sim_team_tier = st.selectbox("이적할 구단의 전력 티어", list(CLUB_TIERS.keys()), index=1)
-    with c_t2:
-        sim_minutes = st.slider("첫 시즌 예상 출전 시간 (분)", min_value=450, max_value=3420, value=2250, step=90, help="2,250분 = 리그 약 25경기 풀타임 상당")
-
-    # 리그 번역 계수 (League Translation Factor)
-    from_score = LEAGUE_WEIGHTS[sim_from_league]
-    to_score = LEAGUE_WEIGHTS[sim_to_league]
-    league_trans_factor = from_score / to_score # 예: 0.92 / 1.00 = 0.92
-    team_boost = 1.0 + (CLUB_TIERS[sim_team_tier] - 1.0) * 0.5 # 빅클럽일수록 공격 기회 가산
-
-    st.markdown("---")
-    st.markdown(f"#### 📥 **{sim_pos.split(' ')[1]}** 이전 시즌 90분당 Opta 기록 입력")
-    
-    col_in, col_out = st.columns([1, 1])
-    
-    with col_in:
-        # 포지션별 세부 스탯 입력창
-        if "스트라이커" in sim_pos:
-            in_npxg = st.number_input("이전 90분당 npxG (기대 득점)", 0.0, 1.5, 0.55, 0.05)
-            in_xa = st.number_input("이전 90분당 xA (기대 도움)", 0.0, 1.0, 0.15, 0.05)
-            in_shots = st.number_input("이전 90분당 슈팅 수 (Shots/90)", 0.0, 6.0, 3.2, 0.1)
-            
-            proj_npxg_90 = in_npxg * league_trans_factor * team_boost
-            proj_xa_90 = in_xa * league_trans_factor * team_boost
-            proj_shots_90 = in_shots * league_trans_factor * team_boost
-            
-            total_matches = sim_minutes / 90.0
-            proj_goals = round(proj_npxg_90 * total_matches, 1)
-            proj_assists = round(proj_xa_90 * total_matches, 1)
-            proj_shots = round(proj_shots_90 * total_matches, 0)
-            
-        elif "윙어" in sim_pos:
-            in_npxg = st.number_input("이전 90분당 npxG (기대 득점)", 0.0, 1.5, 0.35, 0.05)
-            in_xa = st.number_input("이전 90분당 xA (기대 도움)", 0.0, 1.0, 0.30, 0.05)
-            in_sca = st.number_input("이전 90분당 슛 생성 횟수 (SCA/90)", 0.0, 10.0, 4.5, 0.2)
-            in_prgc = st.number_input("이전 90분당 전진 드리블 운반 (PrgC/90)", 0.0, 15.0, 6.0, 0.5)
-            
-            proj_npxg_90 = in_npxg * league_trans_factor * team_boost
-            proj_xa_90 = in_xa * league_trans_factor * team_boost
-            proj_sca_90 = in_sca * league_trans_factor * team_boost
-            proj_prgc_90 = in_prgc * league_trans_factor * team_boost
-            
-            total_matches = sim_minutes / 90.0
-            proj_goals = round(proj_npxg_90 * total_matches, 1)
-            proj_assists = round(proj_xa_90 * total_matches, 1)
-            proj_sca = round(proj_sca_90 * total_matches, 0)
-            proj_prgc = round(proj_prgc_90 * total_matches, 0)
-            
-        elif "미드필더" in sim_pos:
-            in_prgp = st.number_input("이전 90분당 전진 패스 (PrgP/90)", 0.0, 15.0, 6.8, 0.5)
-            in_pass_pct = st.number_input("이전 패스 성공률 (%)", 50.0, 100.0, 86.5, 0.5)
-            in_tkl_int = st.number_input("이전 90분당 태클+가로채기 (Tkl+Int/90)", 0.0, 8.0, 3.8, 0.2)
-            in_xa = st.number_input("이전 90분당 xA (기대 도움)", 0.0, 1.0, 0.18, 0.05)
-            
-            proj_prgp_90 = in_prgp * league_trans_factor * team_boost
-            proj_pass_pct = max(70.0, in_pass_pct - (1.0 - league_trans_factor) * 10)
-            proj_tkl_int_90 = in_tkl_int * (1.0 / league_trans_factor) * (2.0 - team_boost) # 하위리그로 압박이 심해지면 수비횟수 증가
-            proj_xa_90 = in_xa * league_trans_factor * team_boost
-            
-            total_matches = sim_minutes / 90.0
-            proj_prgp = round(proj_prgp_90 * total_matches, 0)
-            proj_tkl_int = round(proj_tkl_int_90 * total_matches, 0)
-            proj_assists = round(proj_xa_90 * total_matches, 1)
-            
-        elif "수비수" in sim_pos:
-            in_tkl_int = st.number_input("이전 90분당 태클+가로채기 (Tkl+Int/90)", 0.0, 8.0, 3.2, 0.2)
-            in_aerial_pct = st.number_input("이전 공중볼 경합 승률 (%)", 30.0, 100.0, 64.0, 1.0)
-            in_prgp = st.number_input("이전 90분당 빌드업 전진패스 (PrgP/90)", 0.0, 10.0, 4.2, 0.3)
-            
-            proj_tkl_int_90 = in_tkl_int * (1.0 / league_trans_factor)
-            proj_aerial_pct = max(45.0, in_aerial_pct - (1.0 - league_trans_factor) * 8)
-            proj_prgp_90 = in_prgp * league_trans_factor * team_boost
-            
-            total_matches = sim_minutes / 90.0
-            proj_tkl_int = round(proj_tkl_int_90 * total_matches, 0)
-            proj_prgp = round(proj_prgp_90 * total_matches, 0)
-            
-        else: # 골키퍼
-            in_psxg_net = st.number_input("이전 90분당 PSxG-GA (실점 억제 지표)", -1.0, 1.0, 0.22, 0.05, help="+값이면 기대실점보다 골을 더 많이 막아낸 선방쇼를 의미")
-            in_save_pct = st.number_input("이전 선방률 (%)", 50.0, 95.0, 74.5, 0.5)
-            
-            proj_psxg_net_90 = in_psxg_net * league_trans_factor
-            proj_save_pct = max(60.0, in_save_pct - (1.0 - league_trans_factor) * 6)
-            total_matches = sim_minutes / 90.0
-            proj_goals_prevented = round(proj_psxg_net_90 * total_matches, 1)
-
-    with col_out:
-        st.markdown(f"#### 🎯 **이적 첫 시즌({sim_to_league.split(' ')[1]}) 기대 스탯 예측치**")
-        st.caption(f"기준: 첫 시즌 총 **{sim_minutes:,}분** 출전 (약 {sim_minutes/90:.1f}경기)")
-        
-        if "스트라이커" in sim_pos:
-            st.metric("첫 시즌 예상 득점 (xG 기반)", f"{proj_goals:.1f} 골", delta=f"90분당 {proj_npxg_90:.2f} xG")
-            st.metric("첫 시즌 예상 도움 (xA 기반)", f"{proj_assists:.1f} 도움", delta=f"90분당 {proj_xa_90:.2f} xA")
-            st.metric("첫 시즌 예상 슈팅 수", f"{int(proj_shots):,} 회", delta=f"90분당 {proj_shots_90:.1f} 회")
-            
-        elif "윙어" in sim_pos:
-            st.metric("첫 시즌 예상 공격포인트", f"{proj_goals + proj_assists:.1f} 개", delta=f"{proj_goals:.1f}골 + {proj_assists:.1f}도움")
-            st.metric("예상 슛 생성 횟수 (SCA)", f"{int(proj_sca):,} 회", delta=f"90분당 {proj_sca_90:.2f} 회")
-            st.metric("예상 전진 드리블 운반", f"{int(proj_prgc):,} 회", delta=f"90분당 {proj_prgc_90:.2f} 회")
-            
-        elif "미드필더" in sim_pos:
-            st.metric("첫 시즌 예상 전진 패스 (PrgP)", f"{int(proj_prgp):,} 회", delta=f"90분당 {proj_prgp_90:.1f} 회")
-            st.metric("예상 패스 성공률", f"{proj_pass_pct:.1f} %", delta=f"리그 적응 보정: {proj_pass_pct - in_pass_pct:+.1f}%p")
-            st.metric("예상 수비 액션 (태클+가로채기)", f"{int(proj_tkl_int):,} 회", delta=f"90분당 {proj_tkl_int_90:.2f} 회")
-            
-        elif "수비수" in sim_pos:
-            st.metric("첫 시즌 예상 수비 성공 (Tkl+Int)", f"{int(proj_tkl_int):,} 회", delta=f"90분당 {proj_tkl_int_90:.2f} 회")
-            st.metric("예상 공중볼 승률", f"{proj_aerial_pct:.1f} %", delta=f"리그 적응 보정: {proj_aerial_pct - in_aerial_pct:+.1f}%p")
-            st.metric("예상 빌드업 전진 패스", f"{int(proj_prgp):,} 회", delta=f"90분당 {proj_prgp_90:.1f} 회")
-            
-        else: # 골키퍼
-            st.metric("첫 시즌 예상 실점 억제 (Goals Prevented)", f"{proj_goals_prevented:+.1f} 골", delta=f"90분당 {proj_psxg_net_90:+.2f} PSxG")
-            st.metric("예상 선방률 (Save %)", f"{proj_save_pct:.1f} %", delta=f"리그 난이도 보정: {proj_save_pct - in_save_pct:+.1f}%p")
-
-        st.info(f"💡 **분석 노트**: '{sim_from_league.split(' ')[1]}'에서 '{sim_to_league.split(' ')[1]}'로 이적 시 리그 템포 및 수비 압박 차이(난이도 계수: **{league_trans_factor:.2f}x**)가 적용되었습니다.")
