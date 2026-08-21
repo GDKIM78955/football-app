@@ -22,8 +22,8 @@ if "last_saved_msg" not in st.session_state:
 
 st.title("⚽ 축구 선수 적정 이적료 & 구글 시트 자동 저장 시스템")
 st.markdown("""
-이 앱은 **리그 수준(Opta 점수)**, **선수 나이 곡선(보수적 모델)**, **영입 구단 규모**, 
-**잔여 계약 기간**, 그리고 **포지션 희소성 & 멀티 포지션 능력**을 종합 반영하여 적정가를 산출하고 구글 시트에 저장합니다.
+이 앱은 **리그 수준(Opta 점수)**, **포지션별 차등 에이징 커브**, **영입 구단 규모**, 
+**잔여 계약 기간**, 그리고 **포지션 희소성 & 멀티 능력**을 종합 반영하여 적정가를 산출하고 구글 시트에 누적 저장합니다.
 """)
 
 # 이전 저장 성공 메시지 출력
@@ -95,7 +95,7 @@ CONTRACT_WEIGHTS = {
     "4년 이상 (장기 계약/바이아웃, +15%)": 1.15
 }
 
-# 포지션별 기본 가중치
+# 포지션 희소성 가중치
 POSITION_WEIGHTS = {
     "스트라이커 / 센터포워드 (ST/CF, +10%)": 1.10,
     "윙어 / 공격형 미드필더 (WG/CAM, +5%)": 1.05,
@@ -105,23 +105,46 @@ POSITION_WEIGHTS = {
     "골키퍼 (GK, -15%)": 0.85
 }
 
-# 멀티 포지션 능력 가중치
+# 멀티 포지션 소화 능력 가중치
 VERSATILITY_WEIGHTS = {
     "단일 포지션 전담 (1개 포지션만 소화, 기준)": 1.00,
     "듀얼 롤 (2개 포지션 소화 가능, +5%)": 1.05,
     "만능 유틸리티 (3개 이상 포지션 소화 가능, +10%)": 1.10
 }
 
-# 보수적 나이 가중치
-def get_age_weight(age):
-    if age <= 19: return 1.00
-    elif age <= 23: return 1.12
-    elif age <= 27: return 1.00
-    elif age <= 29: return 0.90
-    elif age <= 31: return 0.75
-    else: return 0.55
+# 3. 포지션별 차등 에이징 커브 함수
+def get_positional_age_weight(age, position_name):
+    # 1) 공격수 / 윙어 (순발력 중심, 빠른 감가)
+    if "ST/CF" in position_name or "WG/CAM" in position_name:
+        if age <= 19: return 1.00
+        elif age <= 23: return 1.12
+        elif age <= 27: return 1.00
+        elif age <= 29: return 0.88
+        elif age <= 31: return 0.70
+        elif age <= 34: return 0.50
+        else: return 0.35
 
-# 3. 사이드바 정보창 & 환율 설정
+    # 2) 골키퍼 / 센터백 (경험/위치선정 중심, 완만한 감가)
+    elif "GK" in position_name or "CB" in position_name:
+        if age <= 19: return 0.95  # 수비/키퍼 유망주는 실점 직결 리스크 감안
+        elif age <= 23: return 1.05
+        elif age <= 27: return 1.00
+        elif age <= 29: return 1.00  # 29세까지 전성기 유지
+        elif age <= 31: return 0.88  # 완만한 감가
+        elif age <= 34: return 0.75  # 30대 중반까지 안정적
+        else: return 0.60
+
+    # 3) 미드필더 / 풀백 (표준형)
+    else:
+        if age <= 19: return 1.00
+        elif age <= 23: return 1.10
+        elif age <= 27: return 1.00
+        elif age <= 29: return 0.92
+        elif age <= 31: return 0.78
+        elif age <= 34: return 0.60
+        else: return 0.45
+
+# 4. 사이드바 정보창 & 환율 설정
 st.sidebar.header("⚙️ 시스템 설정 및 환율 기준")
 st.sidebar.success("🔗 구글 시트 DB 연동 상태: 정상")
 
@@ -136,6 +159,21 @@ def format_currency_desc(eur_man_euro):
     krw_eok = (total_eur * rate_krw) / 100000000.0
     gbp_man = (eur_man_euro * rate_gbp)
     return f"약 {krw_eok:,.1f}억원 | £{gbp_man:,.1f}만"
+
+with st.sidebar.expander("📈 포지션별 차등 에이징 커브 기준"):
+    st.markdown("""
+    **⚽ 공격수 / 윙어 (ST/CF, WG/CAM)**
+    - 20~23세: `1.12` | 24~27세: `1.00` | 28~29세: `0.88`
+    - 30~31세: `0.70` | 32~34세: `0.50` | 35세+: `0.35`
+    
+    **🛡️ 센터백 / 골키퍼 (CB, GK)**
+    - 20~23세: `1.05` | 24~29세: `1.00` (전성기 유지)
+    - 30~31세: `0.88` | 32~34세: `0.75` | 35세+: `0.60`
+    
+    **🏃 미드필더 / 풀백 (CM/CDM, RB/LB)**
+    - 20~23세: `1.10` | 24~27세: `1.00` | 28~29세: `0.92`
+    - 30~31세: `0.78` | 32~34세: `0.60` | 35세+: `0.45`
+    """)
 
 with st.sidebar.expander("📊 포지션 및 멀티 능력 가중치"):
     st.markdown("**[포지션 희소성 가중치]**")
@@ -155,7 +193,7 @@ with st.sidebar.expander("📊 적용 리그 가중치 (Opta 점수 기반)"):
     df_league = pd.DataFrame(list(LEAGUE_WEIGHTS.items()), columns=["리그명", "가중치"])
     st.dataframe(df_league, hide_index=True, use_container_width=True)
 
-# 4. 메인 화면 레이아웃
+# 5. 메인 화면 레이아웃
 k_id = st.session_state["form_key_id"]
 
 col1, col2 = st.columns([1, 1])
@@ -168,7 +206,6 @@ with col1:
     player_nat = st.text_input("선수 국적", value="", placeholder="예: 브라질", key=f"nat_{k_id}")
     player_age = st.number_input("선수 나이 (만 나이)", min_value=15, max_value=45, value=24, key=f"age_{k_id}")
     
-    # 포지션 및 멀티 능력 선택
     pos_col1, pos_col2 = st.columns(2)
     with pos_col1:
         main_position = st.selectbox("선수 주 포지션", list(POSITION_WEIGHTS.keys()), index=0, key=f"pos_{k_id}")
@@ -205,9 +242,9 @@ with col1:
     
     player_notes = st.text_area("개인 메모 / 기대 스탯 (xG, xA, 스카우팅 코멘트 등)", placeholder="예: 90분당 xG 0.45 기록, 전방 압박 능력이 뛰어남", key=f"note_{k_id}")
 
-# 5. 계산 및 결과 출력
+# 6. 계산 및 결과 출력
 league_w = LEAGUE_WEIGHTS[selling_league]
-age_w = get_age_weight(player_age)
+age_w = get_positional_age_weight(player_age, main_position)
 club_w = CLUB_TIERS[buying_club_tier]
 contract_w = CONTRACT_WEIGHTS[remaining_contract]
 pos_w = POSITION_WEIGHTS[main_position]
@@ -238,7 +275,7 @@ with col2:
     # 6대 가중치 현황 표시
     k1, k2, k3 = st.columns(3)
     k1.metric("리그 가중치", f"{league_w:.2f}")
-    k2.metric("나이 가중치", f"{age_w:.2f}")
+    k2.metric("나이 가중치 (포지션 맞춤)", f"{age_w:.2f}")
     k3.metric("구단 가중치", f"{club_w:.2f}")
     
     k4, k5, k6 = st.columns(3)
@@ -278,7 +315,7 @@ with col2:
         diff_desc = format_currency_desc(abs(diff))
         st.success(f"**진단 결과**: {status_label} - 적정가 대비 €{abs(diff):,.1f}만 유로({diff_desc}) 저렴하게 영입")
 
-    # 6. 커뮤니티/메모장 공유용 요약 텍스트 박스
+    # 7. 커뮤니티/메모장 공유용 요약 텍스트 박스
     if player_name.strip() and (tm_market_value > 0 or actual_transfer_fee > 0):
         with st.expander("📋 커뮤니티 / 메모장 공유용 요약 텍스트 (클릭하여 복사)", expanded=True):
             nat_text = f"({player_nat}, " if player_nat else "("
@@ -288,7 +325,8 @@ with col2:
             
             summary_text = f"""⚽ [{season_val} 이적 분석] {player_name} {nat_text}
 ━━━━━━━━━━━━━━━━━━━━
-▪️ 포지션: {pos_short} (가중치 {pos_w:.2f}) | 멀티: {versatility.split(" (")[0]} (가중치 {vers_w:.2f})
+▪️ 포지션: {pos_short} (포지션 가중치 {pos_w:.2f} / 에이징 커브 {age_w:.2f})
+▪️ 멀티 능력: {versatility.split(" (")[0]} (가중치 {vers_w:.2f})
 ▪️ 원소속 리그: {selling_league.split(" (")[0]} (가중치 {league_w:.2f})
 ▪️ 영입 구단: {buying_club_tier.split(":")[0]} (가중치 {club_w:.2f})
 ▪️ 잔여 계약: {remaining_contract.split(" (")[0]} (가중치 {contract_w:.2f})
@@ -306,7 +344,7 @@ with col2:
 
     st.markdown("<br>", unsafe_allow_html=True)
     
-    # 7. 구글 시트 저장 버튼
+    # 8. 구글 시트 저장 버튼
     if st.button("💾 구글 시트 데이터베이스에 저장하기", type="primary", use_container_width=True):
         if not player_name.strip():
             st.warning("⚠️ 선수 이름을 입력해 주세요.")
