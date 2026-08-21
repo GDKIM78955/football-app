@@ -83,23 +83,22 @@ def parse_money(m_str):
     try:
         if "M" in s:
             num = float(re.findall(r"[\d\.]+", s)[0])
-            return num * 100
+            return num * 100 # 만 유로 단위 (예: €30.00m -> 3000만 유로)
         elif "K" in s:
             num = float(re.findall(r"[\d\.]+", s)[0])
-            return num * 0.1
+            return num * 0.1 # 만 유로 단위 (예: €500k -> 50만 유로)
         else:
             nums = re.findall(r"[\d\.]+", s)
             return float(nums[0]) if nums else 0.0
     except:
         return 0.0
 
-# ScraperAPI 브라우저 렌더링 활성화 수집 함수
+# Transfermarkt HTML 정밀 파싱 함수
 def scrape_transfers_with_api(target_url):
     api_url = "http://api.scraperapi.com"
     params = {
         "api_key": SCRAPER_API_KEY,
         "url": target_url,
-        "render": "false",
         "keep_headers": "true"
     }
     headers = {
@@ -109,10 +108,10 @@ def scrape_transfers_with_api(target_url):
     try:
         resp = requests.get(api_url, params=params, headers=headers, timeout=60)
     except Exception as e:
-        return [], f"API 통신 타임아웃: {e}"
+        return [], f"API 통신 실패: {e}"
         
     if resp.status_code != 200:
-        return [], f"HTTP 응답 코드 {resp.status_code}"
+        return [], f"HTTP 응답 오류: {resp.status_code}"
     
     soup = BeautifulSoup(resp.text, "html.parser")
     boxes = soup.select(".box")
@@ -128,33 +127,42 @@ def scrape_transfers_with_api(target_url):
         if not tables:
             continue
         
+        # In (영입 선수) 테이블 파싱
         in_table = tables[0]
         rows = in_table.select("tbody > tr")
         
         for r in rows:
             tds = r.find_all("td")
-            if len(tds) < 5:
+            if len(tds) < 6:
                 continue
             
+            # 1. 선수명 (td[0])
             p_tag = r.select_one(".di.show-for-small a") or r.select_one(".di a") or tds[0].select_one("a")
             player_name = p_tag.get_text(strip=True) if p_tag else tds[0].get_text(strip=True)
             if not player_name or "No new arrivals" in player_name or "Arrivals" in player_name:
                 continue
                 
+            # 2. 나이 (td[1])
             age_text = tds[1].get_text(strip=True) if len(tds) > 1 else "24"
             try:
                 age = int(age_text)
             except:
                 age = 24
 
+            # 3. 국적 (td[2])
             nat_img = tds[2].select_one("img.flaggenrahmen") or r.select_one("img.flaggenrahmen")
             nat_text = nat_img.get("title", "").strip() if nat_img else "미상"
                 
+            # 4. 포지션 (td[3])
+            pos_text = tds[3].get_text(strip=True) if len(tds) > 3 else "-"
+
+            # 5. 전 소속팀 (td[4])
             left_club_tag = tds[4].select_one("a") if len(tds) > 4 else None
             left_club = left_club_tag.get_text(strip=True) if left_club_tag else (tds[4].get_text(strip=True) if len(tds) > 4 else "Unknown")
             
-            mv_text = tds[3].get_text(strip=True) if len(tds) > 3 else "0"
-            fee_text = tds[5].get_text(strip=True) if len(tds) > 5 else "0"
+            # 6. 시장가치 (td[5]) & 실제 이적료 (td[6] 또는 마지막 td)
+            mv_text = tds[5].get_text(strip=True) if len(tds) > 5 else "0"
+            fee_text = tds[6].get_text(strip=True) if len(tds) > 6 else (tds[-1].get_text(strip=True) if len(tds) > 5 else "0")
             
             tm_val = parse_money(mv_text)
             actual_fee = parse_money(fee_text)
@@ -163,10 +171,13 @@ def scrape_transfers_with_api(target_url):
                 "영입팀": buying_club,
                 "선수명": player_name,
                 "국적": nat_text,
+                "포지션": pos_text,
                 "나이": age,
                 "전소속": left_club,
                 "TM시장가치(만유로)": tm_val,
-                "실제이적료(만유로)": actual_fee
+                "실제이적료(만유로)": actual_fee,
+                "원문이적료": fee_text,
+                "원문시장가치": mv_text
             })
             
     return transfers, "성공"
@@ -187,22 +198,23 @@ with tab1:
         batch_tier = st.selectbox("영입 구단 기본 티어", list(CLUB_TIERS.keys()), index=2)
     
     if st.button("🚀 선택한 리그 이적 데이터 일괄 수집 시작", type="primary", use_container_width=True):
-        with st.spinner(f"ScraperAPI로 데이터를 가져오는 중입니다... (약 10~25초 소요)"):
+        with st.spinner(f"ScraperAPI로 정밀 데이터를 수집 및 분석 중입니다..."):
             data, msg = scrape_transfers_with_api(selected_url)
             if not data:
                 st.error(f"데이터를 가져오지 못했습니다. (원인: {msg})")
-                st.info("💡 만약 API 응답이 지연될 경우, 옆 탭인 **[📋 텍스트 직접 복사-붙여넣기 파서]**를 이용하시면 1초 만에 즉시 가져올 수 있습니다.")
             else:
                 df = pd.DataFrame(data)
                 df["나이가중치"] = df["나이"].apply(get_age_weight)
                 df["구단가중치"] = CLUB_TIERS[batch_tier]
                 df["기본리그가중치"] = 0.95
                 
+                # 적정가 = TM몸값 * 기본리그가중치 * 나이가중치 * 구단가중치
                 df["산출적정가(만유로)"] = (df["TM시장가치(만유로)"] * df["기본리그가중치"] * df["나이가중치"] * df["구단가중치"]).round(1)
                 df["차액(만유로)"] = (df["실제이적료(만유로)"] - df["산출적정가(만유로)"]).round(1)
                 
                 def eval_status(row):
-                    if row["산출적정가(만유로)"] == 0: return "자유/임대"
+                    if row["실제이적료(만유로)"] == 0: return "자유/임대"
+                    if row["산출적정가(만유로)"] == 0: return "평가불가"
                     diff = row["차액(만유로)"]
                     if abs(diff) <= row["산출적정가(만유로)"] * 0.05: return "⚖️ 적정가"
                     elif diff > 0: return "⚠️ 고평가"
@@ -210,11 +222,14 @@ with tab1:
                     
                 df["평가"] = df.apply(eval_status, axis=1)
                 st.session_state["api_crawled_df"] = df
-                st.success(f"🎉 총 {len(df)}건의 영입 데이터를 수집 및 계산 완료했습니다!")
+                st.success(f"🎉 총 {len(df)}명의 선수 데이터를 정확하게 수집 및 분석 완료했습니다!")
 
     if "api_crawled_df" in st.session_state:
         df_show = st.session_state["api_crawled_df"]
-        st.dataframe(df_show[["영입팀", "선수명", "국적", "나이", "전소속", "TM시장가치(만유로)", "실제이적료(만유로)", "산출적정가(만유로)", "차액(만유로)", "평가"]], use_container_width=True)
+        st.dataframe(
+            df_show[["영입팀", "선수명", "국적", "포지션", "나이", "전소속", "TM시장가치(만유로)", "실제이적료(만유로)", "산출적정가(만유로)", "차액(만유로)", "평가"]], 
+            use_container_width=True
+        )
         
         st.divider()
         if st.button("💾 위 목록 중 '이적료가 발생한 선수들' 구글 시트에 일괄 저장하기", use_container_width=True):
@@ -234,7 +249,7 @@ with tab1:
                             "fair_val": float(r["산출적정가(만유로)"]),
                             "diff": float(r["차액(만유로)"]),
                             "status": r["평가"],
-                            "notes": f"국적: {r['국적']} / 영입팀: {r['영입팀']}"
+                            "notes": f"국적: {r['국적']} | 포지션: {r['포지션']} | 영입팀: {r['영입팀']}"
                         }
                         try:
                             requests.post(GOOGLE_SHEET_WEBAPP_URL, data=json.dumps(payload), headers={"Content-Type": "text/plain;charset=utf-8"}, timeout=8)
@@ -244,10 +259,10 @@ with tab1:
                 st.success(f"✅ 총 {saved_count}명의 유료 이적 선수가 구글 시트에 안전하게 등록되었습니다!")
 
 with tab2:
-    st.subheader("📋 트랜스퍼마르크트 표 복붙 파서 (차단 없이 1초 완료)")
-    st.markdown("트랜스퍼마르크트 웹페이지의 이적 표를 마우스로 드래그 복사(`Ctrl+C`)하여 아래 칸에 붙여넣기(`Ctrl+V`) 하세요.")
+    st.subheader("📋 트랜스퍼마르크트 표 복붙 파서")
+    st.markdown("웹페이지 표를 직접 드래그 복사(`Ctrl+C`)하여 붙여넣기(`Ctrl+V`) 하실 때 사용합니다.")
     
-    raw_text_input = st.text_area("복사한 텍스트 붙여넣기", height=160, placeholder="선수명, 나이, 이적료 등이 포함된 표를 복사해서 붙여넣으세요.")
+    raw_text_input = st.text_area("복사한 텍스트 붙여넣기", height=160, placeholder="선수명, 포지션, 이적료 등이 포함된 표를 복사해서 붙여넣으세요.")
     if st.button("🚀 붙여넣은 텍스트 파싱 & 분석"):
         if not raw_text_input.strip():
             st.warning("텍스트를 붙여넣어 주세요.")
@@ -256,12 +271,12 @@ with tab2:
             p_list = []
             for l in lines:
                 parts = re.split(r"\t+|\s{2,}", l.strip())
-                if len(parts) >= 4:
+                if len(parts) >= 5:
                     name = parts[0]
                     mv = 0.0
                     fee = 0.0
                     age = 24
-                    left_c = "전소속"
+                    left_c = parts[4] if len(parts) > 4 else "전소속"
                     for p in parts:
                         if p.isdigit() and 15 <= int(p) <= 45: age = int(p)
                         elif "€" in p or "m" in p or "k" in p:
