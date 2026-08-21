@@ -22,7 +22,7 @@ st.markdown("""
 
 st.divider()
 
-# 2. 최신 Opta 파워랭킹 기준 리그 가중치 (30여 개 리그 + 아시아 2부 포함)
+# 2. 최신 Opta 파워랭킹 기준 리그 가중치
 LEAGUE_WEIGHTS = {
     # Top 5 유럽 빅리그
     "잉글랜드 프리미어리그 (EPL 1부)": 1.00,
@@ -75,20 +75,20 @@ CLUB_TIERS = {
     "Tier 5: 소형/셀링 클럽 (중소리그, 2부리그, K/J리그)": 0.80
 }
 
-# 보수적/현실적 나이 가중치
+# 보수적 나이 가중치
 def get_age_weight(age):
     if age <= 19:
-        return 1.00   # 유망주 리스크 감안 (기본 몸값에 이미 반영)
+        return 1.00
     elif age <= 23:
-        return 1.12   # 완만한 재판매 프리미엄 (+12%)
+        return 1.12
     elif age <= 27:
-        return 1.00   # 전성기 즉시 전력 (기준점)
+        return 1.00
     elif age <= 29:
-        return 0.90   # 전성기 후반 (-10%)
+        return 0.90
     elif age <= 31:
-        return 0.75   # 감가상각 본격화 (-25%)
+        return 0.75
     else:
-        return 0.55   # 노장/베테랑 (-45%)
+        return 0.55
 
 # 3. 사이드바 정보창
 st.sidebar.header("⚙️ 시스템 설정 및 가중치 정보")
@@ -118,7 +118,8 @@ col1, col2 = st.columns([1, 1])
 with col1:
     st.subheader("📝 이적 & 선수 정보 입력")
     
-    season_val = st.selectbox("이적 시즌", ["24/25", "25/26", "23/24", "기타"])
+    # 시즌 선택 옵션: 26/27 및 기타
+    season_val = st.selectbox("이적 시즌", ["26/27", "기타"])
     player_name = st.text_input("선수 이름", value="손흥민")
     player_nat = st.text_input("선수 국적", value="대한민국")
     player_age = st.number_input("선수 나이 (만 나이)", min_value=15, max_value=45, value=23)
