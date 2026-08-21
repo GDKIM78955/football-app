@@ -20,7 +20,7 @@ if "last_saved_msg" not in st.session_state:
 
 st.title("⚽ 축구 선수 이적 가치 평가 & FotMob 시즌 성적 프로젝션")
 
-# 2. 보수적 현실 기반 리그 가중치 (Tier별 현실 감가율 적용)
+# 2. 보수적 현실 기반 리그 가중치
 LEAGUE_WEIGHTS = {
     # Tier 1: 세계 최강 재정 & 템포 기준 (1.00)
     "잉글랜드 프리미어리그 (EPL 1부)": 1.00,
@@ -265,7 +265,7 @@ with tab1:
 # ================= TAB 2: FotMob 시즌 성적 & 이적 예측 =================
 with tab2:
     st.subheader("📱 FotMob 스타일 시즌 스탯 입력 & 이적 첫 시즌 성적 프로젝션")
-    st.caption("FotMob 선수 상세 페이지의 실제 시즌 성적을 입력하면 새로운 리그 환경에서의 예상 스탯을 산출합니다.")
+    st.caption("FotMob 선수 상세 페이지의 실제 시즌 성적을 바탕으로, 리그 난이도 격차와 '상위 리그 첫 시즌 적응 리스크'를 종합 반영하여 산출합니다.")
     
     f_c1, f_c2, f_c3, f_c4 = st.columns(4)
     with f_c1: f_pos = st.selectbox("선수 포지션", ["⚽ 스트라이커 (ST/CF)", "⚡ 윙어 / 공미 (WG/CAM)", "🏃 중앙 미드필더 (CM/CDM)", "🛡️ 수비수 (CB/FB)"])
@@ -273,8 +273,21 @@ with tab2:
     with f_c3: f_to_l = st.selectbox("이적할 리그", list(LEAGUE_WEIGHTS.keys()), index=0) # EPL (1.00)
     with f_c4: f_target_mins = st.number_input("이적 팀 예상 출전 시간(분)", 450, 3420, 2250, 90, help="2250분 = 25경기 풀타임 상당")
     
-    # 현실적 리그 변환 계수
-    l_factor = LEAGUE_WEIGHTS[f_from_l] / LEAGUE_WEIGHTS[f_to_l] # 예: 0.77 / 1.00 = 0.77
+    # 1) 순수 리그 난이도 격차 계수
+    raw_l_factor = LEAGUE_WEIGHTS[f_from_l] / LEAGUE_WEIGHTS[f_to_l]
+    
+    # 2) 상위 리그 스텝업 시 '첫 시즌 적응 리스크(Adaptation Tax)' 계산
+    if LEAGUE_WEIGHTS[f_to_l] > LEAGUE_WEIGHTS[f_from_l]:
+        diff_level = LEAGUE_WEIGHTS[f_to_l] - LEAGUE_WEIGHTS[f_from_l]
+        # 격차가 클수록 최대 -20%까지 첫 시즌 적응 페널티 부과
+        adapt_penalty = max(0.80, 1.0 - (diff_level * 0.45))
+        adapt_desc = f"⚠️ 상위 리그 스텝업 적응 감가 적용 ({adapt_penalty:.2f}x)"
+    else:
+        adapt_penalty = 1.00
+        adapt_desc = "✅ 동급/하위 리그 이적 (적응 페널티 없음)"
+        
+    # 최종 결합 변환 계수
+    final_l_factor = raw_l_factor * adapt_penalty
     
     st.divider()
     st.markdown("### 📥 FotMob 시즌 실제 기록 입력 (예: 트로이 패럿 25/26 시즌)")
@@ -314,15 +327,15 @@ with tab2:
 
     st.divider()
 
-    # 이적 후 기대 스탯 예측 계산 (보수적 리그 변환 계수 적용)
-    p90_xg = (in_xg / base_p90) * l_factor
-    p90_xa = (in_xa / base_p90) * l_factor
-    p90_shots = (in_shots / base_p90) * l_factor
-    p90_sot = (in_sot / base_p90) * l_factor
-    p90_chances = (in_chances / base_p90) * l_factor
-    p90_dribbles = (in_dribbles / base_p90) * l_factor
-    p90_box_touches = (in_touches_box / base_p90) * l_factor
-    p90_tackles = (in_tackles / base_p90) * (1.0 / l_factor)
+    # 이적 후 기대 스탯 예측 계산 (리그 난이도 + 적응 리스크 복합 적용)
+    p90_xg = (in_xg / base_p90) * final_l_factor
+    p90_xa = (in_xa / base_p90) * final_l_factor
+    p90_shots = (in_shots / base_p90) * final_l_factor
+    p90_sot = (in_sot / base_p90) * final_l_factor
+    p90_chances = (in_chances / base_p90) * final_l_factor
+    p90_dribbles = (in_dribbles / base_p90) * final_l_factor
+    p90_box_touches = (in_touches_box / base_p90) * final_l_factor
+    p90_tackles = (in_tackles / base_p90) * (1.0 / raw_l_factor)
     
     finishing_ratio = in_goals / in_xg if in_xg > 0 else 1.0
     
@@ -337,10 +350,10 @@ with tab2:
     proj_box_touches = round(p90_box_touches * target_p90, 0)
     proj_tackles = round(p90_tackles * target_p90, 0)
     
-    proj_rating = round(max(6.0, in_rating - (1.0 - l_factor) * 0.9), 2)
+    proj_rating = round(max(6.0, in_rating - (1.0 - final_l_factor) * 0.9), 2)
 
     st.markdown(f"### 🎯 **FotMob 스타일 이적 첫 시즌 성적 예측 리포트**")
-    st.caption(f"이적 환경: **{f_from_l.split(' ')[1]}** ➔ **{f_to_l.split(' ')[1]}** (현실적 리그 난이도 계수: **{l_factor:.2f}x** | 예상 출전: **{f_target_mins:,}분 / 약 {target_p90:.1f}경기**)")
+    st.caption(f"이적 환경: **{f_from_l.split(' ')[1]}** ➔ **{f_to_l.split(' ')[1]}** | 순수 난이도 계수: **{raw_l_factor:.2f}x** | {adapt_desc} | 최종 변환 계수: **{final_l_factor:.2f}x**")
 
     m1, m2, m3, m4, m5 = st.columns(5)
     m1.metric("예상 평점 (Rating)", f"★ {proj_rating:.2f}", delta=f"{proj_rating - in_rating:+.2f}")
@@ -396,6 +409,6 @@ with tab2:
 
     st.info(f"""
     💡 **스카우팅 데이터 인사이트**:
-    - **리그 난이도 적응 (0.77x)**: 네덜란드 리그 대비 EPL의 강한 압박과 템포 차이가 보수적으로 반영되어, 동일 출전 시간 기준 약 **{proj_goals:.0f}골 {proj_assists:.0f}도움**의 성적이 합리적으로 예측됩니다.
-    - **결정력 유지력**: 이전 시즌의 높은 xG 전환율(결정력 {finishing_ratio*100:.1f}%)이 반영되었습니다.
+    - **리그 난이도({raw_l_factor:.2f}x) & 첫 시즌 적응 리스크({adapt_penalty:.2f}x)**: 상위 리그로 스텝업함에 따라 발생하는 수비 압박 및 템포 적응 기간이 복합 반영되어, 최종 계수 **{final_l_factor:.2f}x** 기준으로 약 **{proj_goals:.0f}골 {proj_assists:.0f}도움**의 현실적인 첫 시즌 성적이 예측됩니다.
+    - **2년 차 이후 전망**: 첫 시즌 리그 적응을 마치면 적응 페널티가 해제되어 90분당 생산력이 약 10~15% 추가 상승할 잠재력을 지니고 있습니다.
     """)
