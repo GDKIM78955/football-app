@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import requests
+import json
 from datetime import datetime
 
 # 1. 페이지 기본 설정
@@ -76,7 +77,7 @@ def get_age_weight(age):
 
 # 3. 사이드바 정보 창
 st.sidebar.header("⚙️ 시스템 설정 및 가중치 정보")
-st.sidebar.success("🔗 구글 시트 데이터베이스 연동됨")
+st.sidebar.success("🔗 구글 시트 데이터베이스 연동 활성화")
 
 with st.sidebar.expander("📊 구매 구단 티어 기준"):
     st.dataframe(pd.DataFrame(list(CLUB_TIERS.items()), columns=["구단 구분", "가중치"]), hide_index=True, use_container_width=True)
@@ -110,7 +111,7 @@ with col1:
     tm_market_value = st.number_input("트랜스퍼마르크트 시장 가치 (만 유로, €)", min_value=0, value=3000, step=100)
     actual_transfer_fee = st.number_input("실제 이적료 (만 유로, €)", min_value=0, value=4000, step=100)
     
-    player_notes = st.text_area("개인 메모 / 기대 스탯 (xG, xA, 평점, 스카우팅 코멘트 등)", placeholder="예: 지난 시즌 90분당 xG 0.45 기록. 전방 압박 능력이 뛰어나 적응 빠를 것으로 예상.")
+    player_notes = st.text_area("개인 메모 / 기대 스탯 (xG, xA, 평점 등)", placeholder="예: 90분당 xG 0.42, 키패스 2.1회 기록")
 
 # 5. 계산 및 평가
 league_w = LEAGUE_WEIGHTS[selling_league]
@@ -162,21 +163,29 @@ with col2:
                 "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
                 "season": season_val,
                 "name": player_name,
-                "age": player_age,
+                "age": int(player_age),
                 "league": selling_league.split(" (")[0],
                 "tier": buying_club_tier.split(":")[0],
-                "tm_val": tm_market_value,
-                "fee": actual_transfer_fee,
+                "tm_val": float(tm_market_value),
+                "fee": float(actual_transfer_fee),
                 "fair_val": round(fair_value, 1),
                 "diff": round(diff, 1),
                 "status": status_label,
-                "notes": player_notes
+                "notes": player_notes if player_notes else "-"
             }
             try:
-                res = requests.post(GOOGLE_SHEET_WEBAPP_URL, json=payload, timeout=10)
-                if res.status_code == 200:
-                    st.success(f"✅ '{player_name}' 선수의 분석 데이터가 구글 시트에 안전하게 저장되었습니다!")
+                headers = {"Content-Type": "text/plain;charset=utf-8"}
+                res = requests.post(
+                    GOOGLE_SHEET_WEBAPP_URL, 
+                    data=json.dumps(payload),
+                    headers=headers,
+                    timeout=12,
+                    allow_redirects=True
+                )
+                
+                if res.status_code in [200, 302]:
+                    st.success(f"✅ '{player_name}' 선수의 분석 데이터가 구글 시트에 성공적으로 저장되었습니다!")
                 else:
-                    st.error("⚠️ 저장 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.")
+                    st.error(f"⚠️ 응답 코드: {res.status_code}. Apps Script 배포 설정을 확인해 주세요.")
             except Exception as e:
                 st.error(f"⚠️ 연결 오류 발생: {e}")
