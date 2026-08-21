@@ -16,13 +16,13 @@ GOOGLE_SHEET_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbxV76sZFJaVPa
 
 st.title("⚽ 축구 선수 적정 이적료 & 구글 시트 자동 저장 시스템")
 st.markdown("""
-이 앱은 **리그 수준(Opta Power Rankings 실시간 점수 기반)**, **선수 나이 곡선(보수적 모델)**, 
-그리고 **영입 구단의 규모(빅클럽 프리미엄)**를 반영하여 선수의 적정 이적료를 산출하고 분석 결과를 구글 시트에 저장합니다.
+이 앱은 **리그 수준(Opta 점수)**, **선수 나이 곡선(보수적 모델)**, **영입 구단 규모(빅클럽 세금)**, 
+그리고 **선수의 잔여 계약 기간(할인/할증)**을 종합 반영하여 적정가를 산출하고 구글 시트에 누적 저장합니다.
 """)
 
 st.divider()
 
-# 2. 최신 Opta 파워랭킹 기준 리그 가중치
+# 2. 가중치 딕셔너리 정의
 LEAGUE_WEIGHTS = {
     # Top 5 유럽 빅리그
     "잉글랜드 프리미어리그 (EPL 1부)": 1.00,
@@ -75,6 +75,14 @@ CLUB_TIERS = {
     "Tier 5: 소형/셀링 클럽 (중소리그, 2부리그, K/J리그)": 0.80
 }
 
+CONTRACT_WEIGHTS = {
+    "6개월 이하 (FA 임박, -50%)": 0.50,
+    "1년 남음 (할인 매각 압박, -25%)": 0.75,
+    "2년 남음 (표준/적정 계약, 기준점)": 1.00,
+    "3년 남음 (장기 계약, +10%)": 1.10,
+    "4년 이상 (초장기 계약/바이아웃, +20%)": 1.20
+}
+
 # 보수적 나이 가중치
 def get_age_weight(age):
     if age <= 19:
@@ -94,13 +102,17 @@ def get_age_weight(age):
 st.sidebar.header("⚙️ 시스템 설정 및 가중치 정보")
 st.sidebar.success("🔗 구글 시트 DB 연동 상태: 정상")
 
+with st.sidebar.expander("📊 잔여 계약 기간 가중치"):
+    df_contract = pd.DataFrame(list(CONTRACT_WEIGHTS.items()), columns=["잔여 계약", "가중치"])
+    st.dataframe(df_contract, hide_index=True, use_container_width=True)
+
+with st.sidebar.expander("📊 구매 구단 규모(티어) 기준"):
+    df_tier = pd.DataFrame(list(CLUB_TIERS.items()), columns=["구단 구분", "가중치"])
+    st.dataframe(df_tier, hide_index=True, use_container_width=True)
+
 with st.sidebar.expander("📊 적용 리그 가중치 (Opta 점수 기반)"):
     df_league = pd.DataFrame(list(LEAGUE_WEIGHTS.items()), columns=["리그명", "가중치"])
     st.dataframe(df_league, hide_index=True, use_container_width=True)
-
-with st.sidebar.expander("📊 영입 구단 규모(티어) 기준"):
-    df_tier = pd.DataFrame(list(CLUB_TIERS.items()), columns=["구단 구분", "가중치"])
-    st.dataframe(df_tier, hide_index=True, use_container_width=True)
 
 with st.sidebar.expander("📈 나이 가중치 기준 (보수적 모델)"):
     st.markdown("""
@@ -118,26 +130,29 @@ col1, col2 = st.columns([1, 1])
 with col1:
     st.subheader("📝 이적 & 선수 정보 입력")
     
-    # 시즌 선택 옵션: 26/27 및 기타
     season_val = st.selectbox("이적 시즌", ["26/27", "기타"])
     player_name = st.text_input("선수 이름", value="손흥민")
     player_nat = st.text_input("선수 국적", value="대한민국")
     player_age = st.number_input("선수 나이 (만 나이)", min_value=15, max_value=45, value=23)
+    
     selling_league = st.selectbox("보내는 리그 (원소속)", list(LEAGUE_WEIGHTS.keys()))
     buying_club_tier = st.selectbox("영입하는 구단 규모", list(CLUB_TIERS.keys()))
+    remaining_contract = st.selectbox("이적 당시 잔여 계약 기간", list(CONTRACT_WEIGHTS.keys()), index=2)
     
     st.markdown("---")
     tm_market_value = st.number_input("트랜스퍼마르크트 시장 가치 (만 유로, €)", min_value=0, value=3000, step=100, help="예: 3000만 유로 = €30M")
     actual_transfer_fee = st.number_input("실제 이적료 (만 유로, €)", min_value=0, value=4000, step=100, help="예: 4000만 유로 = €40M")
     
-    player_notes = st.text_area("개인 메모 / 기대 스탯 (xG, xA, 평점, 포지션 등)", placeholder="예: LW/ST 포지션, 90분당 xG 0.45 기록")
+    player_notes = st.text_area("개인 메모 / 기대 스탯 (xG, xA, 포지션 코멘트 등)", placeholder="예: LW/ST 포지션, 90분당 xG 0.45 기록")
 
 # 5. 계산 및 결과 출력
 league_w = LEAGUE_WEIGHTS[selling_league]
 age_w = get_age_weight(player_age)
 club_w = CLUB_TIERS[buying_club_tier]
+contract_w = CONTRACT_WEIGHTS[remaining_contract]
 
-fair_value = tm_market_value * league_w * age_w * club_w
+# 4대 가중치 곱연산
+fair_value = tm_market_value * league_w * age_w * club_w * contract_w
 diff = actual_transfer_fee - fair_value
 overpay_pct = (diff / fair_value) * 100 if fair_value > 0 else 0.0
 
@@ -153,10 +168,12 @@ with col2:
     
     st.markdown(f"### **{player_name}** ({player_nat}) 이적 평가")
     
-    kpi1, kpi2, kpi3 = st.columns(3)
-    kpi1.metric("리그 가중치", f"{league_w:.2f}")
-    kpi2.metric("나이 가중치", f"{age_w:.2f}")
-    kpi3.metric("구단 가중치", f"{club_w:.2f}")
+    # 4대 가중치 현황 출력
+    kpi1, kpi2, kpi3, kpi4 = st.columns(4)
+    kpi1.metric("리그", f"{league_w:.2f}")
+    kpi2.metric("나이", f"{age_w:.2f}")
+    kpi3.metric("구단", f"{club_w:.2f}")
+    kpi4.metric("계약", f"{contract_w:.2f}")
     
     st.divider()
     
@@ -178,6 +195,11 @@ with col2:
     # 6. 구글 시트 저장 버튼
     if st.button("💾 구글 시트 데이터베이스에 저장하기", type="primary", use_container_width=True):
         with st.spinner("구글 시트에 기록 중입니다..."):
+            contract_desc = remaining_contract.split(" (")[0]
+            note_content = f"국적: {player_nat} | 잔여계약: {contract_desc}"
+            if player_notes:
+                note_content += f" | {player_notes}"
+                
             payload = {
                 "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
                 "season": season_val,
@@ -190,7 +212,7 @@ with col2:
                 "fair_val": round(fair_value, 1),
                 "diff": round(diff, 1),
                 "status": status_label,
-                "notes": f"국적: {player_nat} | {player_notes}" if player_notes else f"국적: {player_nat}"
+                "notes": note_content
             }
             try:
                 headers = {"Content-Type": "text/plain;charset=utf-8"}
@@ -203,7 +225,7 @@ with col2:
                 )
                 
                 if res.status_code in [200, 302]:
-                    st.success(f"✅ '{player_name}' 선수의 분석 데이터가 구글 시트에 성공적으로 저장되었습니다!")
+                    st.success(f"✅ '{player_name}' 선수의 분석 데이터(계약 가중치 {contract_w} 반영)가 구글 시트에 성공적으로 저장되었습니다!")
                 else:
                     st.error(f"⚠️ 응답 코드: {res.status_code}")
             except Exception as e:
