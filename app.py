@@ -20,37 +20,51 @@ if "last_saved_msg" not in st.session_state:
 
 st.title("⚽ 축구 선수 이적 가치 평가 & FotMob 시즌 성적 프로젝션")
 
-# 2. 리그 및 구단 가중치 데이터베이스
+# 2. 보수적 현실 기반 리그 가중치 (Tier별 현실 감가율 적용)
 LEAGUE_WEIGHTS = {
+    # Tier 1: 세계 최강 재정 & 템포 기준 (1.00)
     "잉글랜드 프리미어리그 (EPL 1부)": 1.00,
-    "이탈리아 세리에 A (Serie A 1부)": 0.97,
-    "스페인 라리가 (La Liga 1부)": 0.97,
-    "독일 분데스리가 (Bundesliga 1부)": 0.97,
-    "프랑스 리그 1 (Ligue 1 1부)": 0.97,
-    "브라질 세리에 A (Brasileirão 1부)": 0.96,
-    "잉글랜드 챔피언십 (EFL 2부)": 0.95,
-    "벨기에 주필러 프로 리그 (1부)": 0.94,
-    "아르헨티나 프리메라 디비시온 (1부)": 0.94,
-    "포르투갈 프리메이라리가 (1부)": 0.94,
-    "네덜란드 에레디비시 (Eredivisie 1부)": 0.92,
-    "미국 메이저리그사커 (MLS 1부)": 0.92,
-    "멕시코 리가 MX (1부)": 0.92,
-    "독일 2. 분데스리가 (2부)": 0.92,
-    "스페인 라리가 2 (세군다 2부)": 0.91,
-    "이탈리아 세리에 B (2부)": 0.90,
-    "일본 J1리그 (1부)": 0.90,
-    "사우디 프로리그 (SPL 1부)": 0.89,
-    "대한민국 K리그1 (1부)": 0.89,
-    "튀르키예 쉬페르리그 (1부)": 0.89,
-    "스위스 슈퍼리그 (1부)": 0.89,
-    "오스트리아 분데스리가 (1부)": 0.89,
-    "덴마크 수페르리가 (1부)": 0.88,
-    "스코틀랜드 프리미어십 (1부)": 0.88,
-    "폴란드 엑스트라클라사 (1부)": 0.88,
-    "프랑스 리그 2 (2부)": 0.88,
-    "일본 J2리그 (2부)": 0.84,
-    "대한민국 K리그2 (2부)": 0.83,
-    "기타 리그": 0.77
+
+    # Tier 2: 유럽 4대 전통 빅리그 (0.90 ~ 0.92)
+    "스페인 라리가 (La Liga 1부)": 0.92,
+    "독일 분데스리가 (Bundesliga 1부)": 0.91,
+    "이탈리아 세리에 A (Serie A 1부)": 0.90,
+    "프랑스 리그 1 (Ligue 1 1부)": 0.88,
+
+    # Tier 3: 유럽 중상위 셀링 리그 & 잉글랜드 2부 (0.75 ~ 0.80)
+    "잉글랜드 챔피언십 (EFL 2부)": 0.80,
+    "포르투갈 프리메이라리가 (1부)": 0.78,
+    "네덜란드 에레디비시 (Eredivisie 1부)": 0.77,
+    "벨기에 주필러 프로 리그 (1부)": 0.75,
+
+    # Tier 4: 유럽 중소리그 / 남미 1부 (0.60 ~ 0.68)
+    "브라질 세리에 A (Brasileirão 1부)": 0.68,
+    "독일 2. 분데스리가 (2부)": 0.67,
+    "스페인 라리가 2 (세군다 2부)": 0.66,
+    "튀르키예 쉬페르리그 (1부)": 0.65,
+    "이탈리아 세리에 B (2부)": 0.64,
+    "미국 메이저리그사커 (MLS 1부)": 0.64,
+    "멕시코 리가 MX (1부)": 0.63,
+    "스위스 슈퍼리그 (1부)": 0.62,
+    "오스트리아 분데스리가 (1부)": 0.62,
+    "덴마크 수페르리가 (1부)": 0.61,
+    "스코틀랜드 프리미어십 (1부)": 0.60,
+    "아르헨티나 프리메라 디비시온 (1부)": 0.60,
+
+    # Tier 5: 유럽 하위 / 아시아 최상위 (0.45 ~ 0.55)
+    "폴란드 엑스트라클라사 (1부)": 0.55,
+    "프랑스 리그 2 (2부)": 0.55,
+    "그리스 슈퍼리그 (1부)": 0.54,
+    "사우디 프로리그 (SPL 1부)": 0.52,
+    "일본 J1리그 (1부)": 0.50,
+    "대한민국 K리그1 (1부)": 0.48,
+    "스웨덴 알스벤스칸 (1부)": 0.48,
+    "노르웨이 엘리테세리엔 (1부)": 0.47,
+
+    # Tier 6: 아시아 2부 및 기타 하위 (0.30 ~ 0.35)
+    "일본 J2리그 (2부)": 0.35,
+    "대한민국 K리그2 (2부)": 0.33,
+    "기타 리그": 0.30
 }
 
 CLUB_TIERS = {
@@ -164,7 +178,7 @@ with tab1:
         with pos_col2: versatility = st.selectbox("멀티 포지션 소화 능력", list(VERSATILITY_WEIGHTS.keys()), index=0, key=f"vers_{k_id}")
             
         reg_status = st.selectbox("스쿼드 등록 / HG 쿼터", list(REGISTRATION_WEIGHTS.keys()), index=0, key=f"reg_{k_id}")
-        selling_league = st.selectbox("보내는 리그 (원소속)", list(LEAGUE_WEIGHTS.keys()), index=10, key=f"league_{k_id}") # 기본 에레디비시
+        selling_league = st.selectbox("보내는 리그 (원소속)", list(LEAGUE_WEIGHTS.keys()), index=7, key=f"league_{k_id}") # 기본 에레디비시(0.77)
         buying_club_tier = st.selectbox("영입하는 구단 규모", list(CLUB_TIERS.keys()), index=1, key=f"tier_{k_id}")
         remaining_contract = st.selectbox("이적 당시 잔여 계약 기간", list(CONTRACT_WEIGHTS.keys()), index=2, key=f"contract_{k_id}")
         
@@ -202,7 +216,7 @@ with tab1:
         st.markdown(f"### **{display_name}** {display_nat} - `{pos_short}` 이적 평가")
         
         k1, k2, k3, k4 = st.columns(4)
-        k1.metric("리그", f"{league_w:.2f}")
+        k1.metric("리그 난이도", f"{league_w:.2f}")
         k2.metric("나이", f"{age_w:.2f}")
         k3.metric("구단", f"{club_w:.2f}")
         k4.metric("계약", f"{contract_w:.2f}")
@@ -251,30 +265,26 @@ with tab1:
 # ================= TAB 2: FotMob 시즌 성적 & 이적 예측 =================
 with tab2:
     st.subheader("📱 FotMob 스타일 시즌 스탯 입력 & 이적 첫 시즌 성적 프로젝션")
-    st.caption("FotMob 선수 상세 페이지의 시즌 성적(골, 도움, xG, xA, 슈팅, 패스, 경합, 평점)을 입력하면 새로운 리그 환경에서의 예상 스탯을 산출합니다.")
+    st.caption("FotMob 선수 상세 페이지의 실제 시즌 성적을 입력하면 새로운 리그 환경에서의 예상 스탯을 산출합니다.")
     
-    # 1. 환경 설정
     f_c1, f_c2, f_c3, f_c4 = st.columns(4)
     with f_c1: f_pos = st.selectbox("선수 포지션", ["⚽ 스트라이커 (ST/CF)", "⚡ 윙어 / 공미 (WG/CAM)", "🏃 중앙 미드필더 (CM/CDM)", "🛡️ 수비수 (CB/FB)"])
-    with f_c2: f_from_l = st.selectbox("원소속 리그 (기록 기준)", list(LEAGUE_WEIGHTS.keys()), index=10) # 에레디비시
-    with f_c3: f_to_l = st.selectbox("이적할 리그", list(LEAGUE_WEIGHTS.keys()), index=0) # EPL
+    with f_c2: f_from_l = st.selectbox("원소속 리그 (기록 기준)", list(LEAGUE_WEIGHTS.keys()), index=7) # 에레디비시 (0.77)
+    with f_c3: f_to_l = st.selectbox("이적할 리그", list(LEAGUE_WEIGHTS.keys()), index=0) # EPL (1.00)
     with f_c4: f_target_mins = st.number_input("이적 팀 예상 출전 시간(분)", 450, 3420, 2250, 90, help="2250분 = 25경기 풀타임 상당")
     
-    # 리그 변환 계수
-    l_factor = LEAGUE_WEIGHTS[f_from_l] / LEAGUE_WEIGHTS[f_to_l]
+    # 현실적 리그 변환 계수
+    l_factor = LEAGUE_WEIGHTS[f_from_l] / LEAGUE_WEIGHTS[f_to_l] # 예: 0.77 / 1.00 = 0.77
     
     st.divider()
-    
     st.markdown("### 📥 FotMob 시즌 실제 기록 입력 (예: 트로이 패럿 25/26 시즌)")
     
-    # 기본 경기 출전 지표
     b1, b2, b3, b4 = st.columns(4)
     with b1: in_matches = st.number_input("출전 경기 (Matches)", 1, 60, 28)
     with b2: in_starts = st.number_input("선발 출전 (Starts)", 0, 60, 25)
     with b3: in_mins = st.number_input("출전 시간 (Minutes)", 90, 4500, 2206)
     with b4: in_rating = st.number_input("FotMob 평균 평점", 5.0, 10.0, 7.32, 0.01)
     
-    # 90분 단위 환산 계수
     base_p90 = in_mins / 90.0 if in_mins > 0 else 1.0
     target_p90 = f_target_mins / 90.0
 
@@ -304,8 +314,7 @@ with tab2:
 
     st.divider()
 
-    # 4. 이적 후 기대 스탯 예측 계산 (Projection Engine)
-    # 90분당 기대치 환산
+    # 이적 후 기대 스탯 예측 계산 (보수적 리그 변환 계수 적용)
     p90_xg = (in_xg / base_p90) * l_factor
     p90_xa = (in_xa / base_p90) * l_factor
     p90_shots = (in_shots / base_p90) * l_factor
@@ -313,12 +322,10 @@ with tab2:
     p90_chances = (in_chances / base_p90) * l_factor
     p90_dribbles = (in_dribbles / base_p90) * l_factor
     p90_box_touches = (in_touches_box / base_p90) * l_factor
-    p90_tackles = (in_tackles / base_p90) * (1.0 / l_factor) # 상위리그 압박 시 수비 빈도 증가
+    p90_tackles = (in_tackles / base_p90) * (1.0 / l_factor)
     
-    # 결정력 비율 (Goals / xG)
     finishing_ratio = in_goals / in_xg if in_xg > 0 else 1.0
     
-    # 시즌 총계 예측 (새 출전 시간 기준)
     proj_goals = round(p90_xg * target_p90 * finishing_ratio, 1)
     proj_xg = round(p90_xg * target_p90, 1)
     proj_assists = round(p90_xa * target_p90, 1)
@@ -330,13 +337,11 @@ with tab2:
     proj_box_touches = round(p90_box_touches * target_p90, 0)
     proj_tackles = round(p90_tackles * target_p90, 0)
     
-    # 예상 평점
-    proj_rating = round(max(6.2, in_rating - (1.0 - l_factor) * 0.8), 2)
+    proj_rating = round(max(6.0, in_rating - (1.0 - l_factor) * 0.9), 2)
 
     st.markdown(f"### 🎯 **FotMob 스타일 이적 첫 시즌 성적 예측 리포트**")
-    st.caption(f"이적 환경: **{f_from_l.split(' ')[1]}** ➔ **{f_to_l.split(' ')[1]}** (리그 적응 계수: **{l_factor:.2f}x** | 예상 출전: **{f_target_mins:,}분 / 약 {target_p90:.1f}경기**)")
+    st.caption(f"이적 환경: **{f_from_l.split(' ')[1]}** ➔ **{f_to_l.split(' ')[1]}** (현실적 리그 난이도 계수: **{l_factor:.2f}x** | 예상 출전: **{f_target_mins:,}분 / 약 {target_p90:.1f}경기**)")
 
-    # FotMob 스타일 메인 스탯 대시보드
     m1, m2, m3, m4, m5 = st.columns(5)
     m1.metric("예상 평점 (Rating)", f"★ {proj_rating:.2f}", delta=f"{proj_rating - in_rating:+.2f}")
     m2.metric("예상 득점 (xG)", f"{proj_goals:.0f} 골", delta=f"xG {proj_xg:.1f}")
@@ -346,7 +351,6 @@ with tab2:
 
     st.markdown("<br>", unsafe_allow_html=True)
     
-    # FotMob 스타일 상세 스탯 비교표
     df_compare = pd.DataFrame({
         "FotMob 스탯 항목": [
             "출전 시간 (Minutes)",
@@ -388,12 +392,10 @@ with tab2:
             f"{int(proj_tackles)} 회"
         ]
     })
-    
     st.table(df_compare)
 
-    # 결정력 및 스카우팅 총평
     st.info(f"""
     💡 **스카우팅 데이터 인사이트**:
-    - **골 결정력 (Finishing Efficiency)**: 이전 리그에서 xG 대비 실제 골 전환율이 **{finishing_ratio*100:.1f}%**로 매우 우수했습니다.
-    - **박스 타격력**: 90분당 약 **{p90_box_touches:.1f}회**의 상대 박스 안 터치를 기록할 것으로 예상되어, 새로운 리그에서도 주전 공격수로서의 득점 찬스를 꾸준히 창출할 것으로 기대됩니다.
+    - **리그 난이도 적응 (0.77x)**: 네덜란드 리그 대비 EPL의 강한 압박과 템포 차이가 보수적으로 반영되어, 동일 출전 시간 기준 약 **{proj_goals:.0f}골 {proj_assists:.0f}도움**의 성적이 합리적으로 예측됩니다.
+    - **결정력 유지력**: 이전 시즌의 높은 xG 전환율(결정력 {finishing_ratio*100:.1f}%)이 반영되었습니다.
     """)
