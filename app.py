@@ -23,7 +23,7 @@ if "last_saved_msg" not in st.session_state:
 st.title("⚽ 축구 선수 적정 이적료 & 구글 시트 자동 저장 시스템")
 st.markdown("""
 이 앱은 **리그 수준(Opta 점수)**, **선수 나이 곡선(보수적 모델)**, **영입 구단 규모(빅클럽 프리미엄)**, 
-그리고 **선수의 잔여 계약 기간(할인/할증)**을 종합 반영하여 적정가를 산출하고 구글 시트에 누적 저장합니다.
+그리고 **선수의 잔여 계약 기간(보수적 할인/할증 모델)**을 종합 반영하여 적정가를 산출하고 구글 시트에 누적 저장합니다.
 """)
 
 # 이전 저장 성공 메시지 출력
@@ -86,12 +86,13 @@ CLUB_TIERS = {
     "Tier 5: 소형/셀링 클럽 (중소리그, 2부리그, K/J리그)": 0.80
 }
 
+# 보수적/현실적 잔여 계약 가중치
 CONTRACT_WEIGHTS = {
-    "6개월 이하 (FA 임박, -50%)": 0.50,
-    "1년 남음 (할인 매각 압박, -25%)": 0.75,
-    "2년 남음 (표준/적정 계약, 기준점)": 1.00,
-    "3년 남음 (장기 계약, +10%)": 1.10,
-    "4년 이상 (초장기 계약/바이아웃, +20%)": 1.20
+    "6개월 이하 (FA 임박/겨울 이적, -40%)": 0.60,
+    "1년 남음 (재계약 분기점, -15%)": 0.85,
+    "2년 남음 (표준 계약 기준선, 1.00)": 1.00,
+    "3년 남음 (구단 협상 우위, +8%)": 1.08,
+    "4년 이상 (장기 계약/바이아웃, +15%)": 1.15
 }
 
 # 보수적 나이 가중치
@@ -111,17 +112,16 @@ with st.sidebar.expander("💱 실시간 환산 기준 환율 설정"):
     rate_krw = st.number_input("1 유로(€)당 원화(KRW)", value=1500, step=10, help="기본: 1€ = 1,500원")
     rate_gbp = st.number_input("1 유로(€)당 파운드(GBP)", value=0.86, step=0.01, format="%.2f", help="기본: 1€ = £0.86")
 
-# 환산 텍스트 헬퍼 함수 (단위: 만 유로 -> 억원 & 만 파운드)
+# 환산 텍스트 헬퍼 함수
 def format_currency_desc(eur_man_euro):
     if eur_man_euro <= 0:
         return "₩0억 | £0만"
-    # 만 유로 = 10,000 EUR
     total_eur = eur_man_euro * 10000
-    krw_eok = (total_eur * rate_krw) / 100000000.0 # 억원 환산
-    gbp_man = (eur_man_euro * rate_gbp)           # 만 파운드 환산
+    krw_eok = (total_eur * rate_krw) / 100000000.0
+    gbp_man = (eur_man_euro * rate_gbp)
     return f"🇰🇷 약 {krw_eok:,.1f}억원  |  🇬🇧 약 £{gbp_man:,.1f}만"
 
-with st.sidebar.expander("📊 잔여 계약 기간 가중치"):
+with st.sidebar.expander("📊 잔여 계약 기간 가중치 (보수적 모델)"):
     df_contract = pd.DataFrame(list(CONTRACT_WEIGHTS.items()), columns=["잔여 계약", "가중치"])
     st.dataframe(df_contract, hide_index=True, use_container_width=True)
 
@@ -143,7 +143,7 @@ with st.sidebar.expander("📈 나이 가중치 기준 (보수적 모델)"):
     - **32세 이상**: `0.55`
     """)
 
-# 4. 메인 화면 레이아웃 (키 ID를 부여하여 자동 초기화 가능)
+# 4. 메인 화면 레이아웃
 k_id = st.session_state["form_key_id"]
 
 col1, col2 = st.columns([1, 1])
@@ -162,7 +162,6 @@ with col1:
     
     st.markdown("---")
     
-    # 1) TM 시장 가치 입력 및 실시간 환산
     tm_market_value = st.number_input(
         "트랜스퍼마르크트 시장 가치 (만 유로, €)", 
         min_value=0, 
@@ -174,7 +173,6 @@ with col1:
     if tm_market_value > 0:
         st.caption(f"💡 시장가치 환산: **{format_currency_desc(tm_market_value)}**")
     
-    # 2) 실제 이적료 입력 및 실시간 환산
     actual_transfer_fee = st.number_input(
         "실제 이적료 (만 유로, €)", 
         min_value=0, 
@@ -194,6 +192,7 @@ age_w = get_age_weight(player_age)
 club_w = CLUB_TIERS[buying_club_tier]
 contract_w = CONTRACT_WEIGHTS[remaining_contract]
 
+# 4대 가중치 곱연산
 fair_value = tm_market_value * league_w * age_w * club_w * contract_w
 diff = actual_transfer_fee - fair_value
 overpay_pct = (diff / fair_value) * 100 if fair_value > 0 else 0.0
@@ -223,7 +222,6 @@ with col2:
     
     st.divider()
     
-    # 메트릭 출력 (원화/파운드 환산 병기)
     m_col1, m_col2 = st.columns(2)
     with m_col1:
         st.metric("산출된 적정 이적료", f"€{fair_value:,.1f}만")
@@ -255,7 +253,7 @@ with col2:
 
     st.markdown("<br>", unsafe_allow_html=True)
     
-    # 6. 구글 시트 저장 버튼 (저장 성공 시 폼 초기화 실행)
+    # 6. 구글 시트 저장 버튼
     if st.button("💾 구글 시트 데이터베이스에 저장하기", type="primary", use_container_width=True):
         if not player_name.strip():
             st.warning("⚠️ 선수 이름을 입력해 주세요.")
