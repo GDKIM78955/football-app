@@ -22,8 +22,9 @@ if "last_saved_msg" not in st.session_state:
 
 st.title("⚽ 축구 선수 적정 이적료 & 구글 시트 자동 저장 시스템")
 st.markdown("""
-이 앱은 **리그 수준(Opta 점수)**, **포지션별 차등 에이징 커브**, **영입 구단 규모**, 
-**잔여 계약 기간**, **포지션 희소성 & 멀티 능력**, 그리고 **이적 형태(완전/임대/바이백 등)**를 종합 반영하여 적정가를 산출하고 구글 시트에 누적 저장합니다.
+이 앱은 **리그 수준(Opta 점수)**, **포지션별 정밀 에이징 커브**, **영입 구단 규모**, 
+**잔여 계약 기간**, **포지션 희소성 & 멀티 능력**, **이적 형태**, 그리고 **홈그로운(HG)/비EU 쿼터**를 
+현실적인 **보수적 통계 모델(이중 반영 완화)**로 종합 반영하여 적정가를 산출하고 구글 시트에 저장합니다.
 """)
 
 # 이전 저장 성공 메시지 출력
@@ -33,7 +34,7 @@ if st.session_state["last_saved_msg"]:
 
 st.divider()
 
-# 2. 가중치 딕셔너리 정의
+# 2. 보수적 가중치 딕셔너리 정의
 LEAGUE_WEIGHTS = {
     # Top 5 유럽 빅리그
     "잉글랜드 프리미어리그 (EPL 1부)": 1.00,
@@ -78,38 +79,47 @@ LEAGUE_WEIGHTS = {
     "기타 리그": 0.77
 }
 
+# 보수적 구단 티어 가중치 (과열 완화)
 CLUB_TIERS = {
-    "Tier 1: 엘리트 메가클럽 (레알, 맨시티, 바이에른, PSG 등)": 1.15,
-    "Tier 2: 빅클럽 (아스날, 리버풀, 첼시, 바르샤, 유벤투스 등)": 1.08,
+    "Tier 1: 엘리트 메가클럽 (레알, 맨시티, 바이에른, PSG 등)": 1.08,
+    "Tier 2: 빅클럽 (아스날, 리버풀, 첼시, 바르샤, 유벤투스 등)": 1.04,
     "Tier 3: 중상위권 클럽 (토트넘, AT마드리드, 도르트문트 등)": 1.00,
-    "Tier 4: 중하위권 클럽 (EPL 중하위, 타 빅리그 중위권)": 0.92,
-    "Tier 5: 소형/셀링 클럽 (중소리그, 2부리그, K/J리그)": 0.80
+    "Tier 4: 중하위권 클럽 (EPL 중하위, 타 빅리그 중위권)": 0.96,
+    "Tier 5: 소형/셀링 클럽 (중소리그, 2부리그, K/J리그)": 0.92
 }
 
 # 보수적 잔여 계약 가중치
 CONTRACT_WEIGHTS = {
-    "6개월 이하 (FA 임박/겨울 이적, -40%)": 0.60,
-    "1년 남음 (재계약 분기점, -15%)": 0.85,
+    "6개월 이하 (FA 임박/겨울 이적, -30%)": 0.70,
+    "1년 남음 (재계약 분기점, -10%)": 0.90,
     "2년 남음 (표준 계약 기준선, 1.00)": 1.00,
-    "3년 남음 (구단 협상 우위, +8%)": 1.08,
-    "4년 이상 (장기 계약/바이아웃, +15%)": 1.15
+    "3년 남음 (구단 협상 우위, +4%)": 1.04,
+    "4년 이상 (장기 계약/바이아웃, +7%)": 1.07
 }
 
-# 포지션 희소성 가중치
+# 보수적 포지션 희소성 가중치
 POSITION_WEIGHTS = {
-    "스트라이커 / 센터포워드 (ST/CF, +10%)": 1.10,
-    "윙어 / 공격형 미드필더 (WG/CAM, +5%)": 1.05,
+    "스트라이커 / 센터포워드 (ST/CF, +4%)": 1.04,
+    "윙어 / 공격형 미드필더 (WG/CAM, +2%)": 1.02,
     "중앙 / 수비형 미드필더 (CM/CDM, 기준)": 1.00,
-    "센터백 (CB, -5%)": 0.95,
-    "풀백 / 윙백 (RB/LB/WB, -5%)": 0.95,
-    "골키퍼 (GK, -15%)": 0.85
+    "센터백 (CB, -2%)": 0.98,
+    "풀백 / 윙백 (RB/LB/WB, -2%)": 0.98,
+    "골키퍼 (GK, -6%)": 0.94
 }
 
-# 멀티 포지션 소화 능력 가중치
+# 보수적 멀티 포지션 소화 능력 가중치
 VERSATILITY_WEIGHTS = {
     "단일 포지션 전담 (1개 포지션만 소화, 기준)": 1.00,
-    "듀얼 롤 (2개 포지션 소화 가능, +5%)": 1.05,
-    "만능 유틸리티 (3개 이상 포지션 소화 가능, +10%)": 1.10
+    "듀얼 롤 (2개 포지션 소화 가능, +3%)": 1.03,
+    "만능 유틸리티 (3개 이상 포지션 소화 가능, +6%)": 1.06
+}
+
+# 보수적 스쿼드 등록 쿼터 및 홈그로운 가중치
+REGISTRATION_WEIGHTS = {
+    "일반 (EU 국적자 / 쿼터 이슈 없음, 기준)": 1.00,
+    "🏴󠁧󠁢󠁥󠁮󠁧󠁿 EPL 홈그로운 (Home-Grown 충족, +6%)": 1.06,
+    "🏛️ 구단 자체 유스 출신 (Club-Trained, +4%)": 1.04,
+    "🇪🇸🇮🇹 비EU 쿼터 소모 (Non-EU Quota, -4%)": 0.96
 }
 
 # 이적 형태 목록
@@ -123,32 +133,37 @@ TRANSFER_TYPES = [
     "기타 / 스왑딜 (Swap Deal)"
 ]
 
-# 3. 포지션별 차등 에이징 커브 함수
+# 3. 보수적 포지션별 차등 에이징 커브 함수
 def get_positional_age_weight(age, position_name):
+    # 1) 공격수 / 윙어
     if "ST/CF" in position_name or "WG/CAM" in position_name:
         if age <= 19: return 1.00
-        elif age <= 23: return 1.12
-        elif age <= 27: return 1.00
-        elif age <= 29: return 0.88
-        elif age <= 31: return 0.70
-        elif age <= 34: return 0.50
-        else: return 0.35
-    elif "GK" in position_name or "CB" in position_name:
-        if age <= 19: return 0.95
         elif age <= 23: return 1.05
         elif age <= 27: return 1.00
+        elif age <= 29: return 0.95
+        elif age <= 31: return 0.85
+        elif age <= 34: return 0.70
+        else: return 0.50
+        
+    # 2) 골키퍼 / 센터백
+    elif "GK" in position_name or "CB" in position_name:
+        if age <= 19: return 0.97
+        elif age <= 23: return 1.02
+        elif age <= 27: return 1.00
         elif age <= 29: return 1.00
-        elif age <= 31: return 0.88
-        elif age <= 34: return 0.75
-        else: return 0.60
+        elif age <= 31: return 0.94
+        elif age <= 34: return 0.85
+        else: return 0.70
+        
+    # 3) 미드필더 / 풀백 (표준형)
     else:
         if age <= 19: return 1.00
-        elif age <= 23: return 1.10
+        elif age <= 23: return 1.04
         elif age <= 27: return 1.00
-        elif age <= 29: return 0.92
-        elif age <= 31: return 0.78
-        elif age <= 34: return 0.60
-        else: return 0.45
+        elif age <= 29: return 0.96
+        elif age <= 31: return 0.88
+        elif age <= 34: return 0.75
+        else: return 0.55
 
 # 4. 사이드바 정보창 & 환율 설정
 st.sidebar.header("⚙️ 시스템 설정 및 환율 기준")
@@ -166,38 +181,28 @@ def format_currency_desc(eur_man_euro):
     gbp_man = (eur_man_euro * rate_gbp)
     return f"약 {krw_eok:,.1f}억원 | £{gbp_man:,.1f}만"
 
-with st.sidebar.expander("📈 포지션별 차등 에이징 커브 기준"):
+with st.sidebar.expander("📈 포지션별 보수적 에이징 커브"):
     st.markdown("""
     **⚽ 공격수 / 윙어 (ST/CF, WG/CAM)**
-    - 20~23세: `1.12` | 24~27세: `1.00` | 28~29세: `0.88`
-    - 30~31세: `0.70` | 32~34세: `0.50` | 35세+: `0.35`
+    - 20~23세: `1.05` | 24~27세: `1.00` | 28~29세: `0.95`
+    - 30~31세: `0.85` | 32~34세: `0.70` | 35세+: `0.50`
     
     **🛡️ 센터백 / 골키퍼 (CB, GK)**
-    - 20~23세: `1.05` | 24~29세: `1.00` (전성기 유지)
-    - 30~31세: `0.88` | 32~34세: `0.75` | 35세+: `0.60`
+    - 20~23세: `1.02` | 24~29세: `1.00` (전성기 유지)
+    - 30~31세: `0.94` | 32~34세: `0.85` | 35세+: `0.70`
     
     **🏃 미드필더 / 풀백 (CM/CDM, RB/LB)**
-    - 20~23세: `1.10` | 24~27세: `1.00` | 28~29세: `0.92`
-    - 30~31세: `0.78` | 32~34세: `0.60` | 35세+: `0.45`
+    - 20~23세: `1.04` | 24~27세: `1.00` | 28~29세: `0.96`
+    - 30~31세: `0.88` | 32~34세: `0.75` | 35세+: `0.55`
     """)
 
-with st.sidebar.expander("📊 포지션 및 멀티 능력 가중치"):
+with st.sidebar.expander("📊 보수적 옵션 가중치 요약"):
+    st.markdown("**[구단 규모 가중치]**")
+    st.dataframe(pd.DataFrame(list(CLUB_TIERS.items()), columns=["구단 구분", "가중치"]), hide_index=True, use_container_width=True)
     st.markdown("**[포지션 희소성 가중치]**")
     st.dataframe(pd.DataFrame(list(POSITION_WEIGHTS.items()), columns=["포지션", "가중치"]), hide_index=True, use_container_width=True)
-    st.markdown("**[멀티 포지션 가중치]**")
-    st.dataframe(pd.DataFrame(list(VERSATILITY_WEIGHTS.items()), columns=["멀티 능력", "가중치"]), hide_index=True, use_container_width=True)
-
-with st.sidebar.expander("📊 잔여 계약 기간 가중치 (보수적 모델)"):
-    df_contract = pd.DataFrame(list(CONTRACT_WEIGHTS.items()), columns=["잔여 계약", "가중치"])
-    st.dataframe(df_contract, hide_index=True, use_container_width=True)
-
-with st.sidebar.expander("📊 구매 구단 규모(티어) 기준"):
-    df_tier = pd.DataFrame(list(CLUB_TIERS.items()), columns=["구단 구분", "가중치"])
-    st.dataframe(df_tier, hide_index=True, use_container_width=True)
-
-with st.sidebar.expander("📊 적용 리그 가중치 (Opta 점수 기반)"):
-    df_league = pd.DataFrame(list(LEAGUE_WEIGHTS.items()), columns=["리그명", "가중치"])
-    st.dataframe(df_league, hide_index=True, use_container_width=True)
+    st.markdown("**[홈그로운 / 쿼터 가중치]**")
+    st.dataframe(pd.DataFrame(list(REGISTRATION_WEIGHTS.items()), columns=["자격 구분", "가중치"]), hide_index=True, use_container_width=True)
 
 # 5. 메인 화면 레이아웃
 k_id = st.session_state["form_key_id"]
@@ -213,15 +218,21 @@ with col1:
     with c_s2:
         transfer_type = st.selectbox("이적 형태", TRANSFER_TYPES, index=0, key=f"ttype_{k_id}")
         
-    player_name = st.text_input("선수 이름", value="", placeholder="예: 비니시우스 주니오르", key=f"name_{k_id}")
-    player_nat = st.text_input("선수 국적", value="", placeholder="예: 브라질", key=f"nat_{k_id}")
-    player_age = st.number_input("선수 나이 (만 나이)", min_value=15, max_value=45, value=24, key=f"age_{k_id}")
+    c_n1, c_n2, c_n3 = st.columns([2, 1, 1])
+    with c_n1:
+        player_name = st.text_input("선수 이름", value="", placeholder="예: 비니시우스 주니오르", key=f"name_{k_id}")
+    with c_n2:
+        player_nat = st.text_input("국적", value="", placeholder="예: 브라질", key=f"nat_{k_id}")
+    with c_n3:
+        player_age = st.number_input("나이(만)", min_value=15, max_value=45, value=24, key=f"age_{k_id}")
     
     pos_col1, pos_col2 = st.columns(2)
     with pos_col1:
         main_position = st.selectbox("선수 주 포지션", list(POSITION_WEIGHTS.keys()), index=0, key=f"pos_{k_id}")
     with pos_col2:
         versatility = st.selectbox("멀티 포지션 소화 능력", list(VERSATILITY_WEIGHTS.keys()), index=0, key=f"vers_{k_id}")
+        
+    reg_status = st.selectbox("스쿼드 등록 자격 / 홈그로운 쿼터", list(REGISTRATION_WEIGHTS.keys()), index=0, key=f"reg_{k_id}")
         
     selling_league = st.selectbox("보내는 리그 (원소속)", list(LEAGUE_WEIGHTS.keys()), key=f"league_{k_id}")
     buying_club_tier = st.selectbox("영입하는 구단 규모", list(CLUB_TIERS.keys()), key=f"tier_{k_id}")
@@ -260,9 +271,10 @@ club_w = CLUB_TIERS[buying_club_tier]
 contract_w = CONTRACT_WEIGHTS[remaining_contract]
 pos_w = POSITION_WEIGHTS[main_position]
 vers_w = VERSATILITY_WEIGHTS[versatility]
+reg_w = REGISTRATION_WEIGHTS[reg_status]
 
-# 6대 가중치 종합 곱연산
-fair_value = tm_market_value * league_w * age_w * club_w * contract_w * pos_w * vers_w
+# 7대 보수적 가중치 종합 곱연산
+fair_value = tm_market_value * league_w * age_w * club_w * contract_w * pos_w * vers_w * reg_w
 diff = actual_transfer_fee - fair_value
 overpay_pct = (diff / fair_value) * 100 if fair_value > 0 else 0.0
 
@@ -282,20 +294,22 @@ with col2:
     display_nat = f"({player_nat})" if player_nat else ""
     pos_short = main_position.split(" (")[0]
     ttype_short = transfer_type.split(" (")[0]
+    reg_short = reg_status.split(" (")[0]
     
     st.markdown(f"### **{display_name}** {display_nat} - `{pos_short}` 이적 평가")
-    st.caption(f"📌 이적 형태: **{ttype_short}**")
+    st.caption(f"📌 이적 형태: **{ttype_short}** | 쿼터/자격: **{reg_short}**")
     
-    # 6대 가중치 현황 표시
-    k1, k2, k3 = st.columns(3)
-    k1.metric("리그 가중치", f"{league_w:.2f}")
-    k2.metric("나이 (포지션 맞춤)", f"{age_w:.2f}")
-    k3.metric("구단 가중치", f"{club_w:.2f}")
+    # 7대 가중치 현황 표시
+    k1, k2, k3, k4 = st.columns(4)
+    k1.metric("리그", f"{league_w:.2f}")
+    k2.metric("나이(에이징)", f"{age_w:.2f}")
+    k3.metric("구단", f"{club_w:.2f}")
+    k4.metric("계약", f"{contract_w:.2f}")
     
-    k4, k5, k6 = st.columns(3)
-    k4.metric("계약 가중치", f"{contract_w:.2f}")
-    k5.metric("포지션 가중치", f"{pos_w:.2f}")
-    k6.metric("멀티 가중치", f"{vers_w:.2f}")
+    k5, k6, k7, _ = st.columns(4)
+    k5.metric("포지션", f"{pos_w:.2f}")
+    k6.metric("멀티", f"{vers_w:.2f}")
+    k7.metric("쿼터/HG", f"{reg_w:.2f}")
     
     st.divider()
     
@@ -339,7 +353,7 @@ with col2:
             
             summary_text = f"""⚽ [{season_val} 이적 분석] {player_name} {nat_text}
 ━━━━━━━━━━━━━━━━━━━━
-▪️ 이적 형태: {ttype_short}
+▪️ 이적 형태: {ttype_short} | 쿼터/HG: {reg_short} (가중치 {reg_w:.2f})
 ▪️ 포지션: {pos_short} (가중치 {pos_w:.2f} / 에이징 {age_w:.2f}) | 멀티: {versatility.split(" (")[0]}
 ▪️ 원소속 리그: {selling_league.split(" (")[0]} (가중치 {league_w:.2f})
 ▪️ 영입 구단: {buying_club_tier.split(":")[0]} (가중치 {club_w:.2f})
@@ -366,7 +380,7 @@ with col2:
             with st.spinner("구글 시트에 기록 중입니다..."):
                 contract_desc = remaining_contract.split(" (")[0]
                 nat_str = player_nat if player_nat.strip() else "미상"
-                note_content = f"[{ttype_short}] 국적: {nat_str} | 포지션: {pos_short} | 멀티: {versatility.split(' (')[0]} | 잔여계약: {contract_desc}"
+                note_content = f"[{ttype_short}|{reg_short}] 국적: {nat_str} | 포지션: {pos_short} | 멀티: {versatility.split(' (')[0]} | 잔여계약: {contract_desc}"
                 if player_notes.strip():
                     note_content += f" | {player_notes.strip()}"
                     
