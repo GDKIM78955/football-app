@@ -1,26 +1,19 @@
 import streamlit as st
 import pandas as pd
 import requests
+from bs4 import BeautifulSoup
 import json
+import re
 from datetime import datetime
 
-# 1. 페이지 기본 설정
+# 1. 페이지 설정
 st.set_page_config(
-    page_title="축구 이적료 적정가 분석기",
+    page_title="축구 이적료 분석 & TM 자동 수집기",
     page_icon="⚽",
     layout="wide"
 )
 
-# 구글 시트 Web App 연동 URL
 GOOGLE_SHEET_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbxV76sZFJaVPa7tmWSPBGlLaiZHijL77b7MZ_mpr6U-ia6hNO0UEiN-6A_1qz2u7XBNKA/exec"
-
-st.title("⚽ 축구 선수 적정 이적료 & 구글 시트 자동 저장 시스템")
-st.markdown("""
-리그 수준(Opta 점수 기반), 선수 나이 곡선, 구매 구단 규모(빅클럽 프리미엄)를 적용해 적정가를 산출하고,
-분석 결과를 **내 구글 시트(DB)**에 실시간으로 자동 저장합니다.
-""")
-
-st.divider()
 
 # 2. 가중치 딕셔너리
 LEAGUE_WEIGHTS = {
@@ -54,138 +47,215 @@ LEAGUE_WEIGHTS = {
 }
 
 CLUB_TIERS = {
-    "Tier 1: 엘리트 메가클럽 (레알, 맨시티, 바이에른, PSG 등)": 1.15,
-    "Tier 2: 빅클럽 (아스날, 리버풀, 첼시, 바르샤, 유벤투스 등)": 1.08,
-    "Tier 3: 중상위권 클럽 (토트넘, AT마드리드, 도르트문트 등)": 1.00,
-    "Tier 4: 중하위권 클럽 (EPL 중하위, 빅리그 중위권 팀)": 0.92,
-    "Tier 5: 소형/셀링 클럽 (중소리그 팀, 2부리그, K리그/J리그)": 0.80
+    "Tier 1: 엘리트 메가클럽": 1.15,
+    "Tier 2: 빅클럽": 1.08,
+    "Tier 3: 중상위권 클럽": 1.00,
+    "Tier 4: 중하위권 클럽": 0.92,
+    "Tier 5: 소형/셀링 클럽": 0.80
 }
 
 def get_age_weight(age):
-    if age <= 19:
-        return 1.00
-    elif age <= 23:
-        return 1.12
-    elif age <= 27:
-        return 1.00
-    elif age <= 29:
-        return 0.90
-    elif age <= 31:
-        return 0.75
-    else:
-        return 0.55
+    if age <= 19: return 1.00
+    elif age <= 23: return 1.12
+    elif age <= 27: return 1.00
+    elif age <= 29: return 0.90
+    elif age <= 31: return 0.75
+    else: return 0.55
 
-# 3. 사이드바 정보 창
-st.sidebar.header("⚙️ 시스템 설정 및 가중치 정보")
-st.sidebar.success("🔗 구글 시트 데이터베이스 연동 활성화")
+def parse_fee_to_million_euros(fee_str):
+    if not fee_str or "free" in fee_str.lower() or "loan" in fee_str.lower() or "-" in fee_str or "?" in fee_str:
+        return 0.0
+    s = fee_str.replace("€", "").replace("m", "M").replace("k", "K").strip()
+    try:
+        if "M" in s:
+            val = float(re.findall(r"[\d\.]+", s)[0])
+            return val * 100 # 만 유로 단위 (예: 30.00M = 3000만 유로)
+        elif "K" in s:
+            val = float(re.findall(r"[\d\.]+", s)[0])
+            return val * 0.1 # 만 유로 단위 (예: 500k = 50만 유로)
+        else:
+            return float(re.findall(r"[\d\.]+", s)[0])
+    except:
+        return 0.0
 
-with st.sidebar.expander("📊 구매 구단 티어 기준"):
-    st.dataframe(pd.DataFrame(list(CLUB_TIERS.items()), columns=["구단 구분", "가중치"]), hide_index=True, use_container_width=True)
-
-with st.sidebar.expander("📊 원소속 리그 가중치"):
-    st.dataframe(pd.DataFrame(list(LEAGUE_WEIGHTS.items()), columns=["리그명", "가중치"]), hide_index=True, use_container_width=True)
-
-with st.sidebar.expander("📈 나이 가중치 (보수적 모델)"):
-    st.markdown("""
-    - **17~19세**: `1.00`
-    - **20~23세**: `1.12`
-    - **24~27세**: `1.00`
-    - **28~29세**: `0.90`
-    - **30~31세**: `0.75`
-    - **32세 이상**: `0.55`
-    """)
-
-# 4. 입력 폼 레이아웃
-col1, col2 = st.columns([1, 1])
-
-with col1:
-    st.subheader("📝 이적 & 선수 정보 입력")
+# 트랜스퍼마르크트 스크래핑 함수
+def scrape_tm_league_transfers(url):
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    }
+    resp = requests.get(url, headers=headers, timeout=15)
+    if resp.status_code != 200:
+        return []
     
-    season_val = st.selectbox("이적 시즌", ["24/25", "25/26", "23/24", "기타"])
-    player_name = st.text_input("선수 이름", value="손흥민")
-    player_age = st.number_input("선수 나이 (만 나이)", min_value=15, max_value=45, value=23)
-    selling_league = st.selectbox("보내는 리그 (원소속)", list(LEAGUE_WEIGHTS.keys()))
-    buying_club_tier = st.selectbox("영입하는 구단 규모", list(CLUB_TIERS.keys()))
+    soup = BeautifulSoup(resp.text, "html.parser")
+    boxes = soup.select(".box")
+    transfers = []
     
-    st.markdown("---")
-    tm_market_value = st.number_input("트랜스퍼마르크트 시장 가치 (만 유로, €)", min_value=0, value=3000, step=100)
-    actual_transfer_fee = st.number_input("실제 이적료 (만 유로, €)", min_value=0, value=4000, step=100)
-    
-    player_notes = st.text_area("개인 메모 / 기대 스탯 (xG, xA, 평점 등)", placeholder="예: 90분당 xG 0.42, 키패스 2.1회 기록")
-
-# 5. 계산 및 평가
-league_w = LEAGUE_WEIGHTS[selling_league]
-age_w = get_age_weight(player_age)
-club_w = CLUB_TIERS[buying_club_tier]
-
-fair_value = tm_market_value * league_w * age_w * club_w
-diff = actual_transfer_fee - fair_value
-overpay_pct = (diff / fair_value) * 100 if fair_value > 0 else 0.0
-
-if abs(diff) <= (fair_value * 0.05):
-    status_label = "⚖️ 적정가 (Fair Deal)"
-elif diff > 0:
-    status_label = f"⚠️ 고평가 (+{overpay_pct:.1f}%)"
-else:
-    status_label = f"💎 저평가/혜자 ({overpay_pct:.1f}%)"
-
-with col2:
-    st.subheader("📊 분석 결과 및 DB 저장")
-    
-    st.markdown(f"### **{player_name}** 선수 이적 평가")
-    
-    kpi1, kpi2, kpi3 = st.columns(3)
-    kpi1.metric("리그 가중치", f"{league_w:.2f}")
-    kpi2.metric("나이 가중치", f"{age_w:.2f}")
-    kpi3.metric("구단 가중치", f"{club_w:.2f}")
-    
-    st.divider()
-    
-    m_col1, m_col2 = st.columns(2)
-    m_col1.metric("산출된 적정 이적료", f"€{fair_value:,.1f}만")
-    m_col2.metric("실제 이적료", f"€{actual_transfer_fee:,.1f}만", delta=f"{diff:+,.1f}만 (€)", delta_color="inverse")
-    
-    st.markdown("---")
-    
-    if "적정가" in status_label:
-        st.info(f"**진단 결과**: {status_label}")
-    elif "고평가" in status_label:
-        st.error(f"**진단 결과**: {status_label} - 적정가보다 €{diff:,.1f}만 유로 더 지불됨")
-    else:
-        st.success(f"**진단 결과**: {status_label} - 적정가보다 €{abs(diff):,.1f}만 유로 저렴하게 영입")
-
-    st.markdown("<br>", unsafe_allow_html=True)
-    
-    # 6. 구글 시트 저장 버튼
-    if st.button("💾 구글 시트 데이터베이스에 저장하기", type="primary", use_container_width=True):
-        with st.spinner("구글 시트에 기록 중입니다..."):
-            payload = {
-                "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                "season": season_val,
-                "name": player_name,
-                "age": int(player_age),
-                "league": selling_league.split(" (")[0],
-                "tier": buying_club_tier.split(":")[0],
-                "tm_val": float(tm_market_value),
-                "fee": float(actual_transfer_fee),
-                "fair_val": round(fair_value, 1),
-                "diff": round(diff, 1),
-                "status": status_label,
-                "notes": player_notes if player_notes else "-"
-            }
-            try:
-                headers = {"Content-Type": "text/plain;charset=utf-8"}
-                res = requests.post(
-                    GOOGLE_SHEET_WEBAPP_URL, 
-                    data=json.dumps(payload),
-                    headers=headers,
-                    timeout=12,
-                    allow_redirects=True
-                )
+    for b in boxes:
+        club_header = b.select_one(".content-box-headline a")
+        if not club_header:
+            continue
+        buying_club = club_header.get_text(strip=True)
+        
+        tables = b.select(".responsive-table")
+        if not tables:
+            continue
+        
+        # 첫 번째 테이블은 보통 'In (영입)' 목록
+        in_table = tables[0]
+        rows = in_table.select("tbody > tr")
+        
+        for r in rows:
+            tds = r.find_all("td")
+            if len(tds) < 5:
+                continue
+            
+            # 선수명
+            p_tag = r.select_one(".hide-for-small .di.show-for-small a") or r.select_one(".di a") or tds[0].select_one("a")
+            player_name = p_tag.get_text(strip=True) if p_tag else tds[0].get_text(strip=True)
+            if not player_name or "No new arrivals" in player_name:
+                continue
                 
-                if res.status_code in [200, 302]:
-                    st.success(f"✅ '{player_name}' 선수의 분석 데이터가 구글 시트에 성공적으로 저장되었습니다!")
-                else:
-                    st.error(f"⚠️ 응답 코드: {res.status_code}. Apps Script 배포 설정을 확인해 주세요.")
-            except Exception as e:
-                st.error(f"⚠️ 연결 오류 발생: {e}")
+            # 나이
+            age_text = tds[1].get_text(strip=True) if len(tds) > 1 else "23"
+            try:
+                age = int(age_text)
+            except:
+                age = 23
+                
+            # 전 소속팀 / 리그
+            left_club = tds[4].get_text(strip=True) if len(tds) > 4 else "Unknown"
+            
+            # 시장가치 및 실제 이적료
+            mv_text = tds[3].get_text(strip=True) if len(tds) > 3 else "0"
+            fee_text = tds[5].get_text(strip=True) if len(tds) > 5 else "0"
+            
+            tm_val = parse_fee_to_million_euros(mv_text)
+            actual_fee = parse_fee_to_million_euros(fee_text)
+            
+            transfers.append({
+                "영입팀": buying_club,
+                "선수명": player_name,
+                "나이": age,
+                "전소속": left_club,
+                "TM시장가치(만유로)": tm_val,
+                "실제이적료(만유로)": actual_fee,
+                "원문이적료": fee_text,
+                "원문시장가치": mv_text
+            })
+            
+    return transfers
+
+# 3. Streamlit 화면 구성
+st.title("⚽ 축구 이적시장 자동 수집 & 가치 평가 시스템")
+
+tab1, tab2 = st.tabs(["📥 TM 리그별 이적 일괄 자동 수집", "✍️ 단일 선수 수동 분석"])
+
+# ================= TAB 1: 자동 수집 모드 =================
+with tab1:
+    st.subheader("🌐 트랜스퍼마르크트 리그별 최신 이적 데이터 가져오기")
+    
+    c1, c2 = st.columns([3, 1])
+    with c1:
+        tm_url = st.text_input(
+            "트랜스퍼마르크트 이적 페이지 URL 입력", 
+            value="https://www.transfermarkt.com/premier-league/transfers/wettbewerb/GB1"
+        )
+    with c2:
+        default_tier = st.selectbox("영입 구단 기본 티어", list(CLUB_TIERS.keys()), index=2)
+    
+    if st.button("🚀 이적 명단 불러오기 & 적정가 자동 계산", type="primary"):
+        with st.spinner("트랜스퍼마르크트에서 최신 이적 데이터를 긁어오는 중입니다..."):
+            data = scrape_tm_league_transfers(tm_url)
+            if not data:
+                st.warning("데이터를 가져오지 못했습니다. URL이 올바른지 확인해 주세요.")
+            else:
+                df = pd.DataFrame(data)
+                
+                # 계산 필드 추가
+                df["나이가중치"] = df["나이"].apply(get_age_weight)
+                df["구단가중치"] = CLUB_TIERS[default_tier]
+                df["기본리그가중치"] = 0.95 # 기본값
+                
+                # 적정가 = TM몸값 * 0.95 * 나이가중치 * 구단가중치
+                df["산출적정가(만유로)"] = (df["TM시장가치(만유로)"] * df["기본리그가중치"] * df["나이가중치"] * df["구단가중치"]).round(1)
+                df["차액(만유로)"] = (df["실제이적료(만유로)"] - df["산출적정가(만유로)"]).round(1)
+                
+                def get_status(row):
+                    if row["산출적정가(만유로)"] == 0: return "평가불가/자유이적"
+                    diff = row["차액(만유로)"]
+                    if abs(diff) <= row["산출적정가(만유로)"] * 0.05: return "⚖️ 적정가"
+                    elif diff > 0: return "⚠️ 고평가"
+                    else: return "💎 저평가"
+                    
+                df["평가"] = df.apply(get_status, axis=1)
+                st.session_state["crawled_df"] = df
+                st.success(f"총 {len(df)}건의 영입 데이터를 성공적으로 불러왔습니다!")
+
+    if "crawled_df" in st.session_state:
+        df_display = st.session_state["crawled_df"]
+        st.dataframe(df_display[["영입팀", "선수명", "나이", "전소속", "TM시장가치(만유로)", "실제이적료(만유로)", "산출적정가(만유로)", "차액(만유로)", "평가"]], use_container_width=True)
+        
+        st.divider()
+        if st.button("💾 위 목록 중 '이적료가 발생한 선수들' 구글 시트에 일괄 저장하기", use_container_width=True):
+            with st.spinner("구글 시트에 전송 중..."):
+                saved_count = 0
+                for _, r in df_display.iterrows():
+                    if r["실제이적료(만유로)"] > 0: # 이적료가 있는 선수만 저장
+                        payload = {
+                            "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                            "season": "24/25",
+                            "name": r["선수명"],
+                            "age": int(r["나이"]),
+                            "league": r["전소속"],
+                            "tier": default_tier.split(":")[0],
+                            "tm_val": float(r["TM시장가치(만유로)"]),
+                            "fee": float(r["실제이적료(만유로)"]),
+                            "fair_val": float(r["산출적정가(만유로)"]),
+                            "diff": float(r["차액(만유로)"]),
+                            "status": r["평가"],
+                            "notes": f"영입구단: {r['영입팀']}"
+                        }
+                        try:
+                            requests.post(GOOGLE_SHEET_WEBAPP_URL, data=json.dumps(payload), headers={"Content-Type": "text/plain;charset=utf-8"}, timeout=8)
+                            saved_count += 1
+                        except:
+                            pass
+                st.success(f"✅ 총 {saved_count}명의 유료 이적 선수가 구글 시트에 성공적으로 등록되었습니다!")
+
+# ================= TAB 2: 수동 개별 분석 모드 =================
+with tab2:
+    st.subheader("✍️ 개별 선수 정밀 분석 & 시트 저장")
+    col1, col2 = st.columns(2)
+    with col1:
+        s_name = st.text_input("선수명", value="손흥민")
+        s_age = st.number_input("나이", 15, 45, 23)
+        s_league = st.selectbox("원소속 리그", list(LEAGUE_WEIGHTS.keys()))
+        s_tier = st.selectbox("영입 구단 규모", list(CLUB_TIERS.keys()))
+        s_tm = st.number_input("TM 시장가치 (만 유로)", value=3000, step=100)
+        s_fee = st.number_input("실제 이적료 (만 유로)", value=4000, step=100)
+        s_note = st.text_area("메모/기대스탯")
+    
+    with col2:
+        s_fair = s_tm * LEAGUE_WEIGHTS[s_league] * get_age_weight(s_age) * CLUB_TIERS[s_tier]
+        s_diff = s_fee - s_fair
+        st.metric("산출 적정가", f"€{s_fair:,.1f}만")
+        st.metric("실제 이적료", f"€{s_fee:,.1f}만", delta=f"{s_diff:+,.1f}만 (€)", delta_color="inverse")
+        
+        if st.button("💾 단일 건 구글 시트 저장"):
+            p = {
+                "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                "season": "24/25",
+                "name": s_name,
+                "age": int(s_age),
+                "league": s_league.split(" (")[0],
+                "tier": s_tier.split(":")[0],
+                "tm_val": float(s_tm),
+                "fee": float(s_fee),
+                "fair_val": round(s_fair, 1),
+                "diff": round(s_diff, 1),
+                "status": "고평가" if s_diff > 0 else "저평가",
+                "notes": s_note
+            }
+            requests.post(GOOGLE_SHEET_WEBAPP_URL, data=json.dumps(p), headers={"Content-Type": "text/plain;charset=utf-8"}, timeout=8)
+            st.success("저장 완료!")
