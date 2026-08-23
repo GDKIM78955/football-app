@@ -6,7 +6,7 @@ from datetime import datetime
 
 # 1. 페이지 기본 설정
 st.set_page_config(
-    page_title="축구 이적시장 11대 가중치 분석 & FotMob 36대 지표 프로젝션",
+    page_title="축구 이적시장 12대 가중치 분석 & FotMob 36대 지표 프로젝션",
     page_icon="⚽",
     layout="wide"
 )
@@ -30,7 +30,7 @@ for k, v in default_stats.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
-st.title("⚽ 축구 선수 11대 지표 적정 이적료 평가 & FotMob 시즌 예측")
+st.title("⚽ 축구 선수 12대 지표 적정 이적료 평가 & FotMob 시즌 예측")
 
 # 2. 보수적 현실 기반 가중치 딕셔너리
 LEAGUE_WEIGHTS = {
@@ -128,6 +128,14 @@ INJURY_WEIGHTS = {
     "🚨 최근 2년 내 장기 부상 이력 (십자인대/골절, -6%)": 0.94
 }
 
+# [신규] 영입 구단 절박성 & 취약 포지션 가중치
+URGENCY_WEIGHTS = {
+    "⚖️ 일반 보강 / 뎁스 자원 (기준)": 1.00,
+    "🔥 최우선 보강 타겟 (선발진 명확한 취약, +4%)": 1.04,
+    "🚨 비상사태 / 대체불가 타겟 (핵심이탈·패닉바이, +8%)": 1.08
+}
+
+# 17~19세 유망주 잠재력 프리미엄(+5%) 반영 에이징 커브
 def get_positional_age_weight(age, position_name):
     if "ST/CF" in position_name or "WG/CAM" in position_name:
         if age <= 19: return 1.05
@@ -211,7 +219,9 @@ with tab1:
         with c_r1: reg_status = st.selectbox("스쿼드 등록 / HG 쿼터", list(REGISTRATION_WEIGHTS.keys()), index=1, key=f"reg_{k_id}")
         with c_r2: big_stage = st.selectbox("UCL / 빅매치 검증도", list(BIG_STAGE_WEIGHTS.keys()), index=0, key=f"stage_{k_id}")
         
-        injury_status = st.selectbox("부상 내구성 & 메디컬 리스크", list(INJURY_WEIGHTS.keys()), index=1, key=f"inj_{k_id}")
+        c_i1, c_i2 = st.columns(2)
+        with c_i1: injury_status = st.selectbox("부상 내구성 & 메디컬 리스크", list(INJURY_WEIGHTS.keys()), index=1, key=f"inj_{k_id}")
+        with c_i2: urgency_status = st.selectbox("영입 구단 절박성 & 취약 포지션", list(URGENCY_WEIGHTS.keys()), index=0, key=f"urg_{k_id}")
 
         selling_league = st.selectbox("보내는 리그 (원소속)", list(LEAGUE_WEIGHTS.keys()), index=0, key=f"league_{k_id}")
         buying_club_tier = st.selectbox("영입하는 구단 규모", list(CLUB_TIERS.keys()), index=1, key=f"tier_{k_id}")
@@ -252,7 +262,7 @@ with tab1:
         
         player_notes = st.text_area("개인 메모 / 스카우팅 코멘트", placeholder="예: 대인 방어 및 후방 빌드업 우수", key=f"note_{k_id}")
 
-    # 11대 가중치 추출
+    # 12대 가중치 추출
     league_w = LEAGUE_WEIGHTS[selling_league]
     age_w = get_positional_age_weight(player_age, main_position)
     club_w = CLUB_TIERS[buying_club_tier]
@@ -263,8 +273,10 @@ with tab1:
     ttype_w = TRANSFER_TYPE_WEIGHTS[transfer_type]
     stage_w = BIG_STAGE_WEIGHTS[big_stage]
     inj_w = INJURY_WEIGHTS[injury_status]
+    urg_w = URGENCY_WEIGHTS[urgency_status]
 
-    fair_value = tm_market_value * league_w * age_w * club_w * contract_w * pos_w * vers_w * reg_w * opta_w * ttype_w * stage_w * inj_w
+    # 12대 가중치 종합 곱연산
+    fair_value = tm_market_value * league_w * age_w * club_w * contract_w * pos_w * vers_w * reg_w * opta_w * ttype_w * stage_w * inj_w * urg_w
     diff = actual_transfer_fee - fair_value
     diff_desc = format_currency_desc(abs(diff))
     overpay_pct = (diff / fair_value) * 100 if fair_value > 0 else 0.0
@@ -294,8 +306,8 @@ with tab1:
         age_delta = (age_w - 1.00) * 8.0
         age_delta = max(-1.0, min(0.8, age_delta))
         
-        # 4) 리스크 관리 보정 (부상, UCL, 쿼터)
-        risk_delta = (stage_w - 1.00) * 5.0 + (inj_w - 1.00) * 5.0 + (reg_w - 1.00) * 3.0
+        # 4) 리스크 관리 및 필요도 보정
+        risk_delta = (stage_w - 1.00) * 5.0 + (inj_w - 1.00) * 5.0 + (reg_w - 1.00) * 3.0 + (urg_w - 1.00) * 2.0
         
         final_deal_score = round(max(1.00, min(10.00, base_deal_score + val_score_delta + rating_delta + age_delta + risk_delta)), 2)
         
@@ -320,16 +332,18 @@ with tab1:
         deal_badge_type = "info"
 
     with col2:
-        st.subheader("📊 분석 결과 및 11대 세부 지표")
+        st.subheader("📊 분석 결과 및 12대 세부 지표")
         display_name = player_name if player_name else "선수명 미입력"
         display_nat = f"({player_nat})" if player_nat else ""
         pos_short = main_position.split(" (")[0]
         ttype_short = transfer_type.split(" (")[0]
         reg_short = reg_status.split(" (")[0]
+        urg_short = urgency_status.split(" (")[0]
         
         st.markdown(f"### **{display_name}** {display_nat} - `{pos_short}` 이적 평가")
-        st.caption(f"📌 조항: **{ttype_short}** | 쿼터: **{reg_short}** | 실적: **{opta_w:.2f}** | UCL: **{stage_w:.2f}**")
+        st.caption(f"📌 조항: **{ttype_short}** | 쿼터: **{reg_short}** | 필요도: **{urg_short}** | UCL: **{stage_w:.2f}**")
         
+        # 12대 지표 카드 (4열 x 3행 배치)
         r1_1, r1_2, r1_3, r1_4 = st.columns(4)
         r1_1.metric("1. 리그 난이도", f"{league_w:.2f}")
         r1_2.metric("2. 나이(에이징)", f"{age_w:.2f}")
@@ -342,10 +356,11 @@ with tab1:
         r2_3.metric("7. 쿼터/HG", f"{reg_w:.2f}")
         r2_4.metric("8. 평점/실적", f"{opta_w:.2f}")
         
-        r3_1, r3_2, r3_3, _ = st.columns(4)
+        r3_1, r3_2, r3_3, r3_4 = st.columns(4)
         r3_1.metric("9. 계약 조항", f"{ttype_w:.2f}")
         r3_2.metric("10. UCL 검증", f"{stage_w:.2f}")
         r3_3.metric("11. 메디컬/부상", f"{inj_w:.2f}")
+        r3_4.metric("12. 영입 절박성", f"{urg_w:.2f}")
         
         st.divider()
         
@@ -391,12 +406,12 @@ with tab1:
                 diff_text = f"적정가 대비 €{abs(diff):,.1f}만 유로({format_currency_desc(abs(diff))}) "
                 diff_text += "더 지불됨" if diff > 0 else ("저렴하게 영입" if diff < 0 else "정확히 일치")
                 
-                summary_text = f"""⚽ [{season_val} 11대 지표 이적 분석] {player_name} {nat_text}
+                summary_text = f"""⚽ [{season_val} 12대 지표 이적 분석] {player_name} {nat_text}
 ━━━━━━━━━━━━━━━━━━━━
 ▪️ 계약 조항: {ttype_short} ({ttype_w:.2f}) | 쿼터/HG: {reg_short} ({reg_w:.2f})
 ▪️ 포지션: {pos_short} (희소성 {pos_w:.2f} / 에이징 {age_w:.2f}) | 멀티: {versatility.split(" (")[0]}
 ▪️ 원소속 리그: {selling_league.split(" (")[0]} ({league_w:.2f}) ➔ 영입: {buying_club_tier.split(":")[0]} ({club_w:.2f})
-▪️ 계약 기간: {remaining_contract.split(" (")[0]} ({contract_w:.2f})
+▪️ 계약 기간: {remaining_contract.split(" (")[0]} ({contract_w:.2f}) | 필요도: {urg_short} ({urg_w:.2f})
 ▪️ UCL 검증: {big_stage.split(" (")[0]} ({stage_w:.2f}) | 부상내구성: {injury_status.split(" (")[0]} ({inj_w:.2f})
 ▪️ 지난 시즌 실적: {st.session_state['f_goals']}골 {st.session_state['f_assists']}도움 / 평점 {cur_rating:.2f} ({opta_w:.2f})
 ▪️ TM 시장가치: €{tm_market_value:,.0f}만 ({format_currency_desc(tm_market_value)})
@@ -524,7 +539,7 @@ with tab2:
 
     st.markdown("<br>", unsafe_allow_html=True)
     
-    # 2) 직전 시즌 vs 이적 첫 시즌 1:1 세부 스탯 비교 테이블 복원
+    # 2) 직전 시즌 vs 이적 첫 시즌 1:1 세부 스탯 비교 테이블
     st.markdown("#### 📊 **직전 시즌 실제 기록 vs 이적 첫 시즌 예측 데이터 비교표**")
     df_compare = pd.DataFrame({
         "FotMob 스탯 항목": [
@@ -575,7 +590,7 @@ with tab2:
     })
     st.table(df_compare)
 
-    # 3) 데이터 분석 스카우팅 총평 리포트 복원
+    # 3) 데이터 분석 스카우팅 총평 리포트
     st.info(f"""
     💡 **스카우팅 데이터 인사이트**:
     - **리그 난이도 격차 & 적응 모델**: '{f_from_l.split(' ')[1]}'에서 '{f_to_l.split(' ')[1]}'로 이적 시 발생하는 수비 압박 템포 차이(최종 환산 계수: **{final_l_factor:.2f}x**)가 적용되었습니다.
@@ -595,7 +610,7 @@ with tab2:
             with st.spinner("구글 시트에 36개 세부 지표를 기록 중입니다..."):
                 contract_desc = remaining_contract.split(" (")[0]
                 nat_str = player_nat if player_nat.strip() else "미상"
-                detailed_notes = f"[{ttype_short}|{reg_short}|UCL:{stage_w:.2f}|메디컬:{inj_w:.2f}|평점:{final_deal_score:.2f}] 계약:{contract_desc}"
+                detailed_notes = f"[{ttype_short}|{reg_short}|{urg_short}|UCL:{stage_w:.2f}|메디컬:{inj_w:.2f}|평점:{final_deal_score:.2f}] 계약:{contract_desc}"
                 if player_notes.strip():
                     detailed_notes += f" | {player_notes.strip()}"
                     
