@@ -258,15 +258,11 @@ with tab1:
     inj_w = INJURY_WEIGHTS[injury_status]
     urg_w = URGENCY_WEIGHTS[urgency_status]
 
-    # 보수적 적정가 계산
+    # [1] 내부용 초보수적 적정가 계산
     fair_value = tm_market_value * league_w * age_w * club_w * contract_w * pos_w * vers_w * reg_w * opta_w * ttype_w * stage_w * inj_w * urg_w
     diff = actual_transfer_fee - fair_value
     diff_desc = format_currency_desc(abs(diff))
     overpay_pct = (diff / fair_value) * 100 if fair_value > 0 else 0.0
-
-    # [추천 1안] 현실 시장 거래 예상 범위 (+5% ~ +10% 시장 프리미엄)
-    market_min = fair_value * 1.05
-    market_max = fair_value * 1.10
 
     if fair_value == 0 and actual_transfer_fee == 0: 
         status_label = "입력 대기 중"
@@ -277,7 +273,27 @@ with tab1:
     else: 
         status_label = f"💎 저평가/혜자 ({overpay_pct:.1f}%)"
 
-    # ================= 이적 종합 평점 (Deal Rating / 10.00점 만점) 계산 =================
+    # [2] 외부 발표용 현실 시장 거래 예상 범위 및 진단 (+5% ~ +10% 프리미엄)
+    market_min = fair_value * 1.05
+    market_max = fair_value * 1.10
+    market_mid = (market_min + market_max) / 2.0  # 시장 중간 기준선 (+7.5%)
+    
+    ext_diff = actual_transfer_fee - market_mid
+    ext_diff_desc = format_currency_desc(abs(ext_diff))
+    ext_overpay_pct = (ext_diff / market_mid) * 100 if market_mid > 0 else 0.0
+
+    if fair_value == 0 and actual_transfer_fee == 0:
+        ext_status_label = "분석 대기 중"
+    elif market_min <= actual_transfer_fee <= market_max:
+        ext_status_label = "⚖️ 시장가 적합 (Market Fair Deal)"
+    elif actual_transfer_fee > market_max:
+        over_max_pct = ((actual_transfer_fee - market_max) / market_max) * 100
+        ext_status_label = f"⚠️ 시장 상한 초과 고평가 (+{over_max_pct:.1f}%)"
+    else:
+        under_min_pct = ((market_min - actual_transfer_fee) / market_min) * 100
+        ext_status_label = f"💎 시장가 대비 혜자 영입 (-{under_min_pct:.1f}%)"
+
+    # [3] 내부용 이적 종합 평점 (Deal Rating / 10.00점)
     if tm_market_value > 0 and actual_transfer_fee > 0:
         base_deal_score = 7.50
         val_score_delta = max(-3.5, min(2.5, -(overpay_pct / 20.0)))
@@ -287,25 +303,26 @@ with tab1:
         
         final_deal_score = round(max(1.00, min(10.00, base_deal_score + val_score_delta + rating_delta + age_delta + risk_delta)), 2)
         
-        if final_deal_score >= 9.00:
-            deal_grade = "💎 S등급 (Masterclass Deal)"
-            deal_badge_type = "success"
-        elif final_deal_score >= 8.00:
-            deal_grade = "🌟 A등급 (Excellent Deal)"
-            deal_badge_type = "success"
-        elif final_deal_score >= 7.00:
-            deal_grade = "⚖️ B등급 (Solid / Fair Deal)"
-            deal_badge_type = "info"
-        elif final_deal_score >= 6.00:
-            deal_grade = "⚠️ C등급 (Risky Deal)"
-            deal_badge_type = "warning"
-        else:
-            deal_grade = "🚨 D등급 (Panic Buy / Overpaid)"
-            deal_badge_type = "error"
+        # [4] 외부 발표용 이적 종합 평점 (시장 프리미엄 7.5% 감안 보정)
+        ext_val_score_delta = max(-3.5, min(2.5, -(ext_overpay_pct / 20.0)))
+        ext_deal_score = round(max(1.00, min(10.00, base_deal_score + ext_val_score_delta + rating_delta + age_delta + risk_delta)), 2)
+
+        def get_grade_info(score):
+            if score >= 9.00: return "💎 S등급 (Masterclass Deal)", "success"
+            elif score >= 8.00: return "🌟 A등급 (Excellent Deal)", "success"
+            elif score >= 7.00: return "⚖️ B등급 (Solid / Fair Deal)", "info"
+            elif score >= 6.00: return "⚠️ C등급 (Risky Deal)", "warning"
+            else: return "🚨 D등급 (Panic Buy / Overpaid)", "error"
+
+        deal_grade, deal_badge_type = get_grade_info(final_deal_score)
+        ext_deal_grade, ext_badge_type = get_grade_info(ext_deal_score)
     else:
         final_deal_score = 0.00
+        ext_deal_score = 0.00
         deal_grade = "분석 대기 중"
+        ext_deal_grade = "분석 대기 중"
         deal_badge_type = "info"
+        ext_badge_type = "info"
 
     with col2:
         st.subheader("📊 분석 결과 및 12대 세부 지표")
@@ -340,79 +357,79 @@ with tab1:
         
         st.divider()
         
-        # 이적료 메트릭 (적정가 vs 실제이적료)
-        m_col1, m_col2 = st.columns(2)
-        with m_col1:
-            st.metric("산출된 적정 이적료 (데이터 기준)", f"€{fair_value:,.1f}만")
-            if fair_value > 0: st.caption(f"{format_currency_desc(fair_value)}")
-        with m_col2:
-            st.metric("실제 지출 이적료", f"€{actual_transfer_fee:,.1f}만", delta=f"{diff:+,.1f}만 (€)" if actual_transfer_fee > 0 else None, delta_color="inverse")
-            if actual_transfer_fee > 0: st.caption(f"{format_currency_desc(actual_transfer_fee)}")
-        
-        # [신규] 추천 1안: 현실 시장 거래 예상 범위 (Market Range) 카드
+        # -------------------------------------------------------------
+        # [외부 발표용 / 미디어 브리핑 전용 섹션]
+        # -------------------------------------------------------------
+        st.markdown("#### 📢 **[외부 발표용 / 미디어 브리핑] 현실 시장가 & 진단 결과**")
+        st.caption("외부 공개 및 커뮤니티 공유 시 현실적인 이적시장 프리미엄(+5% ~ +10%)을 감안한 종합 리포트입니다.")
+
         if fair_value > 0:
             st.markdown(f"""
-            <div style="background-color: #f0f7ff; padding: 12px 16px; border-radius: 8px; border-left: 4px solid #0066cc; margin: 10px 0;">
-                <div style="font-weight: bold; color: #004080; font-size: 14px;">📌 현실 시장 거래 예상 범위 (+5% ~ +10% 프리미엄 반영)</div>
-                <div style="font-size: 16px; font-weight: bold; color: #111; margin-top: 4px;">
+            <div style="background-color: #f0f7ff; padding: 14px 18px; border-radius: 8px; border-left: 5px solid #0066cc; margin-bottom: 12px;">
+                <div style="font-size: 13px; font-weight: bold; color: #004080; margin-bottom: 4px;">📌 현실 시장 거래 예상 범위 (Market Premium Range)</div>
+                <div style="font-size: 19px; font-weight: bold; color: #111;">
                     €{market_min:,.1f}만 ~ €{market_max:,.1f}만
                 </div>
-                <div style="font-size: 12px; color: #555; margin-top: 2px;">
-                    ({format_currency_desc(market_min).split(' | ')[0]} ~ {format_currency_desc(market_max)})
+                <div style="font-size: 13px; color: #444; margin-top: 3px;">
+                    환산가: <b>{format_currency_desc(market_min).split(' | ')[0]} ~ {format_currency_desc(market_max)}</b>
                 </div>
             </div>
             """, unsafe_allow_html=True)
 
-        st.markdown("---")
-        
-        # 이적 종합 총 평점 카드 섹션
-        if final_deal_score > 0:
-            st.markdown("#### 🏆 **이번 이적 종합 평점 (Deal Rating)**")
-            ds_col1, ds_col2 = st.columns([1, 2])
-            with ds_col1:
-                st.metric("이적 평가 총점", f"★ {final_deal_score:.2f} / 10.00")
-            with ds_col2:
-                st.markdown(f"**종합 등급 판정**: `{deal_grade}`")
-                if "고평가" in status_label:
-                    st.caption(f"💡 시장 적정가 대비 초과 지출({diff_desc})로 인해 가성비 감점이 반영되었습니다.")
-                elif "저평가" in status_label:
-                    st.caption(f"💡 시장 적정가 대비 절감({diff_desc})으로 인해 높은 가성비 가산점이 반영되었습니다.")
+            ext_c1, ext_c2 = st.columns(2)
+            with ext_c1:
+                st.metric("외부 발표용 이적 평점", f"★ {ext_deal_score:.2f} / 10.00")
+                st.caption(f"판정: `{ext_deal_grade}`")
+            with ext_c2:
+                st.metric("외부 발표용 진단", f"{ext_status_label}")
+                if "시장가 적합" in ext_status_label:
+                    st.caption("💡 실제 지출액이 시장 정상 거래 범위 내에 정확히 안착했습니다.")
+                elif "고평가" in ext_status_label:
+                    st.caption(f"💡 시장 상한가 대비 초과 지출({format_currency_desc(actual_transfer_fee - market_max)}) 발생")
                 else:
-                    st.caption("💡 적정 시세에 부합하는 합리적인 이적 거래입니다.")
-            
-            if deal_badge_type == "error":
-                st.error(f"**진단 결과**: {status_label} - 적정가 대비 €{diff:,.1f}만 유로 더 지불됨 (총점 **{final_deal_score:.2f}점**)")
-            elif deal_badge_type == "warning":
-                st.warning(f"**진단 결과**: {status_label} (총점 **{final_deal_score:.2f}점**)")
-            elif deal_badge_type == "info":
-                st.info(f"**진단 결과**: {status_label} (총점 **{final_deal_score:.2f}점**)")
-            else:
-                st.success(f"**진단 결과**: {status_label} - 최고 수준의 영입 효율 (총점 **{final_deal_score:.2f}점**)")
-        else:
-            st.info("💡 시장 가치와 실제 이적료를 입력하면 종합 평점이 산출됩니다.")
+                    st.caption(f"💡 시장 하한가 대비 절감({format_currency_desc(market_min - actual_transfer_fee)}) 성공")
 
+        st.markdown("---")
+
+        # -------------------------------------------------------------
+        # [내부 데이터베이스용 원본 분석 섹션]
+        # -------------------------------------------------------------
+        with st.expander("🔒 [내부 데이터용] 초보수적 원본 적정가 & 내부 평가 세부내역", expanded=False):
+            st.caption("구글 시트 데이터베이스 및 통계 모델 검증을 위한 초보수적 기준 수치입니다.")
+            m_col1, m_col2 = st.columns(2)
+            with m_col1:
+                st.metric("데이터 기준 적정가", f"€{fair_value:,.1f}만")
+                if fair_value > 0: st.caption(f"{format_currency_desc(fair_value)}")
+            with m_col2:
+                st.metric("실제 지출액", f"€{actual_transfer_fee:,.1f}만", delta=f"{diff:+,.1f}만 (€)" if actual_transfer_fee > 0 else None, delta_color="inverse")
+                if actual_transfer_fee > 0: st.caption(f"{format_currency_desc(actual_transfer_fee)}")
+            
+            st.write(f"- **내부 진단 판정**: {status_label}")
+            st.write(f"- **내부 이적 평점**: ★ {final_deal_score:.2f} / 10.00 ({deal_grade})")
+
+        # -------------------------------------------------------------
+        # 공유용 요약 텍스트 (외부 발표용으로 구성)
+        # -------------------------------------------------------------
         if player_name.strip() and (tm_market_value > 0 or actual_transfer_fee > 0):
-            with st.expander("📋 커뮤니티 / 메모장 공유용 상세 요약 텍스트 (클릭하여 복사)", expanded=True):
+            with st.expander("📋 [클릭하여 복사] 외부 발표용 공식 브리핑 요약 텍스트", expanded=True):
                 nat_text = f"({player_nat}, 만 {player_age}세)" if player_nat else f"(만 {player_age}세)"
-                diff_text = f"적정가 대비 €{abs(diff):,.1f}만 유로({format_currency_desc(abs(diff))}) "
-                diff_text += "더 지불됨" if diff > 0 else ("저렴하게 영입" if diff < 0 else "정확히 일치")
                 
-                summary_text = f"""⚽ [{season_val} 12대 지표 이적 분석 리포트] {player_name} {nat_text}
+                summary_text = f"""⚽ [{season_val} 공식 이적 분석 브리핑] {player_name} {nat_text}
 ━━━━━━━━━━━━━━━━━━━━
-▪️ 계약 조항: {ttype_short} ({ttype_w:.2f}) | 쿼터/HG: {reg_short} ({reg_w:.2f})
 ▪️ 포지션: {pos_short} (희소성 {pos_w:.2f} / 에이징 {age_w:.2f}) | 멀티: {versatility.split(" (")[0]}
-▪️ 원소속 리그: {selling_league.split(" (")[0]} ({league_w:.2f}) ➔ 영입: {buying_club_tier.split(":")[0]} ({club_w:.2f})
-▪️ 계약 기간: {remaining_contract.split(" (")[0]} ({contract_w:.2f}) | 필요도: {urg_short} ({urg_w:.2f})
-▪️ UCL 검증: {big_stage.split(" (")[0]} ({stage_w:.2f}) | 부상내구성: {injury_status.split(" (")[0]} ({inj_w:.2f})
-▪️ 지난 시즌 실적: {st.session_state['f_goals']}골 {st.session_state['f_assists']}도움 / 평점 {cur_rating:.2f} ({opta_w:.2f})
-▪️ TM 시장가치: €{tm_market_value:,.0f}만 ({format_currency_desc(tm_market_value)})
+▪️ 원소속 리그: {selling_league.split(" (")[0]} ({league_w:.2f}) ➔ 영입 구단: {buying_club_tier.split(":")[0]} ({club_w:.2f})
+▪️ 계약 기간: {remaining_contract.split(" (")[0]} ({contract_w:.2f}) | 영입 필요도: {urg_short} ({urg_w:.2f})
+▪️ 검증도: UCL {stage_w:.2f} | 부상내구성: {injury_status.split(" (")[0]} ({inj_w:.2f}) | 쿼터: {reg_short} ({reg_w:.2f})
+▪️ 지난 시즌 실적: {st.session_state['f_goals']}골 {st.session_state['f_assists']}도움 / 평점 {cur_rating:.2f}
+▪️ 트랜스퍼마르크트 시장가치: €{tm_market_value:,.0f}만 ({format_currency_desc(tm_market_value)})
 ━━━━━━━━━━━━━━━━━━━━
-📊 데이터 기반 적정 가치: €{fair_value:,.1f}만 ({format_currency_desc(fair_value)})
+📊 [외부 발표용 공식 평가]
 📌 현실 시장 거래 예상 범위 (+5~10%): €{market_min:,.1f}만 ~ €{market_max:,.1f}만 ({format_currency_desc(market_min).split(' | ')[0]} ~ {format_currency_desc(market_max)})
 💰 실제 지출 이적료: €{actual_transfer_fee:,.1f}만 ({format_currency_desc(actual_transfer_fee)})
+🏆 외부 발표용 이적 평점: ★ {ext_deal_score:.2f} / 10.00점 ({ext_deal_grade})
+🔍 최종 시장 진단: {ext_status_label}
 ━━━━━━━━━━━━━━━━━━━━
-🏆 이번 이적 총 평점: ★ {final_deal_score:.2f} / 10.00점 ({deal_grade})
-🔍 종합 진단 판정: {status_label} - {diff_text}
+🔒 [내부 참고 데이터] 순수 모델 적정가: €{fair_value:,.1f}만 | 내부 기준 평점: ★ {final_deal_score:.2f}
 """
                 if player_notes.strip(): summary_text += f"📝 스카우팅 메모: {player_notes.strip()}\n"
                 st.code(summary_text.strip(), language="text")
@@ -494,7 +511,6 @@ with tab2:
 
     st.divider()
 
-    # 이적 후 기대 스탯 예측 계산
     p90_xg = (in_xg / base_p90) * final_l_factor
     p90_xa = (in_xa / base_p90) * final_l_factor
     p90_shots = (in_shots / base_p90) * final_l_factor
@@ -519,7 +535,6 @@ with tab2:
     
     proj_rating = round(max(6.0, in_rating - (1.0 - final_l_factor) * 0.9), 2)
 
-    # 1) 상단 5대 핵심 지표 카드
     st.markdown(f"### 🎯 **FotMob 스타일 이적 첫 시즌 성적 예측 리포트**")
     st.caption(f"이적 환경: **{f_from_l.split(' ')[1]}** ➔ **{f_to_l.split(' ')[1]}** | 리그 난이도: **{raw_l_factor:.2f}x** | {adapt_desc} | 최종 환산 계수: **{final_l_factor:.2f}x**")
     
@@ -532,7 +547,6 @@ with tab2:
 
     st.markdown("<br>", unsafe_allow_html=True)
     
-    # 2) 직전 시즌 vs 이적 첫 시즌 1:1 세부 스탯 비교 테이블
     st.markdown("#### 📊 **직전 시즌 실제 기록 vs 이적 첫 시즌 예측 데이터 비교표**")
     df_compare = pd.DataFrame({
         "FotMob 스탯 항목": [
@@ -583,7 +597,6 @@ with tab2:
     })
     st.table(df_compare)
 
-    # 3) 데이터 분석 스카우팅 총평 리포트
     st.info(f"""
     💡 **스카우팅 데이터 인사이트**:
     - **리그 난이도 격차 & 적응 모델**: '{f_from_l.split(' ')[1]}'에서 '{f_to_l.split(' ')[1]}'로 이적 시 발생하는 수비 압박 템포 차이(최종 환산 계수: **{final_l_factor:.2f}x**)가 적용되었습니다.
@@ -592,7 +605,6 @@ with tab2:
 
     st.markdown("---")
     
-    # 4) 구글 시트 저장 섹션
     display_pname = player_name.strip() if player_name.strip() else "선수명 미입력"
     st.markdown(f"#### 💾 **'{display_pname}'** 선수의 37대 전체 데이터 구글 시트 저장")
     
