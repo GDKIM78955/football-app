@@ -20,7 +20,7 @@ if "form_key_id" not in st.session_state:
 if "last_saved_msg" not in st.session_state:
     st.session_state["last_saved_msg"] = None
 
-# FotMob 지난 시즌 기본 스탯 세션 상태 (두 탭 간 실시간 연동)
+# FotMob 지난 시즌 기본 스탯 세션 상태
 default_stats = {
     "f_mins": 2206, "f_goals": 16, "f_xg": 17.44, "f_assists": 4, "f_xa": 3.33,
     "f_rating": 7.32, "f_matches": 28, "f_starts": 25, "f_shots": 88, "f_sot": 43,
@@ -178,13 +178,13 @@ def execute_sheet_save(payload_data):
             allow_redirects=True
         )
         if res.status_code in [200, 302]:
-            st.session_state["last_saved_msg"] = f"✅ '{payload_data['name']}' 선수의 FotMob 성적 및 이적료 데이터(36개 항목)가 구글 시트에 성공적으로 저장되었습니다!"
+            st.session_state["last_saved_msg"] = f"✅ '{payload_data['name']}' 선수의 36대 전체 데이터가 구글 시트에 완벽히 저장되었습니다!"
             st.session_state["form_key_id"] += 1
             st.rerun()
         else:
             st.error(f"⚠️ 저장 실패 (응답 코드: {res.status_code})")
     except Exception as e:
-        st.error(f"⚠️ 저장 중 오류가 발생했습니다: {e}")
+        st.error(f"⚠️ 저장 오류: {e}")
 
 # ================= TAB 1: 적정 이적료 평가 =================
 with tab1:
@@ -253,8 +253,9 @@ with tab1:
         actual_transfer_fee = st.number_input("실제 이적료 (만 유로, €)", min_value=0, value=5960, step=50, key=f"fee_{k_id}")
         if actual_transfer_fee > 0: st.caption(f"💡 실제이적료 환산: **{format_currency_desc(actual_transfer_fee)}**")
         
-        player_notes = st.text_area("개인 메모 / 스카우팅 코멘트", placeholder="예: 양발 슈팅 능력 및 라인브레이킹 탁월", key=f"note_{k_id}")
+        player_notes = st.text_area("개인 메모 / 스카우팅 코멘트", placeholder="예: 대인 방어 및 후방 빌드업 우수", key=f"note_{k_id}")
 
+    # 11대 가중치 추출
     league_w = LEAGUE_WEIGHTS[selling_league]
     age_w = get_positional_age_weight(player_age, main_position)
     club_w = CLUB_TIERS[buying_club_tier]
@@ -270,10 +271,57 @@ with tab1:
     diff = actual_transfer_fee - fair_value
     overpay_pct = (diff / fair_value) * 100 if fair_value > 0 else 0.0
 
-    if fair_value == 0 and actual_transfer_fee == 0: status_label = "입력 대기 중"
-    elif abs(diff) <= (fair_value * 0.05): status_label = "⚖️ 적정가 (Fair Deal)"
-    elif diff > 0: status_label = f"⚠️ 고평가 (+{overpay_pct:.1f}%)"
-    else: status_label = f"💎 저평가/혜자 ({overpay_pct:.1f}%)"
+    if fair_value == 0 and actual_transfer_fee == 0: 
+        status_label = "입력 대기 중"
+    elif abs(diff) <= (fair_value * 0.05): 
+        status_label = "⚖️ 적정가 (Fair Deal)"
+    elif diff > 0: 
+        status_label = f"⚠️ 고평가 (+{overpay_pct:.1f}%)"
+    else: 
+        status_label = f"💎 저평가/혜자 ({overpay_pct:.1f}%)"
+
+    # ================= 이적 종합 평점 (Deal Rating / 10.00점 만점) 계산 =================
+    if tm_market_value > 0 and actual_transfer_fee > 0:
+        base_deal_score = 7.50
+        
+        # 1) 가성비 보정 (-3.0 ~ +2.5)
+        # overpay_pct: 0% -> 0, +50% -> -2.5, -30% -> +2.0
+        val_score_delta = -(overpay_pct / 20.0)
+        val_score_delta = max(-3.5, min(2.5, val_score_delta))
+        
+        # 2) 선수 실적 & 기량 보정 (FotMob 평점 기준 -0.8 ~ +1.0)
+        # 7.0 기준
+        rating_delta = (cur_rating - 7.00) * 1.5
+        rating_delta = max(-0.8, min(1.0, rating_delta))
+        
+        # 3) 나이 및 미래가치 보정 (나이 가중치 기준 -0.8 ~ +0.6)
+        age_delta = (age_w - 1.00) * 8.0
+        age_delta = max(-1.0, min(0.8, age_delta))
+        
+        # 4) 리스크 관리 보정 (부상, UCL, 쿼터)
+        risk_delta = (stage_w - 1.00) * 5.0 + (inj_w - 1.00) * 5.0 + (reg_w - 1.00) * 3.0
+        
+        final_deal_score = round(max(1.00, min(10.00, base_deal_score + val_score_delta + rating_delta + age_delta + risk_delta)), 2)
+        
+        if final_deal_score >= 9.00:
+            deal_grade = "💎 S등급 (Masterclass Deal)"
+            deal_badge_type = "success"
+        elif final_deal_score >= 8.00:
+            deal_grade = "🌟 A등급 (Excellent Deal)"
+            deal_badge_type = "success"
+        elif final_deal_score >= 7.00:
+            deal_grade = "⚖️ B등급 (Solid / Fair Deal)"
+            deal_badge_type = "info"
+        elif final_deal_score >= 6.00:
+            deal_grade = "⚠️ C등급 (Risky Deal)"
+            deal_badge_type = "warning"
+        else:
+            deal_grade = "🚨 D등급 (Panic Buy / Overpaid)"
+            deal_badge_type = "error"
+    else:
+        final_deal_score = 0.00
+        deal_grade = "분석 대기 중"
+        deal_badge_type = "info"
 
     with col2:
         st.subheader("📊 분석 결과 및 11대 세부 지표")
@@ -314,14 +362,56 @@ with tab1:
             if actual_transfer_fee > 0: st.caption(f"{format_currency_desc(actual_transfer_fee)}")
         
         st.markdown("---")
-        if status_label == "입력 대기 중": st.info("💡 시장 가치와 이적료를 입력하면 분석이 시작됩니다.")
-        elif "적정가" in status_label: st.info(f"**진단 결과**: {status_label}")
-        elif "고평가" in status_label: 
-            diff_desc = format_currency_desc(abs(diff))
-            st.error(f"**진단 결과**: {status_label} - 적정가 대비 €{diff:,.1f}만 유로({diff_desc}) 더 지불됨")
-        else: 
-            diff_desc = format_currency_desc(abs(diff))
-            st.success(f"**진단 결과**: {status_label} - 적정가 대비 €{abs(diff):,.1f}만 유로({diff_desc}) 저렴하게 영입")
+        
+        # [신규] 이적 종합 총 평점 카드 섹션
+        if final_deal_score > 0:
+            st.markdown("#### 🏆 **이번 이적 종합 평점 (Deal Rating)**")
+            ds_col1, ds_col2 = st.columns([1, 2])
+            with ds_col1:
+                st.metric("이적 평가 총점", f"★ {final_deal_score:.2f} / 10.00")
+            with ds_col2:
+                st.markdown(f"**종합 등급 판정**: `{deal_grade}`")
+                if "고평가" in status_label:
+                    st.caption(f"💡 시장 적정가 대비 초과 지출({diff_desc:})로 인해 가성비 감점이 반영되었습니다.")
+                elif "저평가" in status_label:
+                    st.caption(f"💡 시장 적정가 대비 절감({diff_desc:})으로 인해 높은 가성비 가산점이 반영되었습니다.")
+                else:
+                    st.caption("💡 적정 시세에 부합하는 합리적인 이적 거래입니다.")
+            
+            if deal_badge_type == "error":
+                st.error(f"**진단 결과**: {status_label} - 적정가 대비 €{diff:,.1f}만 유로 더 지불됨 (총점 **{final_deal_score:.2f}점**)")
+            elif deal_badge_type == "warning":
+                st.warning(f"**진단 결과**: {status_label} (총점 **{final_deal_score:.2f}점**)")
+            elif deal_badge_type == "info":
+                st.info(f"**진단 결과**: {status_label} (총점 **{final_deal_score:.2f}점**)")
+            else:
+                st.success(f"**진단 결과**: {status_label} - 최고 수준의 영입 효율 (총점 **{final_deal_score:.2f}점**)")
+        else:
+            st.info("💡 시장 가치와 실제 이적료를 입력하면 종합 평점이 산출됩니다.")
+
+        if player_name.strip() and (tm_market_value > 0 or actual_transfer_fee > 0):
+            with st.expander("📋 커뮤니티 / 메모장 공유용 상세 요약 텍스트 (클릭하여 복사)", expanded=True):
+                nat_text = f"({player_nat}, 만 {player_age}세)" if player_nat else f"(만 {player_age}세)"
+                diff_text = f"적정가 대비 €{abs(diff):,.1f}만 유로({format_currency_desc(abs(diff))}) "
+                diff_text += "더 지불됨" if diff > 0 else ("저렴하게 영입" if diff < 0 else "정확히 일치")
+                
+                summary_text = f"""⚽ [{season_val} 11대 지표 이적 분석] {player_name} {nat_text}
+━━━━━━━━━━━━━━━━━━━━
+▪️ 계약 조항: {ttype_short} ({ttype_w:.2f}) | 쿼터/HG: {reg_short} ({reg_w:.2f})
+▪️ 포지션: {pos_short} (희소성 {pos_w:.2f} / 에이징 {age_w:.2f}) | 멀티: {versatility.split(" (")[0]}
+▪️ 원소속 리그: {selling_league.split(" (")[0]} ({league_w:.2f}) ➔ 영입: {buying_club_tier.split(":")[0]} ({club_w:.2f})
+▪️ 계약 기간: {remaining_contract.split(" (")[0]} ({contract_w:.2f})
+▪️ UCL 검증: {big_stage.split(" (")[0]} ({stage_w:.2f}) | 부상내구성: {injury_status.split(" (")[0]} ({inj_w:.2f})
+▪️ 지난 시즌 실적: {st.session_state['f_goals']}골 {st.session_state['f_assists']}도움 / 평점 {cur_rating:.2f} ({opta_w:.2f})
+▪️ TM 시장가치: €{tm_market_value:,.0f}만 ({format_currency_desc(tm_market_value)})
+▪️ 산출 적정가: €{fair_value:,.1f}만 ({format_currency_desc(fair_value)})
+▪️ 실제 이적료: €{actual_transfer_fee:,.1f}만 ({format_currency_desc(actual_transfer_fee)})
+━━━━━━━━━━━━━━━━━━━━
+🏆 이번 이적 총 평점: ★ {final_deal_score:.2f} / 10.00점 ({deal_grade})
+📊 종합 진단: {status_label} - {diff_text}
+"""
+                if player_notes.strip(): summary_text += f"📝 메모: {player_notes.strip()}\n"
+                st.code(summary_text.strip(), language="text")
 
 # ================= TAB 2: FotMob 시즌 성적 & 이적 예측 (비교 리포트 및 저장) =================
 with tab2:
@@ -509,7 +599,7 @@ with tab2:
             with st.spinner("구글 시트에 36개 세부 지표를 기록 중입니다..."):
                 contract_desc = remaining_contract.split(" (")[0]
                 nat_str = player_nat if player_nat.strip() else "미상"
-                detailed_notes = f"[{ttype_short}|{reg_short}|UCL:{stage_w:.2f}|메디컬:{inj_w:.2f}] 계약:{contract_desc}"
+                detailed_notes = f"[{ttype_short}|{reg_short}|UCL:{stage_w:.2f}|메디컬:{inj_w:.2f}|평점:{final_deal_score:.2f}] 계약:{contract_desc}"
                 if player_notes.strip():
                     detailed_notes += f" | {player_notes.strip()}"
                     
