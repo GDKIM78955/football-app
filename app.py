@@ -6,22 +6,19 @@ from datetime import datetime
 
 # 1. 페이지 기본 설정
 st.set_page_config(
-    page_title="축구 이적시장 12대 가중치 분석 & FotMob 36대 지표 프로젝션",
+    page_title="축구 이적시장 12대 가중치 분석 & FotMob 37대 지표 프로젝션",
     page_icon="⚽",
     layout="wide"
 )
 
-# 36개 전용 구글 시트 Web App URL
 GOOGLE_SHEET_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzlIZEZ6C8T1mpIErWoAgi28cCfeezNfqE2U9CR1P6vtB5t928n7VSJ3OvhCyTd-not8g/exec"
 SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1oUDZ96SJ7aklJdrq_rK5K1ti2RRUAGO3PqqLvPM9E2A/gviz/tq?tqx=out:csv"
 
-# 세션 상태 초기화
 if "form_key_id" not in st.session_state:
     st.session_state["form_key_id"] = 0
 if "last_saved_msg" not in st.session_state:
     st.session_state["last_saved_msg"] = None
 
-# FotMob 지난 시즌 기본 스탯 세션 상태
 default_stats = {
     "f_mins": 2206, "f_goals": 16, "f_xg": 17.44, "f_assists": 4, "f_xa": 3.33,
     "f_rating": 7.32, "f_matches": 28, "f_starts": 25, "f_shots": 88, "f_sot": 43,
@@ -33,7 +30,7 @@ for k, v in default_stats.items():
 
 st.title("⚽ 축구 선수 12대 지표 적정 이적료 평가 & FotMob 시즌 예측")
 
-# 2. 보수적 현실 기반 가중치 딕셔너리
+# 2. 가중치 딕셔너리
 LEAGUE_WEIGHTS = {
     "잉글랜드 프리미어리그 (EPL 1부)": 1.00,
     "스페인 라리가 (La Liga 1부)": 0.92,
@@ -135,7 +132,6 @@ URGENCY_WEIGHTS = {
     "🚨 비상사태 / 대체불가 타겟 (핵심이탈·패닉바이, +8%)": 1.08
 }
 
-# 17~19세 유망주 잠재력 프리미엄(+5%) 반영 에이징 커브
 def get_positional_age_weight(age, position_name):
     if "ST/CF" in position_name or "WG/CAM" in position_name:
         if age <= 19: return 1.05
@@ -177,24 +173,6 @@ tab1, tab2, tab3 = st.tabs([
     "📱 FotMob 시즌 성적 & 이적 예측 (시트 저장)",
     "🔍 과거 유사 이적 사례 비교 (Comps TOP 10)"
 ])
-
-def execute_sheet_save(payload_data):
-    try:
-        res = requests.post(
-            GOOGLE_SHEET_WEBAPP_URL, 
-            data=json.dumps(payload_data), 
-            headers={"Content-Type": "text/plain;charset=utf-8"}, 
-            timeout=12, 
-            allow_redirects=True
-        )
-        if res.status_code in [200, 302]:
-            st.session_state["last_saved_msg"] = f"✅ '{payload_data['name']}' 선수의 FotMob 성적 및 이적료 데이터(36개 항목)가 구글 시트에 성공적으로 저장되었습니다!"
-            st.session_state["form_key_id"] += 1
-            st.rerun()
-        else:
-            st.error(f"⚠️ 저장 실패 (응답 코드: {res.status_code})")
-    except Exception as e:
-        st.error(f"⚠️ 저장 중 오류가 발생했습니다: {e}")
 
 # ================= TAB 1: 적정 이적료 평가 =================
 with tab1:
@@ -590,18 +568,18 @@ with tab2:
 
     st.markdown("---")
     
-    # 4) 구글 시트 저장 섹션
+    # 4) 구글 시트 저장 섹션 (37개 열 전용)
     display_pname = player_name.strip() if player_name.strip() else "선수명 미입력"
-    st.markdown(f"#### 💾 **'{display_pname}'** 선수의 36대 전체 데이터 구글 시트 저장")
+    st.markdown(f"#### 💾 **'{display_pname}'** 선수의 37대 전체 데이터 구글 시트 저장")
     
-    if st.button("💾 FotMob 시즌 성적 & 이적 예측 데이터 구글 시트에 저장하기 (36개 전체 항목)", type="primary", use_container_width=True, key="save_btn_tab2"):
+    if st.button("💾 FotMob 시즌 성적 & 이적 예측 데이터 구글 시트에 저장하기 (37개 전체 항목)", type="primary", use_container_width=True, key="save_btn_tab2"):
         if not player_name.strip():
             st.warning("⚠️ 선수 이름을 [💰 적정 이적료 평가] 탭에 먼저 입력해 주세요.")
         else:
-            with st.spinner("구글 시트에 36개 세부 지표를 기록 중입니다..."):
+            with st.spinner("구글 시트에 37개 세부 지표를 기록 중입니다..."):
                 contract_desc = remaining_contract.split(" (")[0]
                 nat_str = player_nat if player_nat.strip() else "미상"
-                detailed_notes = f"[{ttype_short}|{reg_short}|{urg_short}|UCL:{stage_w:.2f}|메디컬:{inj_w:.2f}|평점:{final_deal_score:.2f}] 계약:{contract_desc}"
+                detailed_notes = f"[{ttype_short}|{reg_short}|{urg_short}|UCL:{stage_w:.2f}|메디컬:{inj_w:.2f}] 계약:{contract_desc}"
                 if player_notes.strip():
                     detailed_notes += f" | {player_notes.strip()}"
                     
@@ -620,6 +598,7 @@ with tab2:
                     "fair_val": round(fair_value, 1),
                     "diff": round(diff, 1),
                     "status": status_label,
+                    "deal_score": float(final_deal_score), # O열 독립 평점
                     
                     # FotMob 이전 시즌 실제 스탯 (13개)
                     "prev_matches": int(st.session_state["f_matches"]),
@@ -648,14 +627,29 @@ with tab2:
                     
                     "notes": detailed_notes
                 }
-                execute_sheet_save(payload)
+                
+                try:
+                    res = requests.post(
+                        GOOGLE_SHEET_WEBAPP_URL, 
+                        data=json.dumps(payload), 
+                        headers={"Content-Type": "text/plain;charset=utf-8"}, 
+                        timeout=12, 
+                        allow_redirects=True
+                    )
+                    if res.status_code in [200, 302]:
+                        st.session_state["last_saved_msg"] = f"✅ '{player_name}' 선수의 37대 전체 데이터(이적평점 포함)가 구글 시트에 성공적으로 저장되었습니다!"
+                        st.session_state["form_key_id"] += 1
+                        st.rerun()
+                    else:
+                        st.error(f"⚠️ 저장 실패 (응답 코드: {res.status_code})")
+                except Exception as e:
+                    st.error(f"⚠️ 저장 오류: {e}")
 
 # ================= TAB 3: 과거 유사 이적 사례 비교 (Comps TOP 10) =================
 with tab3:
     st.subheader("🔍 과거 유사 이적 사례 검색 및 벤치마크 비교 (Comps TOP 10)")
     st.caption("구글 시트에 누적된 이전 이적 데이터 중 이적료, 총 평점, 평가율(고평가/저평가), 출발 리그가 가장 유사한 과거 사례 최대 10건을 자동으로 매칭합니다.")
     
-    # 5개 조건 입력창
     c_in1, c_in2, c_in3, c_in4, c_in5 = st.columns(5)
     with c_in1:
         target_fee = st.number_input("비교 기준 이적료 (만 €)", min_value=0, value=int(actual_transfer_fee) if actual_transfer_fee > 0 else 5000, step=100, key="comps_fee")
@@ -670,7 +664,6 @@ with tab3:
 
     st.markdown("---")
 
-    # 구글 시트에서 과거 데이터 가져오기
     @st.cache_data(ttl=15)
     def fetch_sheet_history():
         try:
@@ -695,13 +688,10 @@ with tab3:
                     p_league = str(row.get("원소속리그", "기타"))
                     p_season = str(row.get("이적시즌", "26/27"))
                     
-                    # 메모에서 평점 추출 시도
-                    notes_str = str(row.get("스카우팅메모", ""))
-                    p_score = 7.50
-                    if "평점:" in notes_str:
-                        p_score = float(notes_str.split("평점:")[1].split("]")[0].strip())
-                    
+                    # O열의 독립된 '이적평점' 직접 가져오기
+                    p_score = float(row.get("이적평점", 7.50))
                     p_overpay = ((p_fee - p_fair) / p_fair * 100) if p_fair > 0 else 0.0
+                    notes_str = str(row.get("스카우팅메모", ""))
                     
                     # 1) 포지션 필터링
                     if pos_filter != "전체 포지션":
@@ -715,12 +705,11 @@ with tab3:
                         if f_l_key not in p_league:
                             continue
 
-                    # 3) 유사도 점수 계산 (이적료 30% + 평점 25% + 평가율 25% + 리그 가중치 20%)
+                    # 3) 4대 요소 복합 유사도 점수 계산
                     fee_diff_norm = abs(p_fee - target_fee) / (max(target_fee, 1000) * 1.5)
                     score_diff_norm = abs(p_score - target_score) / 5.0
                     overpay_diff_norm = abs(p_overpay - target_overpay) / 50.0
                     
-                    # 리그 가중치 거리 계산
                     target_l_w = LEAGUE_WEIGHTS.get(selling_league, 1.0)
                     row_l_w = 0.80
                     for l_k, l_v in LEAGUE_WEIGHTS.items():
