@@ -358,41 +358,25 @@ with tab1:
         st.divider()
         
         # -------------------------------------------------------------
-        # [외부 발표용 / 미디어 브리핑 전용 섹션]
+        # [외부 발표용 / 미디어 브리핑 전용 섹션] - 네이티브 다크/라이트 호환
         # -------------------------------------------------------------
         st.markdown("#### 📢 **[외부 발표용 / 미디어 브리핑] 현실 시장가 & 진단 결과**")
         st.caption("외부 공개 및 커뮤니티 공유 시 현실적인 이적시장 프리미엄(+5% ~ +10%)을 감안한 종합 리포트입니다.")
 
         if fair_value > 0:
-            st.markdown(f"""
-            <div style="background-color: #f0f7ff; padding: 12px 14px; border-radius: 8px; border-left: 4px solid #0066cc; margin-bottom: 10px;">
-                <div style="font-size: 12px; font-weight: bold; color: #004080; margin-bottom: 2px;">📌 현실 시장 거래 예상 범위 (Market Premium Range)</div>
-                <div style="font-size: 16px; font-weight: bold; color: #111; word-break: break-all;">
-                    €{market_min:,.1f}만 ~ €{market_max:,.1f}만
-                </div>
-                <div style="font-size: 11px; color: #444; margin-top: 2px;">
-                    환산: {format_currency_desc(market_min).split(' | ')[0]} ~ {format_currency_desc(market_max)}
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+            st.info(f"""
+            📌 **현실 시장 거래 예상 범위 (Market Premium Range)**:  
+            **€{market_min:,.1f}만 ~ €{market_max:,.1f}만**  
+            *(환산가: {format_currency_desc(market_min).split(' | ')[0]} ~ {format_currency_desc(market_max)})*
+            """)
 
             ext_c1, ext_c2 = st.columns(2)
             with ext_c1:
-                st.markdown(f"""
-                <div style="background-color: #fafafa; border: 1px solid #e0e0e0; padding: 10px 12px; border-radius: 6px; min-height: 85px;">
-                    <div style="font-size: 12px; color: #666; font-weight: 500;">외부 발표용 평점</div>
-                    <div style="font-size: 17px; font-weight: bold; color: #111; margin-top: 3px;">★ {ext_deal_score:.2f} <span style="font-size: 12px; font-weight: normal; color: #777;">/ 10.00</span></div>
-                    <div style="font-size: 11px; color: #0066cc; margin-top: 3px; font-weight: 500;">{ext_deal_grade.split(' (')[0]}</div>
-                </div>
-                """, unsafe_allow_html=True)
+                st.metric("외부 발표용 이적 평점", f"★ {ext_deal_score:.2f} / 10.00")
+                st.caption(f"판정 등급: **{ext_deal_grade.split(' (')[0]}**")
             with ext_c2:
-                st.markdown(f"""
-                <div style="background-color: #fafafa; border: 1px solid #e0e0e0; padding: 10px 12px; border-radius: 6px; min-height: 85px;">
-                    <div style="font-size: 12px; color: #666; font-weight: 500;">외부 발표용 진단 판정</div>
-                    <div style="font-size: 14px; font-weight: bold; color: #222; margin-top: 3px; word-break: keep-all; line-height: 1.3;">{ext_status_label}</div>
-                    <div style="font-size: 11px; color: #777; margin-top: 3px;">실제: €{actual_transfer_fee:,.0f}만</div>
-                </div>
-                """, unsafe_allow_html=True)
+                st.metric("외부 발표용 진단 판정", f"{ext_status_label}")
+                st.caption(f"실제 지출액: **€{actual_transfer_fee:,.0f}만** ({format_currency_desc(actual_transfer_fee).split(' | ')[0]})")
 
         st.markdown("---")
 
@@ -694,7 +678,7 @@ with tab2:
 # ================= TAB 3: 과거 유사 이적 사례 비교 (Comps TOP 10) =================
 with tab3:
     st.subheader("🔍 과거 유사 이적 사례 검색 및 벤치마크 비교 (Comps TOP 10)")
-    st.caption("구글 시트에 누적된 이전 이적 데이터 중 이적료, 총 평점, 평가율(고평가/저평가), 출발 리그가 가장 유사한 과거 사례 최대 10건을 순위별 카드로 비교합니다.")
+    st.caption("구글 시트에 누적된 이전 이적 데이터 중 이적료, 총 평점, 평가율(고평가/저평가), 출발 리그가 가장 유사한 과거 사례 최대 10건을 순위별로 비교합니다.")
     
     c_in1, c_in2, c_in3, c_in4, c_in5 = st.columns(5)
     with c_in1:
@@ -721,7 +705,7 @@ with tab3:
     history_df = fetch_sheet_history()
 
     if history_df.empty or len(history_df) == 0:
-        st.info("💡 **아직 구글 시트에 누적된 과거 이적 데이터가 없습니다.**\n\n1번 및 2번 탭에서 선수 데이터를 저장해 나가시면, 자동으로 이곳에 가장 유사한 과거 이적 사례 TOP 10이 순위별 상세 카드로 나타나게 됩니다.")
+        st.info("💡 **아직 구글 시트에 누적된 과거 이적 데이터가 없습니다.**\n\n1번 및 2번 탭에서 선수 데이터를 저장해 나가시면, 자동으로 이곳에 가장 유사한 과거 이적 사례 TOP 10이 순위별로 나타나게 됩니다.")
     else:
         try:
             valid_rows = []
@@ -783,7 +767,7 @@ with tab3:
                 
                 st.markdown(f"### 🎯 **가장 유사한 과거 이적 사례 TOP {len(match_df)} 순위별 상세 리포트**")
                 
-                # TOP 10 전체를 2열(또는 반응형) 그리드 카드로 출력
+                # 아까 방식으로 2열 그리드에 Streamlit 네이티브 컴포넌트로 TOP 10 전체 출력
                 for i in range(0, len(match_df), 2):
                     cols = st.columns(2)
                     for j in range(2):
@@ -792,35 +776,14 @@ with tab3:
                             row_data = match_df.iloc[idx_card]
                             rank = idx_card + 1
                             with cols[j]:
-                                # 순위별 배지 색상
-                                if rank == 1: badge_color = "#d4af37" # Gold
-                                elif rank == 2: badge_color = "#a0a0a0" # Silver
-                                elif rank == 3: badge_color = "#cd7f32" # Bronze
-                                else: badge_color = "#0066cc"
-
-                                overpay_val = row_data['평가율(%)']
-                                overpay_color = "#cc0000" if overpay_val > 0 else "#008000"
-                                
-                                st.markdown(f"""
-                                <div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-left: 5px solid {badge_color}; border-radius: 8px; padding: 14px 16px; margin-bottom: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-                                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                                        <span style="font-size: 17px; font-weight: bold; color: #1a202c;">{rank}위. {row_data['선수명']} <span style="font-size: 13px; color: #718096; font-weight: normal;">({row_data['시즌']})</span></span>
-                                        <span style="background-color: #ebf8ff; color: #2b6cb0; font-weight: bold; font-size: 13px; padding: 3px 8px; border-radius: 4px;">유사도 {row_data['유사도(%)']}%</span>
-                                    </div>
-                                    <div style="font-size: 12px; color: #4a5568; margin-top: 4px; margin-bottom: 10px;">
-                                        📌 포지션: <b>{row_data['포지션']}</b> | 리그: <b>{row_data['원소속리그']}</b>
-                                    </div>
-                                    <hr style="border: 0; border-top: 1px solid #edf2f7; margin: 8px 0;">
-                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 13px;">
-                                        <div>💰 <b>실제 이적료</b>: €{row_data['실제이적료(만€)']:,.0f}만<br><span style="font-size: 11px; color: #718096;">({format_currency_desc(row_data['실제이적료(만€)']).split(' | ')[0]})</span></div>
-                                        <div>🏆 <b>이적 총 평점</b>: <span style="font-weight: bold; color: #2b6cb0;">★ {row_data['이적평점']:.2f}</span> / 10.00</div>
-                                        <div>📊 <b>평가율</b>: <span style="font-weight: bold; color: {overpay_color};">{overpay_val:+.1f}%</span></div>
-                                        <div>📐 <b>산출 적정가</b>: €{row_data['산출적정가(만€)']:,.1f}만</div>
-                                    </div>
-                                </div>
-                                """, unsafe_allow_html=True)
+                                st.markdown(f"#### **{rank}위. {row_data['선수명']}** ({row_data['시즌']})")
+                                st.caption(f"📌 포지션: `{row_data['포지션']}` | 리그: `{row_data['원소속리그']}`")
+                                st.metric("매칭 유사도", f"{row_data['유사도(%)']}%")
+                                st.write(f"- **실제 이적료**: €{row_data['실제이적료(만€)']:,.0f}만 ({format_currency_desc(row_data['실제이적료(만€)']).split(' | ')[0]})")
+                                st.write(f"- **이적 총 평점**: ★ {row_data['이적평점']:.2f} / 10.00")
+                                st.write(f"- **평가율**: `{row_data['평가율(%)']:+.1f}%` (산출 적정가 €{row_data['산출적정가(만€)']:,.1f}만)")
+                                st.markdown("---")
                 
-                st.markdown("<br>", unsafe_allow_html=True)
                 st.markdown("#### 📋 **유사 이적 사례 TOP 10 전체 데이터 테이블**")
                 st.dataframe(
                     match_df[[
