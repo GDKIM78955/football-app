@@ -288,10 +288,10 @@ with tab1:
         ext_status_label = "⚖️ 시장가 적합 (Market Fair Deal)"
     elif actual_transfer_fee > market_max:
         over_max_pct = ((actual_transfer_fee - market_max) / market_max) * 100
-        ext_status_label = f"⚠️ 시장 상한 초과 고평가 (+{over_max_pct:.1f}%)"
+        ext_status_label = f"⚠️ 시장 상한 초과 (+{over_max_pct:.1f}%)"
     else:
         under_min_pct = ((market_min - actual_transfer_fee) / market_min) * 100
-        ext_status_label = f"💎 시장가 대비 혜자 영입 (-{under_min_pct:.1f}%)"
+        ext_status_label = f"💎 시장가 대비 혜자 (-{under_min_pct:.1f}%)"
 
     # [3] 내부용 이적 종합 평점 (Deal Rating / 10.00점)
     if tm_market_value > 0 and actual_transfer_fee > 0:
@@ -357,28 +357,34 @@ with tab1:
         
         st.divider()
         
-        # [외부 발표용 / 미디어 브리핑 전용 섹션]
-        st.markdown("#### 📢 **[외부 발표용 / 미디어 브리핑] 현실 시장가 & 진단 결과**")
-        st.caption("외부 공개 및 커뮤니티 공유 시 현실적인 이적시장 프리미엄(+5% ~ +10%)을 감안한 종합 리포트입니다.")
+        # -------------------------------------------------------------
+        # [외부 발표용 / 미디어 브리핑 전용 섹션] - 폰트 크기 최적화 (창 너비 초과 방지)
+        # -------------------------------------------------------------
+        st.markdown("#### 📢 **[외부 발표용] 시장가 범위 & 진단 평점**")
 
         if fair_value > 0:
             st.info(f"""
-            📌 **현실 시장 거래 예상 범위 (Market Premium Range)**:  
-            **€{market_min:,.1f}만 ~ €{market_max:,.1f}만**  
-            *(환산가: {format_currency_desc(market_min).split(' | ')[0]} ~ {format_currency_desc(market_max)})*
+            📌 **현실 시장 거래 예상 범위 (+5% ~ +10%)**:  
+            **€{market_min:,.1f}만 ~ €{market_max:,.1f}만** *(약 {((market_min*10000*rate_krw)/100000000.0):,.0f}억 ~ {((market_max*10000*rate_krw)/100000000.0):,.0f}억원)*
             """)
 
             ext_c1, ext_c2 = st.columns(2)
             with ext_c1:
-                st.metric("외부 발표용 이적 평점", f"★ {ext_deal_score:.2f} / 10.00")
-                st.caption(f"판정 등급: **{ext_deal_grade.split(' (')[0]}**")
+                st.markdown(f"""
+                - **외부 발표용 평점**: `★ {ext_deal_score:.2f} / 10.00`
+                - **종합 판정 등급**: **{ext_deal_grade.split(' (')[0]}**
+                """)
             with ext_c2:
-                st.metric("외부 발표용 진단 판정", f"{ext_status_label}")
-                st.caption(f"실제 지출액: **€{actual_transfer_fee:,.0f}만** ({format_currency_desc(actual_transfer_fee).split(' | ')[0]})")
+                st.markdown(f"""
+                - **외부 시장 진단**: **{ext_status_label}**
+                - **실제 지출 이적료**: `€{actual_transfer_fee:,.0f}만`
+                """)
 
         st.markdown("---")
 
+        # -------------------------------------------------------------
         # [내부 데이터베이스용 원본 분석 섹션]
+        # -------------------------------------------------------------
         with st.expander("🔒 [내부 데이터용] 초보수적 원본 적정가 & 내부 평가 세부내역", expanded=False):
             st.caption("구글 시트 데이터베이스 및 통계 모델 검증을 위한 초보수적 기준 수치입니다.")
             m_col1, m_col2 = st.columns(2)
@@ -392,7 +398,9 @@ with tab1:
             st.write(f"- **내부 진단 판정**: {status_label}")
             st.write(f"- **내부 이적 평점**: ★ {final_deal_score:.2f} / 10.00 ({deal_grade})")
 
+        # -------------------------------------------------------------
         # 공유용 요약 텍스트
+        # -------------------------------------------------------------
         if player_name.strip() and (tm_market_value > 0 or actual_transfer_fee > 0):
             with st.expander("📋 [클릭하여 복사] 외부 발표용 공식 브리핑 요약 텍스트", expanded=True):
                 nat_text = f"({player_nat}, 만 {player_age}세)" if player_nat else f"(만 {player_age}세)"
