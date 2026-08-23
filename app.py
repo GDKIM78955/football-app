@@ -171,7 +171,7 @@ def format_currency_desc(eur_man_euro):
 tab1, tab2, tab3 = st.tabs([
     "💰 적정 이적료 평가", 
     "📱 FotMob 시즌 성적 & 이적 예측 (시트 저장)",
-    "🔍 과거 유사 이적 사례 비교 (Comps TOP 10)"
+    "🔍 과거 유사 이적 사례 비교 (Comps TOP 5 & 10)"
 ])
 
 # ================= TAB 1: 적정 이적료 평가 =================
@@ -357,9 +357,7 @@ with tab1:
         
         st.divider()
         
-        # -------------------------------------------------------------
-        # [외부 발표용 / 미디어 브리핑 전용 섹션] - 네이티브 다크/라이트 호환
-        # -------------------------------------------------------------
+        # [외부 발표용 / 미디어 브리핑 전용 섹션]
         st.markdown("#### 📢 **[외부 발표용 / 미디어 브리핑] 현실 시장가 & 진단 결과**")
         st.caption("외부 공개 및 커뮤니티 공유 시 현실적인 이적시장 프리미엄(+5% ~ +10%)을 감안한 종합 리포트입니다.")
 
@@ -380,9 +378,7 @@ with tab1:
 
         st.markdown("---")
 
-        # -------------------------------------------------------------
         # [내부 데이터베이스용 원본 분석 섹션]
-        # -------------------------------------------------------------
         with st.expander("🔒 [내부 데이터용] 초보수적 원본 적정가 & 내부 평가 세부내역", expanded=False):
             st.caption("구글 시트 데이터베이스 및 통계 모델 검증을 위한 초보수적 기준 수치입니다.")
             m_col1, m_col2 = st.columns(2)
@@ -396,9 +392,7 @@ with tab1:
             st.write(f"- **내부 진단 판정**: {status_label}")
             st.write(f"- **내부 이적 평점**: ★ {final_deal_score:.2f} / 10.00 ({deal_grade})")
 
-        # -------------------------------------------------------------
-        # 공유용 요약 텍스트 (외부 발표용으로 구성)
-        # -------------------------------------------------------------
+        # 공유용 요약 텍스트
         if player_name.strip() and (tm_market_value > 0 or actual_transfer_fee > 0):
             with st.expander("📋 [클릭하여 복사] 외부 발표용 공식 브리핑 요약 텍스트", expanded=True):
                 nat_text = f"({player_nat}, 만 {player_age}세)" if player_nat else f"(만 {player_age}세)"
@@ -675,10 +669,10 @@ with tab2:
                 except Exception as e:
                     st.error(f"⚠️ 저장 오류: {e}")
 
-# ================= TAB 3: 과거 유사 이적 사례 비교 (Comps TOP 10) =================
+# ================= TAB 3: 과거 유사 이적 사례 비교 (TOP 5 카드 & TOP 10 전체 표) =================
 with tab3:
-    st.subheader("🔍 과거 유사 이적 사례 검색 및 벤치마크 비교 (Comps TOP 10)")
-    st.caption("구글 시트에 누적된 이전 이적 데이터 중 이적료, 총 평점, 평가율(고평가/저평가), 출발 리그가 가장 유사한 과거 사례 최대 10건을 순위별로 비교합니다.")
+    st.subheader("🔍 과거 유사 이적 사례 검색 및 벤치마크 비교 (Comps TOP 5 & 10)")
+    st.caption("구글 시트에 누적된 이전 이적 데이터 중 이적료, 총 평점, 평가율(고평가/저평가), 출발 리그가 가장 유사한 과거 사례를 매칭합니다.")
     
     c_in1, c_in2, c_in3, c_in4, c_in5 = st.columns(5)
     with c_in1:
@@ -705,7 +699,7 @@ with tab3:
     history_df = fetch_sheet_history()
 
     if history_df.empty or len(history_df) == 0:
-        st.info("💡 **아직 구글 시트에 누적된 과거 이적 데이터가 없습니다.**\n\n1번 및 2번 탭에서 선수 데이터를 저장해 나가시면, 자동으로 이곳에 가장 유사한 과거 이적 사례 TOP 10이 순위별로 나타나게 됩니다.")
+        st.info("💡 **아직 구글 시트에 누적된 과거 이적 데이터가 없습니다.**\n\n1번 및 2번 탭에서 선수 데이터를 저장해 나가시면, 자동으로 이곳에 가장 유사한 과거 이적 사례 TOP 5 상세 카드 및 TOP 10 전체 목록이 나타나게 됩니다.")
     else:
         try:
             valid_rows = []
@@ -764,16 +758,17 @@ with tab3:
 
             if len(valid_rows) > 0:
                 match_df = pd.DataFrame(valid_rows).sort_values(by="유사도(%)", ascending=False).head(10)
+                top5_df = match_df.head(5)
                 
-                st.markdown(f"### 🎯 **가장 유사한 과거 이적 사례 TOP {len(match_df)} 순위별 상세 리포트**")
+                # 1) 상단: 가장 유사한 핵심 TOP 5 상세 리포트 카드
+                st.markdown(f"### 🎯 **가장 유사한 과거 이적 사례 TOP {len(top5_df)} 상세 리포트**")
                 
-                # 아까 방식으로 2열 그리드에 Streamlit 네이티브 컴포넌트로 TOP 10 전체 출력
-                for i in range(0, len(match_df), 2):
+                for i in range(0, len(top5_df), 2):
                     cols = st.columns(2)
                     for j in range(2):
                         idx_card = i + j
-                        if idx_card < len(match_df):
-                            row_data = match_df.iloc[idx_card]
+                        if idx_card < len(top5_df):
+                            row_data = top5_df.iloc[idx_card]
                             rank = idx_card + 1
                             with cols[j]:
                                 st.markdown(f"#### **{rank}위. {row_data['선수명']}** ({row_data['시즌']})")
@@ -784,7 +779,8 @@ with tab3:
                                 st.write(f"- **평가율**: `{row_data['평가율(%)']:+.1f}%` (산출 적정가 €{row_data['산출적정가(만€)']:,.1f}만)")
                                 st.markdown("---")
                 
-                st.markdown("#### 📋 **유사 이적 사례 TOP 10 전체 데이터 테이블**")
+                # 2) 하단: 전체 유사 매칭 TOP 10 데이터 테이블
+                st.markdown("#### 📋 **유사 이적 사례 전체 비교 테이블 (TOP 10 전체)**")
                 st.dataframe(
                     match_df[[
                         "유사도(%)", "시즌", "선수명", "포지션", "원소속리그", 
