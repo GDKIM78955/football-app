@@ -258,10 +258,15 @@ with tab1:
     inj_w = INJURY_WEIGHTS[injury_status]
     urg_w = URGENCY_WEIGHTS[urgency_status]
 
+    # 보수적 적정가 계산
     fair_value = tm_market_value * league_w * age_w * club_w * contract_w * pos_w * vers_w * reg_w * opta_w * ttype_w * stage_w * inj_w * urg_w
     diff = actual_transfer_fee - fair_value
     diff_desc = format_currency_desc(abs(diff))
     overpay_pct = (diff / fair_value) * 100 if fair_value > 0 else 0.0
+
+    # [추천 1안] 현실 시장 거래 예상 범위 (+5% ~ +10% 시장 프리미엄)
+    market_min = fair_value * 1.05
+    market_max = fair_value * 1.10
 
     if fair_value == 0 and actual_transfer_fee == 0: 
         status_label = "입력 대기 중"
@@ -314,6 +319,7 @@ with tab1:
         st.markdown(f"### **{display_name}** {display_nat} - `{pos_short}` 이적 평가")
         st.caption(f"📌 조항: **{ttype_short}** | 쿼터: **{reg_short}** | 필요도: **{urg_short}** | UCL: **{stage_w:.2f}**")
         
+        # 12대 지표 카드 (4열 x 3행 배치)
         r1_1, r1_2, r1_3, r1_4 = st.columns(4)
         r1_1.metric("1. 리그 난이도", f"{league_w:.2f}")
         r1_2.metric("2. 나이(에이징)", f"{age_w:.2f}")
@@ -334,16 +340,32 @@ with tab1:
         
         st.divider()
         
+        # 이적료 메트릭 (적정가 vs 실제이적료)
         m_col1, m_col2 = st.columns(2)
         with m_col1:
-            st.metric("산출된 적정 이적료", f"€{fair_value:,.1f}만")
+            st.metric("산출된 적정 이적료 (데이터 기준)", f"€{fair_value:,.1f}만")
             if fair_value > 0: st.caption(f"{format_currency_desc(fair_value)}")
         with m_col2:
-            st.metric("실제 이적료", f"€{actual_transfer_fee:,.1f}만", delta=f"{diff:+,.1f}만 (€)" if actual_transfer_fee > 0 else None, delta_color="inverse")
+            st.metric("실제 지출 이적료", f"€{actual_transfer_fee:,.1f}만", delta=f"{diff:+,.1f}만 (€)" if actual_transfer_fee > 0 else None, delta_color="inverse")
             if actual_transfer_fee > 0: st.caption(f"{format_currency_desc(actual_transfer_fee)}")
         
+        # [신규] 추천 1안: 현실 시장 거래 예상 범위 (Market Range) 카드
+        if fair_value > 0:
+            st.markdown(f"""
+            <div style="background-color: #f0f7ff; padding: 12px 16px; border-radius: 8px; border-left: 4px solid #0066cc; margin: 10px 0;">
+                <div style="font-weight: bold; color: #004080; font-size: 14px;">📌 현실 시장 거래 예상 범위 (+5% ~ +10% 프리미엄 반영)</div>
+                <div style="font-size: 16px; font-weight: bold; color: #111; margin-top: 4px;">
+                    €{market_min:,.1f}만 ~ €{market_max:,.1f}만
+                </div>
+                <div style="font-size: 12px; color: #555; margin-top: 2px;">
+                    ({format_currency_desc(market_min).split(' | ')[0]} ~ {format_currency_desc(market_max)})
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
         st.markdown("---")
         
+        # 이적 종합 총 평점 카드 섹션
         if final_deal_score > 0:
             st.markdown("#### 🏆 **이번 이적 종합 평점 (Deal Rating)**")
             ds_col1, ds_col2 = st.columns([1, 2])
@@ -375,7 +397,7 @@ with tab1:
                 diff_text = f"적정가 대비 €{abs(diff):,.1f}만 유로({format_currency_desc(abs(diff))}) "
                 diff_text += "더 지불됨" if diff > 0 else ("저렴하게 영입" if diff < 0 else "정확히 일치")
                 
-                summary_text = f"""⚽ [{season_val} 12대 지표 이적 분석] {player_name} {nat_text}
+                summary_text = f"""⚽ [{season_val} 12대 지표 이적 분석 리포트] {player_name} {nat_text}
 ━━━━━━━━━━━━━━━━━━━━
 ▪️ 계약 조항: {ttype_short} ({ttype_w:.2f}) | 쿼터/HG: {reg_short} ({reg_w:.2f})
 ▪️ 포지션: {pos_short} (희소성 {pos_w:.2f} / 에이징 {age_w:.2f}) | 멀티: {versatility.split(" (")[0]}
@@ -384,13 +406,15 @@ with tab1:
 ▪️ UCL 검증: {big_stage.split(" (")[0]} ({stage_w:.2f}) | 부상내구성: {injury_status.split(" (")[0]} ({inj_w:.2f})
 ▪️ 지난 시즌 실적: {st.session_state['f_goals']}골 {st.session_state['f_assists']}도움 / 평점 {cur_rating:.2f} ({opta_w:.2f})
 ▪️ TM 시장가치: €{tm_market_value:,.0f}만 ({format_currency_desc(tm_market_value)})
-▪️ 산출 적정가: €{fair_value:,.1f}만 ({format_currency_desc(fair_value)})
-▪️ 실제 이적료: €{actual_transfer_fee:,.1f}만 ({format_currency_desc(actual_transfer_fee)})
+━━━━━━━━━━━━━━━━━━━━
+📊 데이터 기반 적정 가치: €{fair_value:,.1f}만 ({format_currency_desc(fair_value)})
+📌 현실 시장 거래 예상 범위 (+5~10%): €{market_min:,.1f}만 ~ €{market_max:,.1f}만 ({format_currency_desc(market_min).split(' | ')[0]} ~ {format_currency_desc(market_max)})
+💰 실제 지출 이적료: €{actual_transfer_fee:,.1f}만 ({format_currency_desc(actual_transfer_fee)})
 ━━━━━━━━━━━━━━━━━━━━
 🏆 이번 이적 총 평점: ★ {final_deal_score:.2f} / 10.00점 ({deal_grade})
-📊 종합 진단: {status_label} - {diff_text}
+🔍 종합 진단 판정: {status_label} - {diff_text}
 """
-                if player_notes.strip(): summary_text += f"📝 메모: {player_notes.strip()}\n"
+                if player_notes.strip(): summary_text += f"📝 스카우팅 메모: {player_notes.strip()}\n"
                 st.code(summary_text.strip(), language="text")
 
 # ================= TAB 2: FotMob 시즌 성적 & 이적 예측 =================
@@ -568,7 +592,7 @@ with tab2:
 
     st.markdown("---")
     
-    # 4) 구글 시트 저장 섹션 (37개 열 전용)
+    # 4) 구글 시트 저장 섹션
     display_pname = player_name.strip() if player_name.strip() else "선수명 미입력"
     st.markdown(f"#### 💾 **'{display_pname}'** 선수의 37대 전체 데이터 구글 시트 저장")
     
@@ -598,7 +622,7 @@ with tab2:
                     "fair_val": round(fair_value, 1),
                     "diff": round(diff, 1),
                     "status": status_label,
-                    "deal_score": float(final_deal_score), # O열 독립 평점
+                    "deal_score": float(final_deal_score),
                     
                     # FotMob 이전 시즌 실제 스탯 (13개)
                     "prev_matches": int(st.session_state["f_matches"]),
@@ -688,24 +712,20 @@ with tab3:
                     p_league = str(row.get("원소속리그", "기타"))
                     p_season = str(row.get("이적시즌", "26/27"))
                     
-                    # O열의 독립된 '이적평점' 직접 가져오기
                     p_score = float(row.get("이적평점", 7.50))
                     p_overpay = ((p_fee - p_fair) / p_fair * 100) if p_fair > 0 else 0.0
                     notes_str = str(row.get("스카우팅메모", ""))
                     
-                    # 1) 포지션 필터링
                     if pos_filter != "전체 포지션":
                         f_pos_key = pos_filter.split(" (")[0]
                         if f_pos_key not in p_pos and p_pos not in pos_filter:
                             continue
                     
-                    # 2) 리그 필터링
                     if league_filter != "전체 리그":
                         f_l_key = league_filter.split(" (")[0]
                         if f_l_key not in p_league:
                             continue
 
-                    # 3) 4대 요소 복합 유사도 점수 계산
                     fee_diff_norm = abs(p_fee - target_fee) / (max(target_fee, 1000) * 1.5)
                     score_diff_norm = abs(p_score - target_score) / 5.0
                     overpay_diff_norm = abs(p_overpay - target_overpay) / 50.0
