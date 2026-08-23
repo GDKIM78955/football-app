@@ -276,7 +276,7 @@ with tab1:
     # [2] 외부 발표용 현실 시장 거래 예상 범위 및 진단 (+5% ~ +10% 프리미엄)
     market_min = fair_value * 1.05
     market_max = fair_value * 1.10
-    market_mid = (market_min + market_max) / 2.0  # 시장 중간 기준선 (+7.5%)
+    market_mid = (market_min + market_max) / 2.0
     
     ext_diff = actual_transfer_fee - market_mid
     ext_diff_desc = format_currency_desc(abs(ext_diff))
@@ -358,36 +358,41 @@ with tab1:
         st.divider()
         
         # -------------------------------------------------------------
-        # [외부 발표용 / 미디어 브리핑 전용 섹션]
+        # [외부 발표용 / 미디어 브리핑 전용 섹션] - 폰트 크기 및 너비 최적화
         # -------------------------------------------------------------
         st.markdown("#### 📢 **[외부 발표용 / 미디어 브리핑] 현실 시장가 & 진단 결과**")
         st.caption("외부 공개 및 커뮤니티 공유 시 현실적인 이적시장 프리미엄(+5% ~ +10%)을 감안한 종합 리포트입니다.")
 
         if fair_value > 0:
             st.markdown(f"""
-            <div style="background-color: #f0f7ff; padding: 14px 18px; border-radius: 8px; border-left: 5px solid #0066cc; margin-bottom: 12px;">
-                <div style="font-size: 13px; font-weight: bold; color: #004080; margin-bottom: 4px;">📌 현실 시장 거래 예상 범위 (Market Premium Range)</div>
-                <div style="font-size: 19px; font-weight: bold; color: #111;">
+            <div style="background-color: #f0f7ff; padding: 12px 14px; border-radius: 8px; border-left: 4px solid #0066cc; margin-bottom: 10px;">
+                <div style="font-size: 12px; font-weight: bold; color: #004080; margin-bottom: 2px;">📌 현실 시장 거래 예상 범위 (Market Premium Range)</div>
+                <div style="font-size: 16px; font-weight: bold; color: #111; word-break: break-all;">
                     €{market_min:,.1f}만 ~ €{market_max:,.1f}만
                 </div>
-                <div style="font-size: 13px; color: #444; margin-top: 3px;">
-                    환산가: <b>{format_currency_desc(market_min).split(' | ')[0]} ~ {format_currency_desc(market_max)}</b>
+                <div style="font-size: 11px; color: #444; margin-top: 2px;">
+                    환산: {format_currency_desc(market_min).split(' | ')[0]} ~ {format_currency_desc(market_max)}
                 </div>
             </div>
             """, unsafe_allow_html=True)
 
             ext_c1, ext_c2 = st.columns(2)
             with ext_c1:
-                st.metric("외부 발표용 이적 평점", f"★ {ext_deal_score:.2f} / 10.00")
-                st.caption(f"판정: `{ext_deal_grade}`")
+                st.markdown(f"""
+                <div style="background-color: #fafafa; border: 1px solid #e0e0e0; padding: 10px 12px; border-radius: 6px; min-height: 85px;">
+                    <div style="font-size: 12px; color: #666; font-weight: 500;">외부 발표용 평점</div>
+                    <div style="font-size: 17px; font-weight: bold; color: #111; margin-top: 3px;">★ {ext_deal_score:.2f} <span style="font-size: 12px; font-weight: normal; color: #777;">/ 10.00</span></div>
+                    <div style="font-size: 11px; color: #0066cc; margin-top: 3px; font-weight: 500;">{ext_deal_grade.split(' (')[0]}</div>
+                </div>
+                """, unsafe_allow_html=True)
             with ext_c2:
-                st.metric("외부 발표용 진단", f"{ext_status_label}")
-                if "시장가 적합" in ext_status_label:
-                    st.caption("💡 실제 지출액이 시장 정상 거래 범위 내에 정확히 안착했습니다.")
-                elif "고평가" in ext_status_label:
-                    st.caption(f"💡 시장 상한가 대비 초과 지출({format_currency_desc(actual_transfer_fee - market_max)}) 발생")
-                else:
-                    st.caption(f"💡 시장 하한가 대비 절감({format_currency_desc(market_min - actual_transfer_fee)}) 성공")
+                st.markdown(f"""
+                <div style="background-color: #fafafa; border: 1px solid #e0e0e0; padding: 10px 12px; border-radius: 6px; min-height: 85px;">
+                    <div style="font-size: 12px; color: #666; font-weight: 500;">외부 발표용 진단 판정</div>
+                    <div style="font-size: 14px; font-weight: bold; color: #222; margin-top: 3px; word-break: keep-all; line-height: 1.3;">{ext_status_label}</div>
+                    <div style="font-size: 11px; color: #777; margin-top: 3px;">실제: €{actual_transfer_fee:,.0f}만</div>
+                </div>
+                """, unsafe_allow_html=True)
 
         st.markdown("---")
 
@@ -511,6 +516,7 @@ with tab2:
 
     st.divider()
 
+    # 이적 후 기대 스탯 예측 계산
     p90_xg = (in_xg / base_p90) * final_l_factor
     p90_xa = (in_xa / base_p90) * final_l_factor
     p90_shots = (in_shots / base_p90) * final_l_factor
@@ -535,6 +541,7 @@ with tab2:
     
     proj_rating = round(max(6.0, in_rating - (1.0 - final_l_factor) * 0.9), 2)
 
+    # 1) 상단 5대 핵심 지표 카드
     st.markdown(f"### 🎯 **FotMob 스타일 이적 첫 시즌 성적 예측 리포트**")
     st.caption(f"이적 환경: **{f_from_l.split(' ')[1]}** ➔ **{f_to_l.split(' ')[1]}** | 리그 난이도: **{raw_l_factor:.2f}x** | {adapt_desc} | 최종 환산 계수: **{final_l_factor:.2f}x**")
     
@@ -547,6 +554,7 @@ with tab2:
 
     st.markdown("<br>", unsafe_allow_html=True)
     
+    # 2) 직전 시즌 vs 이적 첫 시즌 1:1 세부 스탯 비교 테이블
     st.markdown("#### 📊 **직전 시즌 실제 기록 vs 이적 첫 시즌 예측 데이터 비교표**")
     df_compare = pd.DataFrame({
         "FotMob 스탯 항목": [
@@ -597,6 +605,7 @@ with tab2:
     })
     st.table(df_compare)
 
+    # 3) 데이터 분석 스카우팅 총평 리포트
     st.info(f"""
     💡 **스카우팅 데이터 인사이트**:
     - **리그 난이도 격차 & 적응 모델**: '{f_from_l.split(' ')[1]}'에서 '{f_to_l.split(' ')[1]}'로 이적 시 발생하는 수비 압박 템포 차이(최종 환산 계수: **{final_l_factor:.2f}x**)가 적용되었습니다.
@@ -605,6 +614,7 @@ with tab2:
 
     st.markdown("---")
     
+    # 4) 구글 시트 저장 섹션
     display_pname = player_name.strip() if player_name.strip() else "선수명 미입력"
     st.markdown(f"#### 💾 **'{display_pname}'** 선수의 37대 전체 데이터 구글 시트 저장")
     
