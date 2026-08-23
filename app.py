@@ -4,20 +4,23 @@ import requests
 import json
 from datetime import datetime
 
+# 1. 페이지 기본 설정
 st.set_page_config(
     page_title="축구 이적시장 11대 가중치 분석 & FotMob 36대 지표 프로젝션",
     page_icon="⚽",
     layout="wide"
 )
 
+# 36개 전용 구글 시트 Web App URL
 GOOGLE_SHEET_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzlIZEZ6C8T1mpIErWoAgi28cCfeezNfqE2U9CR1P6vtB5t928n7VSJ3OvhCyTd-not8g/exec"
 
+# 세션 상태 초기화
 if "form_key_id" not in st.session_state:
     st.session_state["form_key_id"] = 0
 if "last_saved_msg" not in st.session_state:
     st.session_state["last_saved_msg"] = None
 
-# FotMob 스탯 세션 상태
+# FotMob 지난 시즌 기본 스탯 세션 상태 (두 탭 간 실시간 연동)
 default_stats = {
     "f_mins": 2206, "f_goals": 16, "f_xg": 17.44, "f_assists": 4, "f_xa": 3.33,
     "f_rating": 7.32, "f_matches": 28, "f_starts": 25, "f_shots": 88, "f_sot": 43,
@@ -29,6 +32,7 @@ for k, v in default_stats.items():
 
 st.title("⚽ 축구 선수 11대 지표 적정 이적료 평가 & FotMob 시즌 예측")
 
+# 2. 보수적 현실 기반 가중치 딕셔너리
 LEAGUE_WEIGHTS = {
     "잉글랜드 프리미어리그 (EPL 1부)": 1.00,
     "스페인 라리가 (La Liga 1부)": 0.92,
@@ -124,6 +128,7 @@ INJURY_WEIGHTS = {
     "🚨 최근 2년 내 장기 부상 이력 (십자인대/골절, -6%)": 0.94
 }
 
+# 17~19세 유망주 잠재력 프리미엄(+5%) 반영 에이징 커브
 def get_positional_age_weight(age, position_name):
     if "ST/CF" in position_name or "WG/CAM" in position_name:
         if age <= 19: return 1.05
@@ -159,8 +164,10 @@ def format_currency_desc(eur_man_euro):
     gbp_man = (eur_man_euro * rate_gbp)
     return f"약 {krw_eok:,.1f}억원 | £{gbp_man:,.1f}만"
 
+# 3. 메인 탭 구성
 tab1, tab2 = st.tabs(["💰 적정 이적료 평가", "📱 FotMob 시즌 성적 & 이적 예측 리포트 (시트 저장)"])
 
+# 공통 저장 함수
 def execute_sheet_save(payload_data):
     try:
         res = requests.post(
@@ -171,13 +178,13 @@ def execute_sheet_save(payload_data):
             allow_redirects=True
         )
         if res.status_code in [200, 302]:
-            st.session_state["last_saved_msg"] = f"✅ '{payload_data['name']}' 선수의 36대 전체 데이터가 구글 시트에 완벽히 저장되었습니다!"
+            st.session_state["last_saved_msg"] = f"✅ '{payload_data['name']}' 선수의 FotMob 성적 및 이적료 데이터(36개 항목)가 구글 시트에 성공적으로 저장되었습니다!"
             st.session_state["form_key_id"] += 1
             st.rerun()
         else:
             st.error(f"⚠️ 저장 실패 (응답 코드: {res.status_code})")
     except Exception as e:
-        st.error(f"⚠️ 저장 오류: {e}")
+        st.error(f"⚠️ 저장 중 오류가 발생했습니다: {e}")
 
 # ================= TAB 1: 적정 이적료 평가 =================
 with tab1:
@@ -246,7 +253,7 @@ with tab1:
         actual_transfer_fee = st.number_input("실제 이적료 (만 유로, €)", min_value=0, value=5960, step=50, key=f"fee_{k_id}")
         if actual_transfer_fee > 0: st.caption(f"💡 실제이적료 환산: **{format_currency_desc(actual_transfer_fee)}**")
         
-        player_notes = st.text_area("개인 메모 / 스카우팅 코멘트", placeholder="예: 대인 방어 및 후방 빌드업 우수", key=f"note_{k_id}")
+        player_notes = st.text_area("개인 메모 / 스카우팅 코멘트", placeholder="예: 양발 슈팅 능력 및 라인브레이킹 탁월", key=f"note_{k_id}")
 
     league_w = LEAGUE_WEIGHTS[selling_league]
     age_w = get_positional_age_weight(player_age, main_position)
@@ -316,7 +323,7 @@ with tab1:
             diff_desc = format_currency_desc(abs(diff))
             st.success(f"**진단 결과**: {status_label} - 적정가 대비 €{abs(diff):,.1f}만 유로({diff_desc}) 저렴하게 영입")
 
-# ================= TAB 2: FotMob 시즌 성적 & 이적 예측 (메인 저장 버튼) =================
+# ================= TAB 2: FotMob 시즌 성적 & 이적 예측 (비교 리포트 및 저장) =================
 with tab2:
     st.subheader("📱 FotMob 스타일 시즌 스탯 입력 & 이적 첫 시즌 성적 프로젝션")
     
@@ -393,6 +400,7 @@ with tab2:
 
     st.divider()
 
+    # 이적 후 기대 스탯 예측 계산
     p90_xg = (in_xg / base_p90) * final_l_factor
     p90_xa = (in_xa / base_p90) * final_l_factor
     p90_shots = (in_shots / base_p90) * final_l_factor
@@ -417,7 +425,10 @@ with tab2:
     
     proj_rating = round(max(6.0, in_rating - (1.0 - final_l_factor) * 0.9), 2)
 
+    # 1) 상단 5대 핵심 지표 카드
     st.markdown(f"### 🎯 **FotMob 스타일 이적 첫 시즌 성적 예측 리포트**")
+    st.caption(f"이적 환경: **{f_from_l.split(' ')[1]}** ➔ **{f_to_l.split(' ')[1]}** | 리그 난이도: **{raw_l_factor:.2f}x** | {adapt_desc} | 최종 환산 계수: **{final_l_factor:.2f}x**")
+    
     m1, m2, m3, m4, m5 = st.columns(5)
     m1.metric("예상 평점 (Rating)", f"★ {proj_rating:.2f}", delta=f"{proj_rating - in_rating:+.2f}")
     m2.metric("예상 득점 (xG)", f"{proj_goals:.0f} 골", delta=f"xG {proj_xg:.2f}")
@@ -425,7 +436,69 @@ with tab2:
     m4.metric("예상 공격포인트", f"{proj_goals + proj_assists:.0f} P", delta=f"{proj_goals:.0f}G + {proj_assists:.0f}A")
     m5.metric("예상 슈팅 (유효)", f"{int(proj_shots)} 회", delta=f"유효 {int(proj_sot)}회")
 
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    # 2) 직전 시즌 vs 이적 첫 시즌 1:1 세부 스탯 비교 테이블 복원
+    st.markdown("#### 📊 **직전 시즌 실제 기록 vs 이적 첫 시즌 예측 데이터 비교표**")
+    df_compare = pd.DataFrame({
+        "FotMob 스탯 항목": [
+            "출전 경기 / 선발 (Matches / Starts)",
+            "출전 시간 (Minutes)",
+            "득점 (Goals)",
+            "기대 득점 (xG)",
+            "도움 (Assists)",
+            "기대 도움 (xA)",
+            "총 슈팅 / 유효 슈팅 (Shots / SoT)",
+            "90분당 슈팅 수 (Shots/90)",
+            "시즌 기회 창출 (Chances Created)",
+            "성공한 드리블 (Successful Dribbles)",
+            "박스 안 터치 (Box Touches)",
+            "시즌 태클 성공 (Tackles Won)",
+            "FotMob 평균 평점 (Rating)"
+        ],
+        f"직전 시즌 실제치 ({f_from_l.split(' ')[1]})": [
+            f"{in_matches}경기 ({in_starts}선발)",
+            f"{in_mins:,} 분",
+            f"{in_goals} 골",
+            f"{in_xg:.2f}",
+            f"{in_assists} 도움",
+            f"{in_xa:.2f}",
+            f"{in_shots}회 ({in_sot}회)",
+            f"{(in_shots/base_p90):.2f} 회",
+            f"{in_chances} 회",
+            f"{in_dribbles} 회",
+            f"{in_touches_box} 회",
+            f"{in_tackles} 회",
+            f"★ {in_rating:.2f}"
+        ],
+        f"이적 첫 시즌 예측치 ({f_to_l.split(' ')[1]})": [
+            f"약 {target_p90:.0f}경기 상당",
+            f"{f_target_mins:,} 분",
+            f"{proj_goals:.1f} 골",
+            f"{proj_xg:.2f}",
+            f"{proj_assists:.1f} 도움",
+            f"{proj_xa:.2f}",
+            f"{int(proj_shots)}회 ({int(proj_sot)}회)",
+            f"{p90_shots:.2f} 회",
+            f"{int(proj_chances)} 회",
+            f"{int(proj_dribbles)} 회",
+            f"{int(proj_box_touches)} 회",
+            f"{int(proj_tackles)} 회",
+            f"★ {proj_rating:.2f}"
+        ]
+    })
+    st.table(df_compare)
+
+    # 3) 데이터 분석 스카우팅 총평 리포트 복원
+    st.info(f"""
+    💡 **스카우팅 데이터 인사이트**:
+    - **리그 난이도 격차 & 적응 모델**: '{f_from_l.split(' ')[1]}'에서 '{f_to_l.split(' ')[1]}'로 이적 시 발생하는 수비 압박 템포 차이(최종 환산 계수: **{final_l_factor:.2f}x**)가 적용되었습니다.
+    - **기대치 분석**: 예상 출전 시간 **{f_target_mins:,}분** 기준, 첫 시즌 약 **{proj_goals:.0f}골 {proj_assists:.0f}도움 (공격포인트 {proj_goals+proj_assists:.0f}개)** 및 평균 평점 **★{proj_rating:.2f}** 수준의 안착이 합리적으로 예측됩니다.
+    """)
+
     st.markdown("---")
+    
+    # 4) 구글 시트 저장 섹션
     display_pname = player_name.strip() if player_name.strip() else "선수명 미입력"
     st.markdown(f"#### 💾 **'{display_pname}'** 선수의 36대 전체 데이터 구글 시트 저장")
     
