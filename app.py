@@ -128,7 +128,6 @@ INJURY_WEIGHTS = {
     "🚨 최근 2년 내 장기 부상 이력 (십자인대/골절, -6%)": 0.94
 }
 
-# 17~19세 유망주 잠재력 프리미엄(+5%) 반영 에이징 커브
 def get_positional_age_weight(age, position_name):
     if "ST/CF" in position_name or "WG/CAM" in position_name:
         if age <= 19: return 1.05
@@ -164,10 +163,8 @@ def format_currency_desc(eur_man_euro):
     gbp_man = (eur_man_euro * rate_gbp)
     return f"약 {krw_eok:,.1f}억원 | £{gbp_man:,.1f}만"
 
-# 3. 메인 탭 구성
 tab1, tab2 = st.tabs(["💰 적정 이적료 평가", "📱 FotMob 시즌 성적 & 이적 예측 리포트 (시트 저장)"])
 
-# 공통 저장 함수
 def execute_sheet_save(payload_data):
     try:
         res = requests.post(
@@ -178,13 +175,13 @@ def execute_sheet_save(payload_data):
             allow_redirects=True
         )
         if res.status_code in [200, 302]:
-            st.session_state["last_saved_msg"] = f"✅ '{payload_data['name']}' 선수의 36대 전체 데이터가 구글 시트에 완벽히 저장되었습니다!"
+            st.session_state["last_saved_msg"] = f"✅ '{payload_data['name']}' 선수의 FotMob 성적 및 이적료 데이터(36개 항목)가 구글 시트에 성공적으로 저장되었습니다!"
             st.session_state["form_key_id"] += 1
             st.rerun()
         else:
             st.error(f"⚠️ 저장 실패 (응답 코드: {res.status_code})")
     except Exception as e:
-        st.error(f"⚠️ 저장 오류: {e}")
+        st.error(f"⚠️ 저장 중 오류가 발생했습니다: {e}")
 
 # ================= TAB 1: 적정 이적료 평가 =================
 with tab1:
@@ -269,6 +266,7 @@ with tab1:
 
     fair_value = tm_market_value * league_w * age_w * club_w * contract_w * pos_w * vers_w * reg_w * opta_w * ttype_w * stage_w * inj_w
     diff = actual_transfer_fee - fair_value
+    diff_desc = format_currency_desc(abs(diff))
     overpay_pct = (diff / fair_value) * 100 if fair_value > 0 else 0.0
 
     if fair_value == 0 and actual_transfer_fee == 0: 
@@ -284,17 +282,15 @@ with tab1:
     if tm_market_value > 0 and actual_transfer_fee > 0:
         base_deal_score = 7.50
         
-        # 1) 가성비 보정 (-3.0 ~ +2.5)
-        # overpay_pct: 0% -> 0, +50% -> -2.5, -30% -> +2.0
+        # 1) 가성비 보정 (-3.5 ~ +2.5)
         val_score_delta = -(overpay_pct / 20.0)
         val_score_delta = max(-3.5, min(2.5, val_score_delta))
         
-        # 2) 선수 실적 & 기량 보정 (FotMob 평점 기준 -0.8 ~ +1.0)
-        # 7.0 기준
+        # 2) 선수 실적 & 기량 보정 (-0.8 ~ +1.0)
         rating_delta = (cur_rating - 7.00) * 1.5
         rating_delta = max(-0.8, min(1.0, rating_delta))
         
-        # 3) 나이 및 미래가치 보정 (나이 가중치 기준 -0.8 ~ +0.6)
+        # 3) 나이 및 미래가치 보정 (-1.0 ~ +0.8)
         age_delta = (age_w - 1.00) * 8.0
         age_delta = max(-1.0, min(0.8, age_delta))
         
@@ -363,7 +359,7 @@ with tab1:
         
         st.markdown("---")
         
-        # [신규] 이적 종합 총 평점 카드 섹션
+        # 이적 종합 총 평점 카드 섹션
         if final_deal_score > 0:
             st.markdown("#### 🏆 **이번 이적 종합 평점 (Deal Rating)**")
             ds_col1, ds_col2 = st.columns([1, 2])
@@ -372,9 +368,9 @@ with tab1:
             with ds_col2:
                 st.markdown(f"**종합 등급 판정**: `{deal_grade}`")
                 if "고평가" in status_label:
-                    st.caption(f"💡 시장 적정가 대비 초과 지출({diff_desc:})로 인해 가성비 감점이 반영되었습니다.")
+                    st.caption(f"💡 시장 적정가 대비 초과 지출({diff_desc})로 인해 가성비 감점이 반영되었습니다.")
                 elif "저평가" in status_label:
-                    st.caption(f"💡 시장 적정가 대비 절감({diff_desc:})으로 인해 높은 가성비 가산점이 반영되었습니다.")
+                    st.caption(f"💡 시장 적정가 대비 절감({diff_desc})으로 인해 높은 가성비 가산점이 반영되었습니다.")
                 else:
                     st.caption("💡 적정 시세에 부합하는 합리적인 이적 거래입니다.")
             
