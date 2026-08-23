@@ -13,6 +13,7 @@ st.set_page_config(
 
 # 36개 전용 구글 시트 Web App URL
 GOOGLE_SHEET_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzlIZEZ6C8T1mpIErWoAgi28cCfeezNfqE2U9CR1P6vtB5t928n7VSJ3OvhCyTd-not8g/exec"
+SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1oUDZ96SJ7aklJdrq_rK5K1ti2RRUAGO3PqqLvPM9E2A/gviz/tq?tqx=out:csv"
 
 # 세션 상태 초기화
 if "form_key_id" not in st.session_state:
@@ -128,7 +129,6 @@ INJURY_WEIGHTS = {
     "🚨 최근 2년 내 장기 부상 이력 (십자인대/골절, -6%)": 0.94
 }
 
-# [신규] 영입 구단 절박성 & 취약 포지션 가중치
 URGENCY_WEIGHTS = {
     "⚖️ 일반 보강 / 뎁스 자원 (기준)": 1.00,
     "🔥 최우선 보강 타겟 (선발진 명확한 취약, +4%)": 1.04,
@@ -171,7 +171,12 @@ def format_currency_desc(eur_man_euro):
     gbp_man = (eur_man_euro * rate_gbp)
     return f"약 {krw_eok:,.1f}억원 | £{gbp_man:,.1f}만"
 
-tab1, tab2 = st.tabs(["💰 적정 이적료 평가", "📱 FotMob 시즌 성적 & 이적 예측 리포트 (시트 저장)"])
+# 3. 메인 3개 탭 구성
+tab1, tab2, tab3 = st.tabs([
+    "💰 적정 이적료 평가", 
+    "📱 FotMob 시즌 성적 & 이적 예측 (시트 저장)",
+    "🔍 과거 유사 이적 사례 비교 (Comps TOP 10)"
+])
 
 def execute_sheet_save(payload_data):
     try:
@@ -275,7 +280,6 @@ with tab1:
     inj_w = INJURY_WEIGHTS[injury_status]
     urg_w = URGENCY_WEIGHTS[urgency_status]
 
-    # 12대 가중치 종합 곱연산
     fair_value = tm_market_value * league_w * age_w * club_w * contract_w * pos_w * vers_w * reg_w * opta_w * ttype_w * stage_w * inj_w * urg_w
     diff = actual_transfer_fee - fair_value
     diff_desc = format_currency_desc(abs(diff))
@@ -293,20 +297,9 @@ with tab1:
     # ================= 이적 종합 평점 (Deal Rating / 10.00점 만점) 계산 =================
     if tm_market_value > 0 and actual_transfer_fee > 0:
         base_deal_score = 7.50
-        
-        # 1) 가성비 보정 (-3.5 ~ +2.5)
-        val_score_delta = -(overpay_pct / 20.0)
-        val_score_delta = max(-3.5, min(2.5, val_score_delta))
-        
-        # 2) 선수 실적 & 기량 보정 (-0.8 ~ +1.0)
-        rating_delta = (cur_rating - 7.00) * 1.5
-        rating_delta = max(-0.8, min(1.0, rating_delta))
-        
-        # 3) 나이 및 미래가치 보정 (-1.0 ~ +0.8)
-        age_delta = (age_w - 1.00) * 8.0
-        age_delta = max(-1.0, min(0.8, age_delta))
-        
-        # 4) 리스크 관리 및 필요도 보정
+        val_score_delta = max(-3.5, min(2.5, -(overpay_pct / 20.0)))
+        rating_delta = max(-0.8, min(1.0, (cur_rating - 7.00) * 1.5))
+        age_delta = max(-1.0, min(0.8, (age_w - 1.00) * 8.0))
         risk_delta = (stage_w - 1.00) * 5.0 + (inj_w - 1.00) * 5.0 + (reg_w - 1.00) * 3.0 + (urg_w - 1.00) * 2.0
         
         final_deal_score = round(max(1.00, min(10.00, base_deal_score + val_score_delta + rating_delta + age_delta + risk_delta)), 2)
@@ -343,7 +336,6 @@ with tab1:
         st.markdown(f"### **{display_name}** {display_nat} - `{pos_short}` 이적 평가")
         st.caption(f"📌 조항: **{ttype_short}** | 쿼터: **{reg_short}** | 필요도: **{urg_short}** | UCL: **{stage_w:.2f}**")
         
-        # 12대 지표 카드 (4열 x 3행 배치)
         r1_1, r1_2, r1_3, r1_4 = st.columns(4)
         r1_1.metric("1. 리그 난이도", f"{league_w:.2f}")
         r1_2.metric("2. 나이(에이징)", f"{age_w:.2f}")
@@ -374,7 +366,6 @@ with tab1:
         
         st.markdown("---")
         
-        # 이적 종합 총 평점 카드 섹션
         if final_deal_score > 0:
             st.markdown("#### 🏆 **이번 이적 종합 평점 (Deal Rating)**")
             ds_col1, ds_col2 = st.columns([1, 2])
@@ -424,7 +415,7 @@ with tab1:
                 if player_notes.strip(): summary_text += f"📝 메모: {player_notes.strip()}\n"
                 st.code(summary_text.strip(), language="text")
 
-# ================= TAB 2: FotMob 시즌 성적 & 이적 예측 (비교 리포트 및 저장) =================
+# ================= TAB 2: FotMob 시즌 성적 & 이적 예측 =================
 with tab2:
     st.subheader("📱 FotMob 스타일 시즌 스탯 입력 & 이적 첫 시즌 성적 프로젝션")
     
@@ -658,3 +649,129 @@ with tab2:
                     "notes": detailed_notes
                 }
                 execute_sheet_save(payload)
+
+# ================= TAB 3: 과거 유사 이적 사례 비교 (Comps TOP 10) =================
+with tab3:
+    st.subheader("🔍 과거 유사 이적 사례 검색 및 벤치마크 비교 (Comps TOP 10)")
+    st.caption("구글 시트에 누적된 이전 이적 데이터 중 이적료, 총 평점, 평가율(고평가/저평가), 출발 리그가 가장 유사한 과거 사례 최대 10건을 자동으로 매칭합니다.")
+    
+    # 5개 조건 입력창
+    c_in1, c_in2, c_in3, c_in4, c_in5 = st.columns(5)
+    with c_in1:
+        target_fee = st.number_input("비교 기준 이적료 (만 €)", min_value=0, value=int(actual_transfer_fee) if actual_transfer_fee > 0 else 5000, step=100, key="comps_fee")
+    with c_in2:
+        target_score = st.number_input("비교 기준 이적 평점", min_value=1.00, max_value=10.00, value=float(final_deal_score) if final_deal_score > 0 else 7.50, step=0.1, key="comps_score")
+    with c_in3:
+        target_overpay = st.number_input("비교 기준 평가율 (%)", min_value=-100.0, max_value=200.0, value=float(overpay_pct), step=1.0, key="comps_overpay")
+    with c_in4:
+        pos_filter = st.selectbox("포지션 필터", ["전체 포지션", "스트라이커 (ST/CF)", "윙어/공미 (WG/CAM)", "미드필더 (CM/CDM)", "수비수 (CB/FB/WB)", "골키퍼 (GK)"], index=0, key="comps_pos_filter")
+    with c_in5:
+        league_filter = st.selectbox("원소속 리그 필터", ["전체 리그"] + list(LEAGUE_WEIGHTS.keys()), index=0, key="comps_league_filter")
+
+    st.markdown("---")
+
+    # 구글 시트에서 과거 데이터 가져오기
+    @st.cache_data(ttl=15)
+    def fetch_sheet_history():
+        try:
+            df = pd.read_csv(SHEET_CSV_URL)
+            return df
+        except Exception:
+            return pd.DataFrame()
+
+    history_df = fetch_sheet_history()
+
+    if history_df.empty or len(history_df) == 0:
+        st.info("💡 **아직 구글 시트에 누적된 과거 이적 데이터가 없습니다.**\n\n1번 및 2번 탭에서 선수 데이터를 저장해 나가시면, 자동으로 이곳에 가장 유사한 과거 이적 사례 TOP 10이 순위별로 나타나게 됩니다.")
+    else:
+        try:
+            valid_rows = []
+            for idx, row in history_df.iterrows():
+                try:
+                    p_name = str(row.get("선수명", f"선수 {idx+1}"))
+                    p_fee = float(row.get("실제이적료(만€)", 0))
+                    p_fair = float(row.get("산출적정가(만€)", 0))
+                    p_pos = str(row.get("포지션", "기타"))
+                    p_league = str(row.get("원소속리그", "기타"))
+                    p_season = str(row.get("이적시즌", "26/27"))
+                    
+                    # 메모에서 평점 추출 시도
+                    notes_str = str(row.get("스카우팅메모", ""))
+                    p_score = 7.50
+                    if "평점:" in notes_str:
+                        p_score = float(notes_str.split("평점:")[1].split("]")[0].strip())
+                    
+                    p_overpay = ((p_fee - p_fair) / p_fair * 100) if p_fair > 0 else 0.0
+                    
+                    # 1) 포지션 필터링
+                    if pos_filter != "전체 포지션":
+                        f_pos_key = pos_filter.split(" (")[0]
+                        if f_pos_key not in p_pos and p_pos not in pos_filter:
+                            continue
+                    
+                    # 2) 리그 필터링
+                    if league_filter != "전체 리그":
+                        f_l_key = league_filter.split(" (")[0]
+                        if f_l_key not in p_league:
+                            continue
+
+                    # 3) 유사도 점수 계산 (이적료 30% + 평점 25% + 평가율 25% + 리그 가중치 20%)
+                    fee_diff_norm = abs(p_fee - target_fee) / (max(target_fee, 1000) * 1.5)
+                    score_diff_norm = abs(p_score - target_score) / 5.0
+                    overpay_diff_norm = abs(p_overpay - target_overpay) / 50.0
+                    
+                    # 리그 가중치 거리 계산
+                    target_l_w = LEAGUE_WEIGHTS.get(selling_league, 1.0)
+                    row_l_w = 0.80
+                    for l_k, l_v in LEAGUE_WEIGHTS.items():
+                        if p_league in l_k:
+                            row_l_w = l_v
+                            break
+                    league_diff_norm = abs(target_l_w - row_l_w) / 0.70
+
+                    total_dist = (fee_diff_norm * 0.30) + (score_diff_norm * 0.25) + (overpay_diff_norm * 0.25) + (league_diff_norm * 0.20)
+                    sim_pct = max(0.0, round((1.0 - total_dist) * 100, 1))
+                    
+                    valid_rows.append({
+                        "시즌": p_season,
+                        "선수명": p_name,
+                        "포지션": p_pos,
+                        "원소속리그": p_league,
+                        "실제이적료(만€)": p_fee,
+                        "산출적정가(만€)": p_fair,
+                        "평가율(%)": round(p_overpay, 1),
+                        "이적평점": round(p_score, 2),
+                        "유사도(%)": sim_pct,
+                        "스카우팅메모": notes_str
+                    })
+                except Exception:
+                    continue
+
+            if len(valid_rows) > 0:
+                match_df = pd.DataFrame(valid_rows).sort_values(by="유사도(%)", ascending=False).head(10)
+                
+                st.markdown(f"### 🎯 **가장 유사한 과거 이적 사례 TOP 3 하이라이트**")
+                top_cols = st.columns(min(3, len(match_df)))
+                
+                for i, (_, match_row) in enumerate(match_df.head(3).iterrows()):
+                    with top_cols[i]:
+                        st.markdown(f"#### **{i+1}위. {match_row['선수명']}** ({match_row['시즌']})")
+                        st.caption(f"📌 포지션: `{match_row['포지션']}` | 리그: `{match_row['원소속리그']}`")
+                        st.metric("매칭 유사도", f"{match_row['유사도(%)']}%")
+                        st.write(f"- **실제 이적료**: €{match_row['실제이적료(만€)']:,.0f}만 ({format_currency_desc(match_row['실제이적료(만€)'])})")
+                        st.write(f"- **이적 총 평점**: ★ {match_row['이적평점']:.2f} / 10.00")
+                        st.write(f"- **평가율**: `{match_row['평가율(%)']:+.1f}%`")
+                
+                st.markdown("<br>", unsafe_allow_html=True)
+                st.markdown("#### 📋 **유사 이적 사례 TOP 10 전체 세부 비교 테이블**")
+                st.dataframe(
+                    match_df[[
+                        "유사도(%)", "시즌", "선수명", "포지션", "원소속리그", 
+                        "실제이적료(만€)", "산출적정가(만€)", "평가율(%)", "이적평점", "스카우팅메모"
+                    ]], 
+                    use_container_width=True
+                )
+            else:
+                st.info("💡 선택하신 포지션 또는 리그 필터 조건에 일치하는 과거 이적 데이터가 없습니다.")
+        except Exception as e:
+            st.error(f"⚠️ 데이터 비교 중 오류: {e}")
