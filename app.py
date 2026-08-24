@@ -12,8 +12,11 @@ st.set_page_config(
 )
 
 GOOGLE_SHEET_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzlIZEZ6C8T1mpIErWoAgi28cCfeezNfqE2U9CR1P6vtB5t928n7VSJ3OvhCyTd-not8g/exec"
-SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1oUDZ96SJ7aklJdrq_rK5K1ti2RRUAGO3PqqLvPM9E2A/gviz/tq?tqx=out:csv"
-VAL_SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1oUDZ96SJ7aklJdrq_rK5K1ti2RRUAGO3PqqLvPM9E2A/gviz/tq?tqx=out:csv&sheet=%EA%B2%80%EC%A6%9D%EB%8D%B0%EC%9D%B4%ED%84%B0"
+SPREADSHEET_ID = "1oUDZ96SJ7aklJdrq_rK5K1ti2RRUAGO3PqqLvPM9E2A"
+SHEET_CSV_URL = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/gviz/tq?tqx=out:csv"
+
+# ⚠️ '검증데이터' 탭 클릭 시 주소창 맨 끝 #gid= 뒤에 나오는 숫자를 적어주세요 (기본값으로 자동 탐색 지원)
+VAL_SHEET_CSV_URL = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=%EA%B2%80%EC%A6%9D%EB%8D%B0%EC%9D%B4%ED%84%B0"
 
 if "form_key_id" not in st.session_state:
     st.session_state["form_key_id"] = 0
@@ -674,6 +677,7 @@ with tab2:
                     )
                     if res.status_code in [200, 302]:
                         st.session_state["last_saved_msg"] = f"✅ '{player_name}' 선수의 데이터가 메인 시트 및 [검증데이터] 시트에 성공적으로 동시 저장되었습니다!"
+                        st.cache_data.clear()
                         st.session_state["form_key_id"] += 1
                         st.rerun()
                     else:
@@ -700,7 +704,7 @@ with tab3:
 
     st.markdown("---")
 
-    @st.cache_data(ttl=15)
+    @st.cache_data(ttl=5)
     def fetch_sheet_history():
         try:
             df = pd.read_csv(SHEET_CSV_URL)
@@ -803,23 +807,26 @@ with tab3:
         except Exception as e:
             st.error(f"⚠️ 데이터 비교 중 오류: {e}")
 
-# ================= TAB 4: 이적 첫 시즌 실제 성적 입력 & 모델 검증 (xG, xA 포함 1:1 대칭) =================
+# ================= TAB 4: 이적 첫 시즌 실제 성적 입력 & 모델 검증 =================
 with tab4:
     st.subheader("🎯 이적 첫 시즌 실제 성적 입력 & 모델 예측 정확도 사후 검증")
     st.caption("시즌 종료 후 선수가 실제로 기록한 최종 스탯(xG, xA 포함)을 입력하여 모델 예측치와의 오차율 및 적중률을 산출하고 [검증데이터] 시트에 업데이트합니다.")
 
-    @st.cache_data(ttl=10)
+    @st.cache_data(ttl=5)
     def fetch_validation_data():
         try:
+            # 1차 시도: 한글 시트명 인코딩으로 불러오기
             df = pd.read_csv(VAL_SHEET_CSV_URL)
-            return df
+            if not df.empty and "선수명" in df.columns:
+                return df
         except Exception:
-            return pd.DataFrame()
+            pass
+        return pd.DataFrame()
 
     val_df = fetch_validation_data()
 
     if val_df.empty or len(val_df) == 0:
-        st.info("💡 **아직 [검증데이터] 시트에 저장된 예측 선수가 없습니다.**\n\n2번 탭에서 선수 스탯을 먼저 저장하시면, 이곳에서 해당 선수의 예측 스탯을 불러와 실제 성적을 입력할 수 있습니다.")
+        st.info("💡 **아직 [검증데이터] 시트에 저장된 데이터가 없습니다.**\n\n- [Apps Script 배포 관리]에서 **'새 버전'**으로 배포되었는지 확인해 주세요.\n- 2번 탭에서 선수를 저장하시면 이곳에 자동으로 나타납니다.")
     else:
         st.markdown("#### 1️⃣ 검증할 선수 및 이적 시즌 선택")
         vc1, vc2 = st.columns(2)
