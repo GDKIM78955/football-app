@@ -15,8 +15,9 @@ GOOGLE_SHEET_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzlIZEZ6C8T1m
 SPREADSHEET_ID = "1oUDZ96SJ7aklJdrq_rK5K1ti2RRUAGO3PqqLvPM9E2A"
 SHEET_CSV_URL = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/gviz/tq?tqx=out:csv"
 
-# ⚠️ '검증데이터' 탭 클릭 시 주소창 맨 끝 #gid= 뒤에 나오는 숫자를 적어주세요 (기본값으로 자동 탐색 지원)
-VAL_SHEET_CSV_URL = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=%EA%B2%80%EC%A6%9D%EB%8D%B0%EC%9D%B4%ED%84%B0"
+# '검증데이터' 시트의 고유 GID 적용
+VAL_SHEET_GID = "2043479646"
+VAL_SHEET_CSV_URL = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/export?format=csv&gid={VAL_SHEET_GID}"
 
 if "form_key_id" not in st.session_state:
     st.session_state["form_key_id"] = 0
@@ -257,7 +258,6 @@ with tab1:
         
         player_notes = st.text_area("개인 메모 / 스카우팅 코멘트", placeholder="예: 대인 방어 및 후방 빌드업 우수", key=f"note_{k_id}")
 
-    # 12대 가중치 추출
     league_w = LEAGUE_WEIGHTS[selling_league]
     age_w = get_positional_age_weight(player_age, main_position)
     club_w = CLUB_TIERS[buying_club_tier]
@@ -639,7 +639,6 @@ with tab2:
                     "status": status_label,
                     "deal_score": float(final_deal_score),
                     
-                    # FotMob 이전 시즌 실제 스탯
                     "prev_matches": int(st.session_state["f_matches"]),
                     "prev_mins": int(st.session_state["f_mins"]),
                     "prev_goals": int(st.session_state["f_goals"]),
@@ -654,7 +653,6 @@ with tab2:
                     "prev_tackles": int(st.session_state["f_tackles"]),
                     "prev_rating": float(st.session_state["f_rating"]),
                     
-                    # FotMob 이적 첫 시즌 예측 스탯
                     "to_league": f_to_l.split(" (")[0],
                     "proj_mins": int(f_target_mins),
                     "proj_goals": float(proj_goals),
@@ -815,7 +813,6 @@ with tab4:
     @st.cache_data(ttl=5)
     def fetch_validation_data():
         try:
-            # 1차 시도: 한글 시트명 인코딩으로 불러오기
             df = pd.read_csv(VAL_SHEET_CSV_URL)
             if not df.empty and "선수명" in df.columns:
                 return df
@@ -826,7 +823,7 @@ with tab4:
     val_df = fetch_validation_data()
 
     if val_df.empty or len(val_df) == 0:
-        st.info("💡 **아직 [검증데이터] 시트에 저장된 데이터가 없습니다.**\n\n- [Apps Script 배포 관리]에서 **'새 버전'**으로 배포되었는지 확인해 주세요.\n- 2번 탭에서 선수를 저장하시면 이곳에 자동으로 나타납니다.")
+        st.info("💡 **아직 [검증데이터] 시트에 저장된 데이터가 없습니다.**\n\n- 2번 탭에서 선수를 저장하시면 이곳에 자동으로 나타납니다.")
     else:
         st.markdown("#### 1️⃣ 검증할 선수 및 이적 시즌 선택")
         vc1, vc2 = st.columns(2)
@@ -884,7 +881,6 @@ with tab4:
 
         act_notes_val = st.text_input("사후 검증 스카우팅 총평 / 비고", value=exist_act_notes, placeholder="예: 리그 적응 성공, 모델 예측 xG 및 평점 정확도 매우 우수", key="val_act_notes")
 
-        # 오차율 및 적중률 계산
         rating_error = abs(act_rating_val - proj_r)
         rating_accuracy = max(0.0, round((1.0 - (rating_error / 1.5)) * 100, 1))
 
