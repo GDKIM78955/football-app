@@ -356,6 +356,25 @@ with tab1:
         st.markdown(f"### **{display_name}** {display_nat} - `{pos_short}` 이적 평가 {season_icon}")
         st.caption(f"📌 시장: **{season_val.split(' (')[0]}** | 조항: **{ttype_short}** | 쿼터: **{reg_short}** | 필요도: **{urg_short}**")
         
+        # 🌟 [복원] 선수 이름 바로 아래 4대 핵심 결과 카드 박스
+        res_c1, res_c2, res_c3, res_c4 = st.columns(4)
+        with res_c1:
+            st.metric("산출 적정가", f"€{fair_value:,.1f}만")
+            if fair_value > 0: st.caption(f"{format_currency_desc(fair_value).split(' | ')[0]}")
+        with res_c2:
+            st.metric("실제 지출액", f"€{actual_transfer_fee:,.1f}만", delta=f"{diff:+,.1f}만 (€)" if actual_transfer_fee > 0 else None, delta_color="inverse")
+            if actual_transfer_fee > 0: st.caption(f"{format_currency_desc(actual_transfer_fee).split(' | ')[0]}")
+        with res_c3:
+            st.metric("평가율 / 진단", f"{overpay_pct:+.1f}%" if fair_value > 0 else "-", delta=status_label.split(" ")[0])
+            st.caption(status_label)
+        with res_c4:
+            st.metric("이적 총 평점", f"★ {final_deal_score:.2f}", delta=deal_grade.split(" ")[0])
+            st.caption(deal_grade.split(" (")[0])
+
+        st.markdown("---")
+        st.markdown("##### 📌 **12대 핵심 가중치 세부 적용치 (Multipliers)**")
+        
+        # 12대 지표 카드 (4열 x 3행 배치)
         r1_1, r1_2, r1_3, r1_4 = st.columns(4)
         r1_1.metric("1. 리그 난이도", f"{league_w:.2f}")
         r1_2.metric("2. 나이(에이징)", f"{age_w:.2f}")
@@ -376,6 +395,7 @@ with tab1:
         
         st.divider()
         
+        # [외부 발표용 / 미디어 브리핑 전용 섹션]
         st.markdown(f"#### 📢 **[외부 발표용] 시장가 범위 & 진단 평점 ({season_icon} {season_val.split(' ')[1] if ' ' in season_val else ''})**")
 
         if fair_value > 0:
@@ -396,21 +416,7 @@ with tab1:
                 - **실제 지출 이적료**: `€{actual_transfer_fee:,.0f}만`
                 """)
 
-        st.markdown("---")
-
-        with st.expander("🔒 [내부 데이터용] 데이터 기준 적정가 & 내부 평가 세부내역", expanded=False):
-            st.caption(f"구글 시트 데이터베이스용 수치입니다. (시즌 계수: {season_factor:.2f}x)")
-            m_col1, m_col2 = st.columns(2)
-            with m_col1:
-                st.metric("데이터 기준 적정가", f"€{fair_value:,.1f}만")
-                if fair_value > 0: st.caption(f"{format_currency_desc(fair_value)}")
-            with m_col2:
-                st.metric("실제 지출액", f"€{actual_transfer_fee:,.1f}만", delta=f"{diff:+,.1f}만 (€)" if actual_transfer_fee > 0 else None, delta_color="inverse")
-                if actual_transfer_fee > 0: st.caption(f"{format_currency_desc(actual_transfer_fee)}")
-            
-            st.write(f"- **내부 진단 판정**: {status_label}")
-            st.write(f"- **내부 이적 평점**: ★ {final_deal_score:.2f} / 10.00 ({deal_grade})")
-
+        # 공유용 요약 텍스트
         if player_name.strip() and (tm_market_value > 0 or actual_transfer_fee > 0):
             with st.expander("📋 [클릭하여 복사] 외부 발표용 공식 브리핑 요약 텍스트", expanded=True):
                 nat_text = f"({player_nat}, 만 {player_age}세)" if player_nat else f"(만 {player_age}세)"
@@ -966,7 +972,6 @@ with tab5:
         st.markdown("---")
         st.markdown("#### 2️⃣ 과거 유사 프로필 선수 1:1 직접 선택 대조 (Head-to-Head)")
         
-        # 선수 이름 목록 (현재 입력 선수 제외)
         past_player_names = list(hist_full_df["선수명"].dropna().unique())
         
         selected_past_player = st.selectbox(
@@ -992,7 +997,6 @@ with tab5:
         t_rating = float(past_target.get("직전_평점", 7.0)) if pd.notnull(past_target.get("직전_평점")) else 7.0
         t_p90 = (t_xg + t_xa) / (t_mins / 90.0) if t_mins > 0 else 0.0
 
-        # 1:1 비교 테이블 생성
         df_bench = pd.DataFrame({
             "스카우팅 비교 항목": [
                 "이적 시즌 (Season)",
