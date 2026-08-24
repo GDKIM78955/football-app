@@ -186,8 +186,15 @@ with tab1:
     with col1:
         st.subheader("📝 선수 & 이적 기본 정보")
         c_s1, c_s2 = st.columns(2)
-        with c_s1: season_val = st.selectbox("이적 시즌", ["26/27", "기타"], key=f"season_{k_id}")
-        with c_s2: transfer_type = st.selectbox("이적 형태 & 계약 조항", list(TRANSFER_TYPE_WEIGHTS.keys()), index=0, key=f"ttype_{k_id}")
+        with c_s1: 
+            season_val = st.selectbox(
+                "이적 시즌 / 시장", 
+                ["26/27 여름 (Summer)", "26/27 겨울 (Winter)", "기타"], 
+                index=0, 
+                key=f"season_{k_id}"
+            )
+        with c_s2: 
+            transfer_type = st.selectbox("이적 형태 & 계약 조항", list(TRANSFER_TYPE_WEIGHTS.keys()), index=0, key=f"ttype_{k_id}")
             
         c_n1, c_n2, c_n3 = st.columns([2, 1, 1])
         with c_n1: player_name = st.text_input("선수 이름", value="", placeholder="예: Ezri Konsa", key=f"name_{k_id}")
@@ -258,8 +265,13 @@ with tab1:
     inj_w = INJURY_WEIGHTS[injury_status]
     urg_w = URGENCY_WEIGHTS[urgency_status]
 
-    # [1] 내부용 초보수적 적정가 계산
-    fair_value = tm_market_value * league_w * age_w * club_w * contract_w * pos_w * vers_w * reg_w * opta_w * ttype_w * stage_w * inj_w * urg_w
+    # [겨울/여름 시즌별 계수 및 시장 마진 설정]
+    is_winter = "겨울" in season_val
+    season_factor = 1.10 if is_winter else 1.00 # 겨울 보수적 적정가 할증 (+10%)
+
+    # [1] 내부용 데이터 기준 적정가 계산
+    base_calc_val = tm_market_value * league_w * age_w * club_w * contract_w * pos_w * vers_w * reg_w * opta_w * ttype_w * stage_w * inj_w * urg_w
+    fair_value = base_calc_val * season_factor
     diff = actual_transfer_fee - fair_value
     diff_desc = format_currency_desc(abs(diff))
     overpay_pct = (diff / fair_value) * 100 if fair_value > 0 else 0.0
@@ -273,13 +285,19 @@ with tab1:
     else: 
         status_label = f"💎 저평가/혜자 ({overpay_pct:.1f}%)"
 
-    # [2] 외부 발표용 현실 시장 거래 예상 범위 및 진단 (+5% ~ +10% 프리미엄)
-    market_min = fair_value * 1.05
-    market_max = fair_value * 1.10
-    market_mid = (market_min + market_max) / 2.0
+    # [2] 외부 발표용 현실 시장 거래 예상 범위 (여름: +5~10%, 겨울: +15~20%)
+    if is_winter:
+        market_min = base_calc_val * 1.15
+        market_max = base_calc_val * 1.20
+        market_mid = (market_min + market_max) / 2.0
+        range_desc = "+15% ~ +20% 겨울 특수 프리미엄"
+    else:
+        market_min = base_calc_val * 1.05
+        market_max = base_calc_val * 1.10
+        market_mid = (market_min + market_max) / 2.0
+        range_desc = "+5% ~ +10% 시장 프리미엄"
     
     ext_diff = actual_transfer_fee - market_mid
-    ext_diff_desc = format_currency_desc(abs(ext_diff))
     ext_overpay_pct = (ext_diff / market_mid) * 100 if market_mid > 0 else 0.0
 
     if fair_value == 0 and actual_transfer_fee == 0:
@@ -303,7 +321,7 @@ with tab1:
         
         final_deal_score = round(max(1.00, min(10.00, base_deal_score + val_score_delta + rating_delta + age_delta + risk_delta)), 2)
         
-        # [4] 외부 발표용 이적 종합 평점 (시장 프리미엄 7.5% 감안 보정)
+        # [4] 외부 발표용 이적 종합 평점 (시장 프리미엄 감안)
         ext_val_score_delta = max(-3.5, min(2.5, -(ext_overpay_pct / 20.0)))
         ext_deal_score = round(max(1.00, min(10.00, base_deal_score + ext_val_score_delta + rating_delta + age_delta + risk_delta)), 2)
 
@@ -333,8 +351,9 @@ with tab1:
         reg_short = reg_status.split(" (")[0]
         urg_short = urgency_status.split(" (")[0]
         
-        st.markdown(f"### **{display_name}** {display_nat} - `{pos_short}` 이적 평가")
-        st.caption(f"📌 조항: **{ttype_short}** | 쿼터: **{reg_short}** | 필요도: **{urg_short}** | UCL: **{stage_w:.2f}**")
+        season_icon = "❄️" if is_winter else "☀️"
+        st.markdown(f"### **{display_name}** {display_nat} - `{pos_short}` 이적 평가 {season_icon}")
+        st.caption(f"📌 시장: **{season_val.split(' (')[0]}** | 조항: **{ttype_short}** | 쿼터: **{reg_short}** | 필요도: **{urg_short}**")
         
         # 12대 지표 카드 (4열 x 3행 배치)
         r1_1, r1_2, r1_3, r1_4 = st.columns(4)
@@ -358,13 +377,13 @@ with tab1:
         st.divider()
         
         # -------------------------------------------------------------
-        # [외부 발표용 / 미디어 브리핑 전용 섹션] - 폰트 크기 최적화 (창 너비 초과 방지)
+        # [외부 발표용 / 미디어 브리핑 전용 섹션]
         # -------------------------------------------------------------
-        st.markdown("#### 📢 **[외부 발표용] 시장가 범위 & 진단 평점**")
+        st.markdown(f"#### 📢 **[외부 발표용] 시장가 범위 & 진단 평점 ({season_icon} {season_val.split(' ')[1] if ' ' in season_val else ''})**")
 
         if fair_value > 0:
             st.info(f"""
-            📌 **현실 시장 거래 예상 범위 (+5% ~ +10%)**:  
+            📌 **현실 시장 거래 예상 범위 ({range_desc})**:  
             **€{market_min:,.1f}만 ~ €{market_max:,.1f}만** *(약 {((market_min*10000*rate_krw)/100000000.0):,.0f}억 ~ {((market_max*10000*rate_krw)/100000000.0):,.0f}억원)*
             """)
 
@@ -385,8 +404,8 @@ with tab1:
         # -------------------------------------------------------------
         # [내부 데이터베이스용 원본 분석 섹션]
         # -------------------------------------------------------------
-        with st.expander("🔒 [내부 데이터용] 초보수적 원본 적정가 & 내부 평가 세부내역", expanded=False):
-            st.caption("구글 시트 데이터베이스 및 통계 모델 검증을 위한 초보수적 기준 수치입니다.")
+        with st.expander("🔒 [내부 데이터용] 데이터 기준 적정가 & 내부 평가 세부내역", expanded=False):
+            st.caption(f"구글 시트 데이터베이스용 수치입니다. (겨울 시즌 가중치: {season_factor:.2f}x)")
             m_col1, m_col2 = st.columns(2)
             with m_col1:
                 st.metric("데이터 기준 적정가", f"€{fair_value:,.1f}만")
@@ -415,7 +434,7 @@ with tab1:
 ▪️ 트랜스퍼마르크트 시장가치: €{tm_market_value:,.0f}만 ({format_currency_desc(tm_market_value)})
 ━━━━━━━━━━━━━━━━━━━━
 📊 [외부 발표용 공식 평가]
-📌 현실 시장 거래 예상 범위 (+5~10%): €{market_min:,.1f}만 ~ €{market_max:,.1f}만 ({format_currency_desc(market_min).split(' | ')[0]} ~ {format_currency_desc(market_max)})
+📌 현실 시장 거래 예상 범위 ({range_desc}): €{market_min:,.1f}만 ~ €{market_max:,.1f}만 ({format_currency_desc(market_min).split(' | ')[0]} ~ {format_currency_desc(market_max)})
 💰 실제 지출 이적료: €{actual_transfer_fee:,.1f}만 ({format_currency_desc(actual_transfer_fee)})
 🏆 외부 발표용 이적 평점: ★ {ext_deal_score:.2f} / 10.00점 ({ext_deal_grade})
 🔍 최종 시장 진단: {ext_status_label}
@@ -429,11 +448,14 @@ with tab1:
 with tab2:
     st.subheader("📱 FotMob 스타일 시즌 스탯 입력 & 이적 첫 시즌 성적 프로젝션")
     
+    # 겨울 이적 시 기본 출전 시간을 후반기 잔여 기준(1,440분 / 약 16경기)으로 스마트 제안
+    default_proj_mins = 1440 if is_winter else 3036
+    
     f_c1, f_c2, f_c3, f_c4 = st.columns(4)
     with f_c1: f_pos = st.selectbox("선수 포지션", ["⚽ 스트라이커 (ST/CF)", "⚡ 윙어 / 공미 (WG/CAM)", "🏃 중앙 미드필더 (CM/CDM)", "🛡️ 수비수 (CB/FB)"], index=3, key="f_tab_pos")
     with f_c2: f_from_l = st.selectbox("원소속 리그 (기록 기준)", list(LEAGUE_WEIGHTS.keys()), index=0, key="f_tab_from_l")
     with f_c3: f_to_l = st.selectbox("이적할 리그", list(LEAGUE_WEIGHTS.keys()), index=0, key="f_tab_to_l")
-    with f_c4: f_target_mins = st.number_input("이적 팀 예상 출전 시간(분)", 450, 3420, 3036, 90, key="f_tab_target_mins")
+    with f_c4: f_target_mins = st.number_input("이적 팀 예상 출전 시간(분)", 450, 3420, default_proj_mins, 90, key="f_tab_target_mins")
     
     raw_l_factor = LEAGUE_WEIGHTS[f_from_l] / LEAGUE_WEIGHTS[f_to_l]
     if LEAGUE_WEIGHTS[f_to_l] > LEAGUE_WEIGHTS[f_from_l]:
@@ -447,7 +469,7 @@ with tab2:
     final_l_factor = raw_l_factor * adapt_penalty
     
     st.divider()
-    st.markdown("### 📥 FotMob 시즌 실제 기록 입력 (지난 시즌 스탯)")
+    st.markdown("### 📥 FotMob 시즌 실제 기록 입력 (지난 시즌/전반기 스탯)")
     
     b1, b2, b3, b4 = st.columns(4)
     with b1: in_matches = st.number_input("출전 경기 (Matches)", 1, 60, value=st.session_state["f_matches"], key="in_matches_box")
@@ -528,7 +550,7 @@ with tab2:
     proj_rating = round(max(6.0, in_rating - (1.0 - final_l_factor) * 0.9), 2)
 
     # 1) 상단 5대 핵심 지표 카드
-    st.markdown(f"### 🎯 **FotMob 스타일 이적 첫 시즌 성적 예측 리포트**")
+    st.markdown(f"### 🎯 **FotMob 스타일 이적 첫 시즌 성적 예측 리포트 ({season_icon} {season_val.split(' ')[1] if ' ' in season_val else ''})**")
     st.caption(f"이적 환경: **{f_from_l.split(' ')[1]}** ➔ **{f_to_l.split(' ')[1]}** | 리그 난이도: **{raw_l_factor:.2f}x** | {adapt_desc} | 최종 환산 계수: **{final_l_factor:.2f}x**")
     
     m1, m2, m3, m4, m5 = st.columns(5)
