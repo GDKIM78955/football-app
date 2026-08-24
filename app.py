@@ -172,12 +172,13 @@ def format_currency_desc(eur_man_euro):
     gbp_man = (eur_man_euro * rate_gbp)
     return f"약 {krw_eok:,.1f}억원 | £{gbp_man:,.1f}만"
 
-# 3. 메인 4개 탭 구성
-tab1, tab2, tab3, tab4 = st.tabs([
+# 3. 메인 5개 탭 구성
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "💰 적정 이적료 평가", 
     "📱 FotMob 시즌 성적 & 이적 예측 (시트 저장)",
     "🔍 과거 유사 이적 사례 비교 (Comps TOP 5 & 10)",
-    "🎯 이적 첫 시즌 실제 성적 입력 & 모델 검증"
+    "🎯 이적 첫 시즌 실제 성적 입력 & 모델 검증",
+    "👥 신규 이적생 vs 과거 유사 선수 다각도 벤치마크 (Multi-Comps)"
 ])
 
 # ================= TAB 1: 적정 이적료 평가 =================
@@ -935,3 +936,114 @@ with tab4:
         st.markdown("---")
         st.markdown("#### 📋 **[검증데이터] 시트 전체 누적 현황표**")
         st.dataframe(val_df, use_container_width=True)
+
+# ================= TAB 5: 신규 이적생 vs 과거 유사 선수 다각도 벤치마크 (Multi-Comps) =================
+with tab5:
+    st.subheader("👥 신규 이적생 vs 과거 유사 이적 선수 다각도 벤치마크 (Multi-Comps)")
+    st.caption("새로운 시즌 영입 선수의 프로필(나이, 포지션, 이적료 규모, 생산력)을 과거 시트에 누적된 다른 선수들의 실제 사례와 1:1 및 다차원으로 정밀 비교합니다.")
+
+    hist_full_df = fetch_sheet_history()
+
+    if hist_full_df.empty or len(hist_full_df) == 0:
+        st.info("💡 **아직 과거 누적 데이터가 없습니다.**\n\n1번 및 2번 탭에서 선수 데이터를 2명 이상 저장하시면 과거 선수들과의 1:1 교차 비교 및 벤치마크 매칭이 활성화됩니다.")
+    else:
+        st.markdown("#### 1️⃣ 신규 분석 대상 선수 프로필 설정 (1번 탭 데이터 자동 연동)")
+        
+        p_curr_name = player_name.strip() if player_name.strip() else "신규 영입 대상 선수"
+        p_curr_age = int(player_age)
+        p_curr_pos = main_position.split(" (")[0]
+        p_curr_fee = float(actual_transfer_fee) if actual_transfer_fee > 0 else 5000.0
+        p_curr_score = float(final_deal_score) if final_deal_score > 0 else 7.50
+        p_curr_p90 = (st.session_state["f_xg"] + st.session_state["f_xa"]) / ((st.session_state["f_mins"] / 90.0) if st.session_state["f_mins"] > 0 else 1.0)
+        p_curr_rating = float(st.session_state["f_rating"])
+
+        c_prof1, c_prof2, c_prof3, c_prof4 = st.columns(4)
+        c_prof1.metric("선수명 & 나이", f"{p_curr_name}", f"만 {p_curr_age}세")
+        c_prof2.metric("포지션 & 리그", f"{p_curr_pos}", f"{selling_league.split(' ')[1]}")
+        c_prof3.metric("실제 이적료", f"€{p_curr_fee:,.0f}만", f"평점 ★{p_curr_score:.2f}")
+        c_prof4.metric("90분당 xG+xA / 평점", f"{p_curr_p90:.2f}", f"FotMob ★{p_curr_rating:.2f}")
+
+        st.markdown("---")
+        st.markdown("#### 2️⃣ 과거 유사 프로필 선수 1:1 직접 선택 대조 (Head-to-Head)")
+        
+        # 선수 이름 목록 (현재 입력 선수 제외)
+        past_player_names = list(hist_full_df["선수명"].dropna().unique())
+        
+        selected_past_player = st.selectbox(
+            "과거 비교 대상 선수 선택",
+            past_player_names,
+            index=0,
+            key="bench_player_select"
+        )
+
+        past_target = hist_full_df[hist_full_df["선수명"] == selected_past_player].iloc[-1]
+
+        t_name = str(past_target.get("선수명", "선수"))
+        t_season = str(past_target.get("이적시즌", "26/27"))
+        t_age = int(past_target.get("나이", 25)) if pd.notnull(past_target.get("나이")) else 25
+        t_pos = str(past_target.get("포지션", "CB"))
+        t_league = str(past_target.get("원소속리그", "EPL"))
+        t_fee = float(past_target.get("실제이적료(만€)", 0))
+        t_fair = float(past_target.get("산출적정가(만€)", 0))
+        t_score = float(past_target.get("이적평점", 7.50))
+        t_xg = float(past_target.get("직전_xG", 0.0)) if pd.notnull(past_target.get("직전_xG")) else 0.0
+        t_xa = float(past_target.get("직전_xA", 0.0)) if pd.notnull(past_target.get("직전_xA")) else 0.0
+        t_mins = float(past_target.get("직전_출전시간", 2500)) if pd.notnull(past_target.get("직전_출전시간")) else 2500.0
+        t_rating = float(past_target.get("직전_평점", 7.0)) if pd.notnull(past_target.get("직전_평점")) else 7.0
+        t_p90 = (t_xg + t_xa) / (t_mins / 90.0) if t_mins > 0 else 0.0
+
+        # 1:1 비교 테이블 생성
+        df_bench = pd.DataFrame({
+            "스카우팅 비교 항목": [
+                "이적 시즌 (Season)",
+                "나이 (만 나이)",
+                "주 포지션",
+                "출발 리그",
+                "실제 이적료 지출액",
+                "데이터 기준 적정가",
+                "이적 총 평점 (10점 만점)",
+                "FotMob 평균 평점",
+                "90분당 기대 생산력 (xG+xA/90)"
+            ],
+            f"신규 대상: {p_curr_name}": [
+                f"{season_val.split(' (')[0]}",
+                f"만 {p_curr_age}세",
+                f"{p_curr_pos}",
+                f"{selling_league.split(' ')[1]}",
+                f"€{p_curr_fee:,.0f}만 ({format_currency_desc(p_curr_fee).split(' | ')[0]})",
+                f"€{fair_value:,.1f}만",
+                f"★ {final_deal_score:.2f} / 10.00",
+                f"★ {p_curr_rating:.2f}",
+                f"{p_curr_p90:.2f}"
+            ],
+            f"과거 비교: {t_name} ({t_season})": [
+                f"{t_season}",
+                f"만 {t_age}세",
+                f"{t_pos}",
+                f"{t_league}",
+                f"€{t_fee:,.0f}만 ({format_currency_desc(t_fee).split(' | ')[0]})",
+                f"€{t_fair:,.1f}만",
+                f"★ {t_score:.2f} / 10.00",
+                f"★ {t_rating:.2f}",
+                f"{t_p90:.2f}"
+            ],
+            "비교 격차 / 인사이트": [
+                "-",
+                f"{p_curr_age - t_age:+d}세",
+                "동일 포지션" if p_curr_pos in t_pos or t_pos in p_curr_pos else "포지션 상이",
+                "동일 리그 출신" if selling_league.split(' ')[1] in t_league else "리그 상이",
+                f"{p_curr_fee - t_fee:+,.0f}만 €",
+                f"{fair_value - t_fair:+,.1f}만 €",
+                f"{final_deal_score - t_score:+.2f}점",
+                f"{p_curr_rating - t_rating:+.2f}점",
+                f"{p_curr_p90 - t_p90:+.2f}"
+            ]
+        })
+
+        st.table(df_bench)
+
+        st.info(f"""
+        💡 **벤치마크 인사이트**:
+        - **이적료 규모**: '{p_curr_name}' 선수는 과거 '{t_name}'의 이적료(€{t_fee:,.0f}만) 대비 **{p_curr_fee - t_fee:+,.0f}만 유로**의 차이를 보입니다.
+        - **가성비 & 평점 비교**: 모델 이적 평점 기준으로 **★{final_deal_score - t_score:+.2f}점**의 평가 격차가 산출되었습니다.
+        """)
