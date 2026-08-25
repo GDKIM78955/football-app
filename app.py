@@ -172,13 +172,14 @@ def format_currency_desc(eur_man_euro):
     gbp_man = (eur_man_euro * rate_gbp)
     return f"약 {krw_eok:,.1f}억원 | £{gbp_man:,.1f}만"
 
-# 3. 메인 5개 탭 구성
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
+# 3. 메인 6개 탭 구성
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "💰 적정 이적료 평가", 
     "📱 FotMob 시즌 성적 & 이적 예측 (시트 저장)",
     "🔍 과거 유사 이적 사례 비교 (Comps TOP 5 & 10)",
     "🎯 이적 첫 시즌 실제 성적 입력 & 모델 검증",
-    "👥 신규 이적생 vs 과거 유사 선수 다각도 벤치마크 (Multi-Comps)"
+    "👥 신규 이적생 vs 과거 유사 선수 다각도 벤치마크",
+    "🏆 이적시장 구단/리그별 종합 결산 & 파워 랭킹"
 ])
 
 # ================= TAB 1: 적정 이적료 평가 =================
@@ -207,6 +208,12 @@ with tab1:
         with c_n1: player_name = st.text_input("선수 이름", value="", placeholder="예: Ezri Konsa", key=f"name_{k_id}")
         with c_n2: player_nat = st.text_input("국적", value="", placeholder="예: 잉글랜드", key=f"nat_{k_id}")
         with c_n3: player_age = st.number_input("나이(만)", min_value=15, max_value=45, value=28, key=f"age_{k_id}")
+
+        # 🌟 [신설] 구단명 및 이적 리그 입력 (통계/결산 대시보드 연동용)
+        c_t1, c_t2, c_t3 = st.columns(3)
+        with c_t1: in_from_team = st.text_input("원소속팀명", value="", placeholder="예: 아스톤 빌라", key=f"from_team_{k_id}")
+        with c_t2: in_to_team = st.text_input("이적팀명 (영입 구단)", value="", placeholder="예: 아스날", key=f"to_team_{k_id}")
+        with c_t3: in_to_league_choice = st.selectbox("이적팀 리그", list(LEAGUE_WEIGHTS.keys()), index=0, key=f"to_league_choice_{k_id}")
         
         pos_col1, pos_col2 = st.columns(2)
         with pos_col1: main_position = st.selectbox("주 포지션", list(POSITION_WEIGHTS.keys()), index=4, key=f"pos_{k_id}")
@@ -220,7 +227,7 @@ with tab1:
         with c_i1: injury_status = st.selectbox("부상 내구성 & 메디컬 리스크", list(INJURY_WEIGHTS.keys()), index=1, key=f"inj_{k_id}")
         with c_i2: urgency_status = st.selectbox("영입 구단 절박성 & 취약 포지션", list(URGENCY_WEIGHTS.keys()), index=0, key=f"urg_{k_id}")
 
-        selling_league = st.selectbox("보내는 리그 (원소속)", list(LEAGUE_WEIGHTS.keys()), index=0, key=f"league_{k_id}")
+        selling_league = st.selectbox("보내는 리그 (원소속 리그)", list(LEAGUE_WEIGHTS.keys()), index=0, key=f"league_{k_id}")
         buying_club_tier = st.selectbox("영입하는 구단 규모", list(CLUB_TIERS.keys()), index=1, key=f"tier_{k_id}")
         remaining_contract = st.selectbox("이적 당시 잔여 계약 기간", list(CONTRACT_WEIGHTS.keys()), index=2, key=f"contract_{k_id}")
         
@@ -250,7 +257,6 @@ with tab1:
             - **FotMob 평균 평점**: `★ {cur_rating:.2f}` ➔ **{opta_desc} (가중치 {opta_w:.2f})**
             """)
 
-        # 🌟 [복원] 12대 가중치 전체 세부 기준표 및 가이드 아코디언 (클릭하여 펼치기)
         with st.expander("📚 [클릭하여 확인] 12대 가중치 전체 세부 산정 기준표 & 가이드", expanded=False):
             st.markdown("#### 1️⃣ 포지션별 나이(에이징 커브) 가중치 기준표")
             age_ref_df = pd.DataFrame({
@@ -384,7 +390,8 @@ with tab1:
         urg_short = urgency_status.split(" (")[0]
         
         season_icon = "❄️" if is_winter else "☀️"
-        st.markdown(f"### **{display_name}** {display_nat} - `{pos_short}` 이적 평가 {season_icon}")
+        transfer_route = f"[{in_from_team} ➔ {in_to_team}]" if in_from_team.strip() and in_to_team.strip() else ""
+        st.markdown(f"### **{display_name}** {display_nat} {transfer_route} - `{pos_short}` 이적 평가 {season_icon}")
         st.caption(f"📌 시장: **{season_val.split(' (')[0]}** | 조항: **{ttype_short}** | 쿼터: **{reg_short}** | 필요도: **{urg_short}**")
         
         # 4대 핵심 결과 카드 박스
@@ -448,8 +455,9 @@ with tab1:
         if player_name.strip() and (tm_market_value > 0 or actual_transfer_fee > 0):
             with st.expander("📋 [클릭하여 복사] 외부 발표용 공식 브리핑 요약 텍스트", expanded=True):
                 nat_text = f"({player_nat}, 만 {player_age}세)" if player_nat else f"(만 {player_age}세)"
+                route_text = f"[{in_from_team} ➔ {in_to_team}]" if in_from_team.strip() and in_to_team.strip() else ""
                 
-                summary_text = f"""⚽ [{season_val} 공식 이적 분석 브리핑] {player_name} {nat_text}
+                summary_text = f"""⚽ [{season_val} 공식 이적 분석 브리핑] {player_name} {nat_text} {route_text}
 ━━━━━━━━━━━━━━━━━━━━
 ▪️ 포지션: {pos_short} (희소성 {pos_w:.2f} / 에이징 {age_w:.2f}) | 멀티: {versatility.split(" (")[0]}
 ▪️ 원소속 리그: {selling_league.split(" (")[0]} ({league_w:.2f}) ➔ 영입 구단: {buying_club_tier.split(":")[0]} ({club_w:.2f})
@@ -478,7 +486,7 @@ with tab2:
     f_c1, f_c2, f_c3, f_c4 = st.columns(4)
     with f_c1: f_pos = st.selectbox("선수 포지션", ["⚽ 스트라이커 (ST/CF)", "⚡ 윙어 / 공미 (WG/CAM)", "🏃 중앙 미드필더 (CM/CDM)", "🛡️ 수비수 (CB/FB)"], index=3, key="f_tab_pos")
     with f_c2: f_from_l = st.selectbox("원소속 리그 (기록 기준)", list(LEAGUE_WEIGHTS.keys()), index=0, key="f_tab_from_l")
-    with f_c3: f_to_l = st.selectbox("이적할 리그", list(LEAGUE_WEIGHTS.keys()), index=0, key="f_tab_to_l")
+    with f_c3: f_to_l = st.selectbox("이적할 리그", list(LEAGUE_WEIGHTS.keys()), index=list(LEAGUE_WEIGHTS.keys()).index(in_to_league_choice) if in_to_league_choice in LEAGUE_WEIGHTS else 0, key="f_tab_to_l")
     with f_c4: f_target_mins = st.number_input("이적 팀 예상 출전 시간(분)", 450, 3420, default_proj_mins, 90, key="f_tab_target_mins")
     
     raw_l_factor = LEAGUE_WEIGHTS[f_from_l] / LEAGUE_WEIGHTS[f_to_l]
@@ -643,13 +651,13 @@ with tab2:
     st.markdown("---")
     
     display_pname = player_name.strip() if player_name.strip() else "선수명 미입력"
-    st.markdown(f"#### 💾 **'{display_pname}'** 선수의 37대 전체 데이터 구글 시트 저장 (검증시트 동시 기록)")
+    st.markdown(f"#### 💾 **'{display_pname}'** 선수의 40대 전체 데이터 구글 시트 저장 (구단/리그 결산 연동)")
     
-    if st.button("💾 FotMob 시즌 성적 & 이적 예측 데이터 구글 시트에 저장하기 (37개 항목 + 검증시트)", type="primary", use_container_width=True, key="save_btn_tab2"):
+    if st.button("💾 FotMob 시즌 성적 & 이적 예측 데이터 구글 시트에 저장하기 (40개 항목 + 검증시트)", type="primary", use_container_width=True, key="save_btn_tab2"):
         if not player_name.strip():
             st.warning("⚠️ 선수 이름을 [💰 적정 이적료 평가] 탭에 먼저 입력해 주세요.")
         else:
-            with st.spinner("구글 시트(메인 & 검증데이터)에 지표를 기록 중입니다..."):
+            with st.spinner("구글 시트(메인 40개 열 & 검증데이터)에 지표를 기록 중입니다..."):
                 contract_desc = remaining_contract.split(" (")[0]
                 nat_str = player_nat if player_nat.strip() else "미상"
                 detailed_notes = f"[{ttype_short}|{reg_short}|{urg_short}|UCL:{stage_w:.2f}|메디컬:{inj_w:.2f}] 계약:{contract_desc}"
@@ -697,7 +705,12 @@ with tab2:
                     "proj_shots": float(proj_shots),
                     "proj_rating": float(proj_rating),
                     
-                    "notes": detailed_notes
+                    "notes": detailed_notes,
+                    
+                    # 🌟 [신설] 구단/리그 결산 연동 3개 항목
+                    "from_team": in_from_team.strip(),
+                    "to_team": in_to_team.strip(),
+                    "to_league_name": in_to_league_choice.split(" (")[0]
                 }
                 
                 try:
@@ -709,7 +722,7 @@ with tab2:
                         allow_redirects=True
                     )
                     if res.status_code in [200, 302]:
-                        st.session_state["last_saved_msg"] = f"✅ '{player_name}' 선수의 데이터가 메인 시트 및 [검증데이터] 시트에 성공적으로 동시 저장되었습니다!"
+                        st.session_state["last_saved_msg"] = f"✅ '{player_name}' 선수의 데이터가 메인 시트(40개 열) 및 [검증데이터] 시트에 성공적으로 동시 저장되었습니다!"
                         st.cache_data.clear()
                         st.session_state["form_key_id"] += 1
                         st.rerun()
@@ -971,7 +984,7 @@ with tab4:
         st.markdown("#### 📋 **[검증데이터] 시트 전체 누적 현황표**")
         st.dataframe(val_df, use_container_width=True)
 
-# ================= TAB 5: 신규 이적생 vs 과거 유사 선수 다각도 벤치마크 (Multi-Comps) =================
+# ================= TAB 5: 신규 이적생 vs 과거 유사 선수 다각도 벤치마크 =================
 with tab5:
     st.subheader("👥 신규 이적생 vs 과거 유사 이적 선수 다각도 벤치마크 (Multi-Comps)")
     st.caption("새로운 시즌 영입 선수의 프로필(나이, 포지션, 이적료 규모, 생산력)을 과거 시트에 누적된 다른 선수들의 실제 사례와 1:1 및 다차원으로 정밀 비교합니다.")
@@ -1079,3 +1092,142 @@ with tab5:
         - **이적료 규모**: '{p_curr_name}' 선수는 과거 '{t_name}'의 이적료(€{t_fee:,.0f}만) 대비 **{p_curr_fee - t_fee:+,.0f}만 유로**의 차이를 보입니다.
         - **가성비 & 평점 비교**: 모델 이적 평점 기준으로 **★{final_deal_score - t_score:+.2f}점**의 평가 격차가 산출되었습니다.
         """)
+
+# ================= TAB 6: 이적시장 구단/리그별 종합 결산 & 파워 랭킹 =================
+with tab6:
+    st.subheader("🏆 이적시장 구단별 종합 성적표 & 리그 파워 랭킹 (Transfer Market Report)")
+    st.caption("시트에 누적된 이적 데이터를 바탕으로 특정 팀의 이적시장 총 성적표(총 지출/평점)를 뽑거나, 리그 내 팀별 이적시장 순위를 매깁니다.")
+
+    m_hist_df = fetch_sheet_history()
+
+    if m_hist_df.empty or len(m_hist_df) == 0:
+        st.info("💡 **아직 구글 시트에 누적된 이적 데이터가 없습니다.**\n\n1번 및 2번 탭에서 팀명을 포함하여 이적 데이터를 저장하시면 이곳에 구단별 성적표 및 리그별 파워 랭킹이 자동으로 집계됩니다.")
+    else:
+        rank_mode = st.radio("분석 모드 선택", ["🏢 구단별 이적시장 종합 성적표 (Club Report Card)", "🌍 리그별 팀 이적시장 파워 랭킹 (League Power Rankings)"], horizontal=True)
+
+        st.markdown("---")
+
+        # 1) 구단별 이적시장 성적표 모드
+        if "구단별" in rank_mode:
+            st.markdown("#### 🏢 **특정 구단의 이적시장 결산 성적표**")
+            
+            c_rc1, c_rc2 = st.columns(2)
+            all_seasons = list(m_hist_df["이적시즌"].dropna().unique())
+            with c_rc1:
+                sel_season_club = st.selectbox("조회할 이적 시즌", ["전체 시즌"] + all_seasons, index=0, key="report_season_sel")
+
+            club_filtered_df = m_hist_df if sel_season_club == "전체 시즌" else m_hist_df[m_hist_df["이적시즌"] == sel_season_club]
+            
+            # 이적팀명 목록 추출
+            if "이적팀명" in club_filtered_df.columns:
+                all_to_teams = [str(t).strip() for t in club_filtered_df["이적팀명"].dropna().unique() if str(t).strip() != ""]
+            else:
+                all_to_teams = []
+
+            if not all_to_teams:
+                st.warning("⚠️ 아직 시트에 '이적팀명'이 입력된 이적 데이터가 없습니다. 1번 탭에서 이적팀명을 입력하고 새로 저장해 보세요.")
+            else:
+                with c_rc2:
+                    sel_team_name = st.selectbox("조회할 구단(팀) 선택", sorted(all_to_teams), key="report_team_sel")
+
+                team_df = club_filtered_df[club_filtered_df["이적팀명"] == sel_team_name]
+                
+                # 구단 총계 계산
+                total_spent = team_df["실제이적료(만€)"].astype(float).sum()
+                total_fair = team_df["산출적정가(만€)"].astype(float).sum()
+                avg_deal_score = team_df["이적평점"].astype(float).mean()
+                total_players_cnt = len(team_df)
+                
+                team_diff = total_spent - total_fair
+                team_overpay_pct = (team_diff / total_fair * 100) if total_fair > 0 else 0.0
+
+                if avg_deal_score >= 8.5: club_grade = "💎 S등급 (이적시장 대성공)"
+                elif avg_deal_score >= 7.5: club_grade = "🌟 A등급 (매우 훌륭한 보강)"
+                elif avg_deal_score >= 6.8: club_grade = "⚖️ B등급 (준수한 실리 영입)"
+                elif avg_deal_score >= 6.0: club_grade = "⚠️ C등급 (다소 아쉬운 오버페이)"
+                else: club_grade = "🚨 D등급 (패닉바이 / 재정 낭비)"
+
+                st.markdown(f"### 🛡️ **'{sel_team_name}'** 이적시장 종합 리포트 카드 ({sel_season_club})")
+                
+                t_m1, t_m2, t_m3, t_m4 = st.columns(4)
+                t_m1.metric("총 영입 선수", f"{total_players_cnt}명")
+                t_m2.metric("총 지출 이적료", f"€{total_spent:,.0f}만", f"{format_currency_desc(total_spent).split(' | ')[0]}")
+                t_m3.metric("총 순수 오버페이율", f"{team_overpay_pct:+.1f}%", delta=f"{team_diff:+,.0f}만 € 차액", delta_color="inverse")
+                t_m4.metric("구단 이적시장 총 평점", f"★ {avg_deal_score:.2f} / 10.00", club_grade.split(" ")[0])
+                st.caption(f"🏆 최종 구단 이적시장 등급: **{club_grade}**")
+
+                st.markdown("<br>", unsafe_allow_html=True)
+                st.markdown("##### 📋 **이번 이적시장 영입 선수 세부 명단 & 개별 평점**")
+                
+                display_cols = ["선수명", "포지션", "원소속팀명", "원소속리그", "실제이적료(만€)", "산출적정가(만€)", "이적평점", "스카우팅메모"]
+                avail_display_cols = [c for c in display_cols if c in team_df.columns]
+                st.dataframe(team_df[avail_display_cols], use_container_width=True)
+
+        # 2) 리그별 팀 이적시장 파워 랭킹 모드
+        else:
+            st.markdown("#### 🌍 **리그별 구단 이적시장 파워 랭킹 (Power Rankings)**")
+            
+            c_rk1, c_rk2 = st.columns(2)
+            all_seasons_rk = list(m_hist_df["이적시즌"].dropna().unique())
+            with c_rk1:
+                sel_season_rk = st.selectbox("조회할 이적 시즌", ["전체 시즌"] + all_seasons_rk, index=0, key="rk_season_sel")
+
+            league_filtered_df = m_hist_df if sel_season_rk == "전체 시즌" else m_hist_df[m_hist_df["이적시즌"] == sel_season_rk]
+
+            if "이적팀리그" in league_filtered_df.columns:
+                all_to_leagues = [str(l).strip() for l in league_filtered_df["이적팀리그"].dropna().unique() if str(l).strip() != ""]
+            else:
+                all_to_leagues = []
+
+            if not all_to_leagues:
+                st.warning("⚠️ 아직 시트에 '이적팀리그'가 기록된 데이터가 없습니다. 1번 탭에서 이적팀 리그를 선택하고 새로 저장해 보세요.")
+            else:
+                with c_rk2:
+                    sel_league_name = st.selectbox("조회할 리그 선택", sorted(all_to_leagues), key="rk_league_sel")
+
+                l_target_df = league_filtered_df[league_filtered_df["이적팀리그"] == sel_league_name]
+
+                # 팀별 그룹화 집계
+                team_group = l_target_df.groupby("이적팀명").agg(
+                    영입선수수=("선수명", "count"),
+                    총지출액=("실제이적료(만€)", "sum"),
+                    적정가총액=("산출적정가(만€)", "sum"),
+                    평균이적평점=("이적평점", "mean")
+                ).reset_index()
+
+                team_group["평가율(%)"] = ((team_group["총지출액"] - team_group["적정가총액"]) / team_group["적정가총액"] * 100).round(1)
+                team_group["평균이적평점"] = team_group["평균이적평점"].round(2)
+                
+                # 평점 높은 순으로 랭킹 정렬
+                ranked_df = team_group.sort_values(by="평균이적평점", ascending=False).reset_index(drop=True)
+                ranked_df.index = ranked_df.index + 1  # 1위부터 시작
+                ranked_df.index.name = "순위 (Rank)"
+
+                st.markdown(f"### 🏆 **{sel_league_name}** 이적시장 구단별 파워 랭킹 ({sel_season_rk})")
+                
+                st.dataframe(
+                    ranked_df[[
+                        "이적팀명", "평균이적평점", "영입선수수", "총지출액", "적정가총액", "평가율(%)"
+                    ]], 
+                    use_container_width=True
+                )
+
+                # 리그 내 Best / Worst 딜 분석
+                best_deal_row = l_target_df.sort_values(by="이적평점", ascending=False).iloc[0]
+                worst_deal_row = l_target_df.sort_values(by="이적평점", ascending=True).iloc[0]
+
+                st.markdown("---")
+                st.markdown(f"##### 🌟 **{sel_league_name} 이적시장 하이라이트**")
+                hl1, hl2 = st.columns(2)
+                with hl1:
+                    st.success(f"""
+                    💎 **최고의 가성비 영입 (Best Pick)**:  
+                    **{best_deal_row.get('선수명', '선수')}** ({best_deal_row.get('이적팀명', '팀')})  
+                    - 이적료: `€{float(best_deal_row.get('실제이적료(만€)', 0)):,.0f}만` | 평점: `★ {float(best_deal_row.get('이적평점', 0)):.2f}`
+                    """)
+                with hl2:
+                    st.error(f"""
+                    ⚠️ **최대 오버페이 영입 (Worst Pick)**:  
+                    **{worst_deal_row.get('선수명', '선수')}** ({worst_deal_row.get('이적팀명', '팀')})  
+                    - 이적료: `€{float(worst_deal_row.get('실제이적료(만€)', 0)):,.0f}만` | 평점: `★ {float(worst_deal_row.get('이적평점', 0)):.2f}`
+                    """)
