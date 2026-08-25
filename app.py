@@ -26,11 +26,13 @@ if "form_key_id" not in st.session_state:
 if "last_saved_msg" not in st.session_state:
     st.session_state["last_saved_msg"] = None
 
+# 기본 스탯 세션 상태 (골키퍼 6대 지표 포함)
 default_stats = {
     "f_mins": 2206, "f_goals": 16, "f_xg": 17.44, "f_assists": 4, "f_xa": 3.33,
     "f_rating": 7.32, "f_matches": 28, "f_starts": 25, "f_shots": 88, "f_sot": 43,
     "f_chances": 25, "f_dribbles": 14, "f_touches_box": 153, "f_tackles": 24,
-    "f_interceptions": 18, "f_clearances": 45, "f_cs": 8, "f_save_pct": 74.5
+    "f_gk_saves": 78, "f_gk_conceded": 28, "f_gk_prevented": 2.45,
+    "f_gk_cs": 10, "f_gk_errors": 0, "f_gk_claims": 18
 }
 for k, v in default_stats.items():
     if k not in st.session_state:
@@ -180,7 +182,7 @@ def format_currency_desc(eur_man_euro):
 # 3. 메인 6개 탭 구성
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "💰 적정 이적료 평가", 
-    "📱 FotMob 시즌 성적 & 이적 예측 (포지션별 특화)",
+    "📱 FotMob 시즌 성적 & 이적 예측 (13대 풀 스탯)",
     "🔍 과거 유사 이적 사례 비교 (Comps TOP 5 & 10)",
     "🎯 이적 첫 시즌 실제 성적 입력 & 모델 검증",
     "👥 신규 이적생 vs 과거 유사 선수 다각도 벤치마크",
@@ -259,11 +261,18 @@ with tab1:
             opta_desc = "⚠️ 기대 이하 / 부진 (-2%)"
 
         with st.expander("🔗 [FotMob 탭 연동] 지난 시즌 실적 및 평점 가중치", expanded=True):
-            st.markdown(f"""
-            - **지난 시즌 실적**: `{st.session_state['f_goals']}골 {st.session_state['f_assists']}도움` (출전 {st.session_state['f_mins']:,}분)
-            - **기대 생산력**: `xG {st.session_state['f_xg']:.2f}` / `xA {st.session_state['f_xa']:.2f}` (90분당 **{cur_p90_exp:.2f}**)
-            - **FotMob 평균 평점**: `★ {cur_rating:.2f}` ➔ **{opta_desc} (가중치 {opta_w:.2f})**
-            """)
+            if "GK" in main_position:
+                st.markdown(f"""
+                - **골키퍼 실적**: 선방 `{st.session_state.get('f_gk_saves', 78)}회` / 실점 `{st.session_state.get('f_gk_conceded', 28)}` / 클린시트 `{st.session_state.get('f_gk_cs', 10)}경기`
+                - **득점 차단 (선방력)**: `{st.session_state.get('f_gk_prevented', 2.45):+.2f}` (출전 {st.session_state['f_mins']:,}분)
+                - **FotMob 평균 평점**: `★ {cur_rating:.2f}` ➔ **{opta_desc} (가중치 {opta_w:.2f})**
+                """)
+            else:
+                st.markdown(f"""
+                - **지난 시즌 실적**: `{st.session_state['f_goals']}골 {st.session_state['f_assists']}도움` (출전 {st.session_state['f_mins']:,}분)
+                - **기대 생산력**: `xG {st.session_state['f_xg']:.2f}` / `xA {st.session_state['f_xa']:.2f}` (90분당 **{cur_p90_exp:.2f}**)
+                - **FotMob 평균 평점**: `★ {cur_rating:.2f}` ➔ **{opta_desc} (가중치 {opta_w:.2f})**
+                """)
 
         with st.expander("📚 [클릭하여 확인] 12대 가중치 전체 세부 산정 기준표 & 가이드", expanded=False):
             st.markdown("#### 1️⃣ 포지션별 나이(에이징 커브) 가중치 기준표")
@@ -315,7 +324,7 @@ with tab1:
         elif actual_transfer_fee > 0:
             st.caption(f"💡 실제금액 환산: **{format_currency_desc(actual_transfer_fee)}**")
 
-        # 주급(Weekly Wage) 입력 및 연간 비용 계산
+        # 주급 입력 및 연간 패키지 비용 계산
         with st.expander("💼 [선택 입력] 주급(Weekly Wage) & 연간 총비용(Total Package) 분석", expanded=False):
             weekly_wage_in = st.number_input("선수 주급 (만 유로, €/주)", min_value=0.0, value=12.0, step=0.5, key=f"wage_{k_id}")
             annual_wage_eur = weekly_wage_in * 52
@@ -519,14 +528,14 @@ with tab1:
                 if player_notes.strip(): summary_text += f"📝 스카우팅 메모: {player_notes.strip()}\n"
                 st.code(summary_text.strip(), language="text")
 
-# ================= TAB 2: FotMob 시즌 성적 & 이적 예측 (포지션별 특화) =================
+# ================= TAB 2: FotMob 시즌 성적 & 이적 예측 (13대 풀 스탯 + FotMob 실제 골키퍼 6대 지표) =================
 with tab2:
-    st.subheader("📱 FotMob 스타일 시즌 스탯 입력 & 포지션별 맞춤 성적 프로젝션")
+    st.subheader("📱 FotMob 스타일 시즌 스탯 입력 & 이적 첫 시즌 성적 프로젝션")
     
     default_proj_mins = 1440 if is_winter else 3036
     
     f_c1, f_c2, f_c3, f_c4 = st.columns(4)
-    with f_c1: f_pos = st.selectbox("프로젝션 포지션 분류", ["⚽ 공격수 (ST/CF/WG)", "🏃 미드필더 (CAM/CM/CDM)", "🛡️ 수비수 (CB/FB/WB)", "🧤 골키퍼 (GK)"], index=0 if "ST" in main_position or "WG" in main_position else (2 if "CB" in main_position or "LB" in main_position or "RB" in main_position else (3 if "GK" in main_position else 1)), key="f_tab_pos")
+    with f_c1: f_pos = st.selectbox("선수 포지션 분류", ["⚽ 필드 플레이어 (공격수/미드필더/수비수)", "🧤 골키퍼 (Goalkeeper)"], index=1 if "GK" in main_position else 0, key="f_tab_pos")
     with f_c2: f_from_l = st.selectbox("원소속 리그 (기록 기준)", list(LEAGUE_WEIGHTS.keys()), index=0, key="f_tab_from_l")
     with f_c3: f_to_l = st.selectbox("이적할 리그", list(LEAGUE_WEIGHTS.keys()), index=list(LEAGUE_WEIGHTS.keys()).index(in_to_league_choice) if in_to_league_choice in LEAGUE_WEIGHTS else 0, key="f_tab_to_l")
     with f_c4: f_target_mins = st.number_input("이적 팀 예상 출전 시간(분)", 450, 3420, default_proj_mins, 90, key="f_tab_target_mins")
@@ -546,10 +555,10 @@ with tab2:
     st.markdown("### 📥 FotMob 시즌 실제 기록 입력 (지난 시즌/전반기 스탯)")
     
     b1, b2, b3, b4 = st.columns(4)
-    with b1: in_matches = st.number_input("출전 경기 (Matches)", 1, 60, value=st.session_state["f_matches"], key="in_matches_box")
-    with b2: in_starts = st.number_input("선발 출전 (Starts)", 0, 60, value=st.session_state["f_starts"], key="in_starts_box")
-    with b3: in_mins = st.number_input("출전 시간 (Minutes)", 90, 4500, value=st.session_state["f_mins"], key="in_mins_box")
-    with b4: in_rating = st.number_input("FotMob 평균 평점", 5.0, 10.0, value=st.session_state["f_rating"], step=0.01, key="in_rating_box")
+    with b1: in_matches = st.number_input("출전 경기 (Matches)", 1, 60, value=min(int(st.session_state["f_matches"]), 60), key="in_matches_box")
+    with b2: in_starts = st.number_input("선발 출전 (Starts)", 0, 60, value=min(int(st.session_state["f_starts"]), 60), key="in_starts_box")
+    with b3: in_mins = st.number_input("출전 시간 (Minutes)", 90, 4500, value=min(int(st.session_state["f_mins"]), 4500), key="in_mins_box")
+    with b4: in_rating = st.number_input("FotMob 평균 평점", 5.0, 10.0, value=float(st.session_state["f_rating"]), step=0.01, key="in_rating_box")
     
     st.session_state["f_mins"] = in_mins
     st.session_state["f_rating"] = in_rating
@@ -559,101 +568,214 @@ with tab2:
     base_p90 = in_mins / 90.0 if in_mins > 0 else 1.0
     target_p90 = f_target_mins / 90.0
 
-    # 🌟 [포지션별 안전 최대값(50) 통제]
-    if "공격수" in f_pos or "미드필더" in f_pos:
-        st.markdown("#### 1️⃣ 슈팅 및 공격 생산력 (Attacking & Creativity)")
+    # 🌟 [분기 1: 필드 플레이어 13대 풀 스탯]
+    if "골키퍼" not in f_pos:
+        st.markdown("#### 1️⃣ 슈팅 및 득점 (Shooting & Goals)")
         s1, s2, s3, s4, s5 = st.columns(5)
         with s1: in_goals = st.number_input("득점 (Goals)", 0, 50, value=min(int(st.session_state["f_goals"]), 50), key="in_goals_box")
         with s2: in_xg = st.number_input("기대 득점 (xG)", 0.0, 50.0, value=min(float(st.session_state["f_xg"]), 50.0), step=0.01, key="in_xg_box")
-        with s3: in_assists = st.number_input("도움 (Assists)", 0, 50, value=min(int(st.session_state["f_assists"]), 50), key="in_assists_box")
-        with s4: in_xa = st.number_input("기대 도움 (xA)", 0.0, 50.0, value=min(float(st.session_state["f_xa"]), 50.0), step=0.01, key="in_xa_box")
-        with s5: in_shots = st.number_input("총 슈팅 (Shots)", 0, 200, value=min(int(st.session_state["f_shots"]), 200), key="in_shots_box")
+        with s3: in_shots = st.number_input("총 슈팅 (Shots)", 0, 200, value=min(int(st.session_state["f_shots"]), 200), key="in_shots_box")
+        with s4: in_sot = st.number_input("유효 슈팅 (On Target)", 0, 100, value=min(int(st.session_state["f_sot"]), 100), key="in_sot_box")
+        with s5: in_pk_goals = st.number_input("PK 득점 (Penalty)", 0, 20, 0, key="in_pk_box")
 
         st.session_state["f_goals"] = in_goals
         st.session_state["f_xg"] = in_xg
+        st.session_state["f_shots"] = in_shots
+        st.session_state["f_sot"] = in_sot
+
+        st.markdown("#### 2️⃣ 패스 및 기회 창출 (Passing & Creativity)")
+        p1, p2, p3, p4, p5 = st.columns(5)
+        with p1: in_assists = st.number_input("도움 (Assists)", 0, 50, value=min(int(st.session_state["f_assists"]), 50), key="in_assists_box")
+        with p2: in_xa = st.number_input("기대 도움 (xA)", 0.0, 50.0, value=min(float(st.session_state["f_xa"]), 50.0), step=0.01, key="in_xa_box")
+        with p3: in_chances = st.number_input("기회 창출 (Chances)", 0, 150, value=min(int(st.session_state["f_chances"]), 150), key="in_chances_box")
+        with p4: in_big_chances = st.number_input("빅 찬스 메이킹", 0, 50, 2, key="in_bc_box")
+        with p5: in_pass_pct = st.number_input("패스 성공률 (%)", 30.0, 100.0, 88.2, 0.1, key="in_pass_pct_box")
+
         st.session_state["f_assists"] = in_assists
         st.session_state["f_xa"] = in_xa
-        st.session_state["f_shots"] = in_shots
-        in_tackles = st.session_state["f_tackles"]
-        in_interceptions = 15
-        in_clearances = 20
-        in_cs = 0
-        in_save_pct = 0.0
-    elif "수비수" in f_pos:
-        st.markdown("#### 1️⃣ 수비 및 안정성 지표 (Defending & Duels)")
+        st.session_state["f_chances"] = in_chances
+
+        st.markdown("#### 3️⃣ 경합 및 수비 기여 (Duels & Defending - 공격/수비 전원 기록)")
         d1, d2, d3, d4, d5 = st.columns(5)
-        with d1: in_tackles = st.number_input("태클 성공 (Tackles)", 0, 150, value=min(int(st.session_state["f_tackles"]), 150), key="in_tackles_def_box")
-        with d2: in_interceptions = st.number_input("가로채기 (Interceptions)", 0, 150, value=min(int(st.session_state["f_interceptions"]), 150), key="in_int_def_box")
-        with d3: in_clearances = st.number_input("걷어내기 (Clearances)", 0, 200, value=min(int(st.session_state["f_clearances"]), 200), key="in_clr_def_box")
-        with d4: in_goals = st.number_input("세트피스 득점 (Goals)", 0, 50, value=min(int(st.session_state["f_goals"]), 50), key="in_goals_def_box")
-        with d5: in_assists = st.number_input("도움 (Assists)", 0, 50, value=min(int(st.session_state["f_assists"]), 50), key="in_assists_def_box")
-        
+        with d1: in_dribbles = st.number_input("성공한 드리블", 0, 100, value=min(int(st.session_state["f_dribbles"]), 100), key="in_dribbles_box")
+        with d2: in_touches_box = st.number_input("박스 안 터치 (Box Touches)", 0, 300, value=min(int(st.session_state["f_touches_box"]), 300), key="in_touches_box")
+        with d3: in_duels_pct = st.number_input("지상 경합 승률 (%)", 20.0, 100.0, 62.4, 0.1, key="in_duels_box")
+        with d4: in_aerial_pct = st.number_input("공중볼 승률 (%)", 20.0, 100.0, 65.8, 0.1, key="in_aerial_box")
+        with d5: in_tackles = st.number_input("태클 성공 (Tackles)", 0, 150, value=min(int(st.session_state["f_tackles"]), 150), key="in_tackles_box")
+
+        st.session_state["f_dribbles"] = in_dribbles
+        st.session_state["f_touches_box"] = in_touches_box
         st.session_state["f_tackles"] = in_tackles
-        st.session_state["f_interceptions"] = in_interceptions
-        st.session_state["f_clearances"] = in_clearances
-        st.session_state["f_goals"] = in_goals
-        st.session_state["f_assists"] = in_assists
-        in_xg = in_goals * 0.85
-        in_xa = in_assists * 0.85
-        in_shots = in_goals * 3
-        in_cs = 0
-        in_save_pct = 0.0
-    else:  # 골키퍼
-        st.markdown("#### 1️⃣ 골키퍼 선방 및 클린시트 (Goalkeeping)")
-        g1, g2, g3 = st.columns(3)
-        with g1: in_cs = st.number_input("클린시트 (무실점 경기)", 0, 30, value=min(int(st.session_state["f_cs"]), 30), key="in_cs_gk_box")
-        with g2: in_save_pct = st.number_input("선방률 (%)", 40.0, 100.0, value=min(float(st.session_state["f_save_pct"]), 100.0), step=0.1, key="in_save_gk_box")
-        with g3: in_goals = 0; in_assists = 0; in_xg = 0.0; in_xa = 0.0; in_shots = 0; in_tackles = 0; in_interceptions = 0; in_clearances = 0
-        st.session_state["f_cs"] = in_cs
-        st.session_state["f_save_pct"] = in_save_pct
+
+    # 🌟 [분기 2: FotMob 실제 골키퍼 6대 지표 1:1 대칭 입력]
+    else:
+        st.markdown("#### 🧤 FotMob 실제 골키퍼 지표 입력 (Goalkeeping)")
+        gk1, gk2, gk3 = st.columns(3)
+        with gk1: in_gk_saves = st.number_input("선방 (Saves)", 0, 250, value=int(st.session_state["f_gk_saves"]), key="in_gk_saves_box")
+        with gk2: in_gk_conceded = st.number_input("실점 수 (Goals Conceded)", 0, 120, value=int(st.session_state["f_gk_conceded"]), key="in_gk_conceded_box")
+        with gk3: in_gk_prevented = st.number_input("득점 차단 (Goals Prevented)", -20.0, 30.0, value=float(st.session_state["f_gk_prevented"]), step=0.01, key="in_gk_prevented_box")
+
+        gk4, gk5, gk6 = st.columns(3)
+        with gk4: in_gk_cs = st.number_input("클린 시트 (Clean Sheets)", 0, 35, value=int(st.session_state["f_gk_cs"]), key="in_gk_cs_box")
+        with gk5: in_gk_errors = st.number_input("골로 이어진 실수 (Errors Led to Goal)", 0, 15, value=int(st.session_state["f_gk_errors"]), key="in_gk_errors_box")
+        with gk6: in_gk_claims = st.number_input("공중에서 잡기 (High Claims)", 0, 80, value=int(st.session_state["f_gk_claims"]), key="in_gk_claims_box")
+
+        st.session_state["f_gk_saves"] = in_gk_saves
+        st.session_state["f_gk_conceded"] = in_gk_conceded
+        st.session_state["f_gk_prevented"] = in_gk_prevented
+        st.session_state["f_gk_cs"] = in_gk_cs
+        st.session_state["f_gk_errors"] = in_gk_errors
+        st.session_state["f_gk_claims"] = in_gk_claims
+
+        in_goals = 0; in_xg = 0.0; in_shots = 0; in_sot = 0; in_assists = 0; in_xa = 0.0
+        in_chances = 0; in_dribbles = 0; in_touches_box = 0; in_tackles = 0
 
     st.divider()
 
-    # 프로젝션 계산
-    p90_xg = (in_xg / base_p90) * final_l_factor
-    p90_xa = (in_xa / base_p90) * final_l_factor
-    p90_shots = (in_shots / base_p90) * final_l_factor
-    p90_tackles = (in_tackles / base_p90) * (1.0 / raw_l_factor)
-    p90_interceptions = (in_interceptions / base_p90) * (1.0 / raw_l_factor)
-    p90_clearances = (in_clearances / base_p90) * (1.0 / raw_l_factor)
-    
-    finishing_ratio = in_goals / in_xg if in_xg > 0 else 1.0
-    proj_goals = round(p90_xg * target_p90 * finishing_ratio, 1)
-    proj_xg = round(p90_xg * target_p90, 2)
-    proj_assists = round(p90_xa * target_p90, 1)
-    proj_xa = round(p90_xa * target_p90, 2)
-    proj_shots = round(p90_shots * target_p90, 0)
-    proj_tackles = round(p90_tackles * target_p90, 0)
-    proj_interceptions = round(p90_interceptions * target_p90, 0)
-    proj_clearances = round(p90_clearances * target_p90, 0)
-    proj_cs = round((in_cs / base_p90) * target_p90 * final_l_factor, 0)
-    proj_save_pct = round(max(55.0, min(85.0, in_save_pct - (1.0 - final_l_factor) * 5.0)), 1)
-    
-    proj_rating = round(max(6.0, in_rating - (1.0 - final_l_factor) * 0.9), 2)
+    # 13대 지표 및 골키퍼 프로젝션 연산
+    if "골키퍼" not in f_pos:
+        p90_xg = (in_xg / base_p90) * final_l_factor
+        p90_xa = (in_xa / base_p90) * final_l_factor
+        p90_shots = (in_shots / base_p90) * final_l_factor
+        p90_sot = (in_sot / base_p90) * final_l_factor
+        p90_chances = (in_chances / base_p90) * final_l_factor
+        p90_dribbles = (in_dribbles / base_p90) * final_l_factor
+        p90_box_touches = (in_touches_box / base_p90) * final_l_factor
+        p90_tackles = (in_tackles / base_p90) * (1.0 / raw_l_factor)
+        
+        finishing_ratio = in_goals / in_xg if in_xg > 0 else 1.0
+        proj_goals = round(p90_xg * target_p90 * finishing_ratio, 1)
+        proj_xg = round(p90_xg * target_p90, 2)
+        proj_assists = round(p90_xa * target_p90, 1)
+        proj_xa = round(p90_xa * target_p90, 2)
+        proj_shots = round(p90_shots * target_p90, 0)
+        proj_sot = round(p90_sot * target_p90, 0)
+        proj_chances = round(p90_chances * target_p90, 0)
+        proj_dribbles = round(p90_dribbles * target_p90, 0)
+        proj_box_touches = round(p90_box_touches * target_p90, 0)
+        proj_tackles = round(p90_tackles * target_p90, 0)
+        proj_rating = round(max(6.0, in_rating - (1.0 - final_l_factor) * 0.9), 2)
 
-    st.markdown(f"### 🎯 **FotMob 스타일 이적 첫 시즌 성적 예측 리포트 ({f_pos.split(' ')[1]})**")
-    st.caption(f"이적 환경: **{f_from_l.split(' ')[1]}** ➔ **{f_to_l.split(' ')[1]}** | 최종 환산 계수: **{final_l_factor:.2f}x** ({adapt_desc})")
-    
-    if "골키퍼" in f_pos:
-        m1, m2, m3, m4 = st.columns(4)
-        m1.metric("예상 평점 (Rating)", f"★ {proj_rating:.2f}", delta=f"{proj_rating - in_rating:+.2f}")
-        m2.metric("예상 클린시트", f"{int(proj_cs)} 경기", delta=f"{int(proj_cs - in_cs):+d}회")
-        m3.metric("예상 선방률", f"{proj_save_pct:.1f} %", delta=f"{proj_save_pct - in_save_pct:+.1f}%")
-        m4.metric("예상 출전시간", f"{f_target_mins:,} 분")
-    elif "수비수" in f_pos:
-        m1, m2, m3, m4, m5 = st.columns(5)
-        m1.metric("예상 평점 (Rating)", f"★ {proj_rating:.2f}", delta=f"{proj_rating - in_rating:+.2f}")
-        m2.metric("예상 태클 성공", f"{int(proj_tackles)} 회", delta=f"{int(proj_tackles - in_tackles):+d}회")
-        m3.metric("예상 가로채기", f"{int(proj_interceptions)} 회", delta=f"{int(proj_interceptions - in_interceptions):+d}회")
-        m4.metric("예상 걷어내기", f"{int(proj_clearances)} 회", delta=f"{int(proj_clearances - in_clearances):+d}회")
-        m5.metric("예상 공격포인트", f"{proj_goals + proj_assists:.0f} P", delta=f"{proj_goals:.0f}G+{proj_assists:.0f}A")
-    else:
+        st.markdown(f"### 🎯 **FotMob 스타일 이적 첫 시즌 성적 예측 리포트 (필드 플레이어)**")
+        st.caption(f"이적 환경: **{f_from_l.split(' ')[1]}** ➔ **{f_to_l.split(' ')[1]}** | 최종 환산 계수: **{final_l_factor:.2f}x** ({adapt_desc})")
+        
         m1, m2, m3, m4, m5 = st.columns(5)
         m1.metric("예상 평점 (Rating)", f"★ {proj_rating:.2f}", delta=f"{proj_rating - in_rating:+.2f}")
         m2.metric("예상 득점 (xG)", f"{proj_goals:.0f} 골", delta=f"xG {proj_xg:.2f}")
         m3.metric("예상 도움 (xA)", f"{proj_assists:.0f} 도움", delta=f"xA {proj_xa:.2f}")
         m4.metric("예상 공격포인트", f"{proj_goals + proj_assists:.0f} P", delta=f"{proj_goals:.0f}G+{proj_assists:.0f}A")
-        m5.metric("예상 슈팅", f"{int(proj_shots)} 회")
+        m5.metric("예상 슈팅 (유효)", f"{int(proj_shots)} 회", delta=f"유효 {int(proj_sot)}회")
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("#### 📊 **직전 시즌 실제 기록 vs 이적 첫 시즌 예측 데이터 비교표**")
+        df_compare = pd.DataFrame({
+            "FotMob 스탯 항목": [
+                "출전 경기 / 선발 (Matches / Starts)",
+                "출전 시간 (Minutes)",
+                "득점 (Goals)",
+                "기대 득점 (xG)",
+                "도움 (Assists)",
+                "기대 도움 (xA)",
+                "총 슈팅 / 유효 슈팅 (Shots / SoT)",
+                "90분당 슈팅 수 (Shots/90)",
+                "시즌 기회 창출 (Chances Created)",
+                "성공한 드리블 (Successful Dribbles)",
+                "박스 안 터치 (Box Touches)",
+                "시즌 태클 성공 (Tackles Won)",
+                "FotMob 평균 평점 (Rating)"
+            ],
+            f"직전 시즌 실제치 ({f_from_l.split(' ')[1]})": [
+                f"{in_matches}경기 ({in_starts}선발)",
+                f"{in_mins:,} 분",
+                f"{in_goals} 골",
+                f"{in_xg:.2f}",
+                f"{in_assists} 도움",
+                f"{in_xa:.2f}",
+                f"{in_shots}회 ({in_sot}회)",
+                f"{(in_shots/base_p90):.2f} 회",
+                f"{in_chances} 회",
+                f"{in_dribbles} 회",
+                f"{in_touches_box} 회",
+                f"{in_tackles} 회",
+                f"★ {in_rating:.2f}"
+            ],
+            f"이적 첫 시즌 예측치 ({f_to_l.split(' ')[1]})": [
+                f"약 {target_p90:.0f}경기 상당",
+                f"{f_target_mins:,} 분",
+                f"{proj_goals:.1f} 골",
+                f"{proj_xg:.2f}",
+                f"{proj_assists:.1f} 도움",
+                f"{proj_xa:.2f}",
+                f"{int(proj_shots)}회 ({int(proj_sot)}회)",
+                f"{p90_shots:.2f} 회",
+                f"{int(proj_chances)} 회",
+                f"{int(proj_dribbles)} 회",
+                f"{int(proj_box_touches)} 회",
+                f"{int(proj_tackles)} 회",
+                f"★ {proj_rating:.2f}"
+            ]
+        })
+        st.table(df_compare)
+
+    # 🌟 [골키퍼 맞춤형 프로젝션 리포트]
+    else:
+        proj_gk_saves = round((in_gk_saves / base_p90) * target_p90 * (1.0 / raw_l_factor), 0)
+        proj_gk_conceded = round((in_gk_conceded / base_p90) * target_p90 * (1.0 / final_l_factor), 0)
+        proj_gk_prevented = round((in_gk_prevented / base_p90) * target_p90 * final_l_factor, 2)
+        proj_gk_cs = round((in_gk_cs / base_p90) * target_p90 * final_l_factor, 0)
+        proj_gk_claims = round((in_gk_claims / base_p90) * target_p90, 0)
+        proj_rating = round(max(6.0, in_rating - (1.0 - final_l_factor) * 0.9), 2)
+        
+        proj_goals = 0.0; proj_xg = 0.0; proj_assists = 0.0; proj_xa = 0.0; proj_shots = 0.0
+
+        st.markdown(f"### 🧤 **FotMob 스타일 이적 첫 시즌 골키퍼 성적 예측 리포트**")
+        st.caption(f"이적 환경: **{f_from_l.split(' ')[1]}** ➔ **{f_to_l.split(' ')[1]}** | 리그 난이도 계수: **{final_l_factor:.2f}x** ({adapt_desc})")
+
+        gk_m1, gk_m2, gk_m3, gk_m4, gk_m5 = st.columns(5)
+        gk_m1.metric("예상 평점 (Rating)", f"★ {proj_rating:.2f}", delta=f"{proj_rating - in_rating:+.2f}")
+        gk_m2.metric("예상 클린 시트", f"{int(proj_gk_cs)} 경기", delta=f"{int(proj_gk_cs - in_gk_cs):+d}회")
+        gk_m3.metric("예상 득점 차단", f"{proj_gk_prevented:+.2f}", delta=f"선방력 지표")
+        gk_m4.metric("예상 선방 횟수", f"{int(proj_gk_saves)} 회", delta=f"{int(proj_gk_saves - in_gk_saves):+d}회")
+        gk_m5.metric("예상 실점 수", f"{int(proj_gk_conceded)} 실점", delta=f"{int(proj_gk_conceded - in_gk_conceded):+d}점", delta_color="inverse")
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("#### 📊 **FotMob 실제 지표 기준: 직전 시즌 vs 이적 첫 시즌 예측 비교표**")
+        df_gk_compare = pd.DataFrame({
+            "FotMob 골키핑 지표": [
+                "출전 경기 / 선발 (Matches / Starts)",
+                "출전 시간 (Minutes)",
+                "선방 (Saves)",
+                "실점 수 (Goals Conceded)",
+                "득점 차단 (Goals Prevented)",
+                "클린 시트 (Clean Sheets)",
+                "골로 이어진 실수 (Errors Led to Goal)",
+                "공중에서 잡기 (High Claims)",
+                "FotMob 평균 평점 (Rating)"
+            ],
+            f"직전 시즌 실제치 ({f_from_l.split(' ')[1]})": [
+                f"{in_matches}경기 ({in_starts}선발)",
+                f"{in_mins:,} 분",
+                f"{in_gk_saves} 회",
+                f"{in_gk_conceded} 실점",
+                f"{in_gk_prevented:+.2f}",
+                f"{in_gk_cs} 경기",
+                f"{in_gk_errors} 회",
+                f"{in_gk_claims} 회",
+                f"★ {in_rating:.2f}"
+            ],
+            f"이적 첫 시즌 예측치 ({f_to_l.split(' ')[1]})": [
+                f"약 {target_p90:.0f}경기 상당",
+                f"{f_target_mins:,} 분",
+                f"{int(proj_gk_saves)} 회",
+                f"{int(proj_gk_conceded)} 실점",
+                f"{proj_gk_prevented:+.2f}",
+                f"{int(proj_gk_cs)} 경기",
+                f"0~1 회",
+                f"{int(proj_gk_claims)} 회",
+                f"★ {proj_rating:.2f}"
+            ]
+        })
+        st.table(df_gk_compare)
 
     st.markdown("---")
     
@@ -671,6 +793,8 @@ with tab2:
                 detailed_notes = f"[{'방출' if is_out_trade else '영입'}|{ttype_short}|{reg_short}|{urg_short}|UCL:{stage_w:.2f}|메디컬:{inj_w:.2f}] 계약:{contract_desc}"
                 if player_notes.strip():
                     detailed_notes += f" | {player_notes.strip()}"
+                if "골키퍼" in f_pos:
+                    detailed_notes += f" | GK[선방:{in_gk_saves}|실점:{in_gk_conceded}|차단:{in_gk_prevented:+.2f}|CS:{in_gk_cs}]"
                     
                 payload = {
                     "action": "save_all",
@@ -692,16 +816,16 @@ with tab2:
                     
                     "prev_matches": int(st.session_state["f_matches"]),
                     "prev_mins": int(st.session_state["f_mins"]),
-                    "prev_goals": int(st.session_state["f_goals"]),
-                    "prev_xg": float(st.session_state["f_xg"]),
-                    "prev_assists": int(st.session_state["f_assists"]),
-                    "prev_xa": float(st.session_state["f_xa"]),
-                    "prev_shots": int(st.session_state["f_shots"]),
-                    "prev_sot": int(st.session_state["f_sot"]),
-                    "prev_chances": int(st.session_state["f_chances"]),
-                    "prev_dribbles": int(st.session_state["f_dribbles"]),
-                    "prev_touches_box": int(st.session_state["f_touches_box"]),
-                    "prev_tackles": int(st.session_state["f_tackles"]),
+                    "prev_goals": int(in_goals),
+                    "prev_xg": float(in_xg),
+                    "prev_assists": int(in_assists),
+                    "prev_xa": float(in_xa),
+                    "prev_shots": int(in_shots),
+                    "prev_sot": int(in_sot if 'in_sot' in locals() else 0),
+                    "prev_chances": int(in_chances),
+                    "prev_dribbles": int(in_dribbles),
+                    "prev_touches_box": int(in_touches_box),
+                    "prev_tackles": int(in_tackles),
                     "prev_rating": float(st.session_state["f_rating"]),
                     
                     "to_league": f_to_l.split(" (")[0],
