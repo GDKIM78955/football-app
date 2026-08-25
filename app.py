@@ -1,12 +1,14 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import requests
 import json
+import plotly.graph_objects as go
 from datetime import datetime
 
 # 1. 페이지 기본 설정
 st.set_page_config(
-    page_title="축구 이적시장 12대 가중치 분석 & FotMob 37대 지표 프로젝션",
+    page_title="축구 이적시장 12대 가중치 분석 & FotMob 프로젝션 Pro",
     page_icon="⚽",
     layout="wide"
 )
@@ -27,13 +29,14 @@ if "last_saved_msg" not in st.session_state:
 default_stats = {
     "f_mins": 2206, "f_goals": 16, "f_xg": 17.44, "f_assists": 4, "f_xa": 3.33,
     "f_rating": 7.32, "f_matches": 28, "f_starts": 25, "f_shots": 88, "f_sot": 43,
-    "f_chances": 25, "f_dribbles": 14, "f_touches_box": 153, "f_tackles": 24
+    "f_chances": 25, "f_dribbles": 14, "f_touches_box": 153, "f_tackles": 24,
+    "f_interceptions": 18, "f_clearances": 45, "f_cs": 8, "f_save_pct": 74.5
 }
 for k, v in default_stats.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
-st.title("⚽ 축구 선수 12대 지표 적정 이적료 평가 & FotMob 시즌 예측")
+st.title("⚽ 프로페셔널 축구 이적시장 12대 가중치 분석 & 스카우팅 데이터룸")
 
 # 2. 가중치 딕셔너리
 LEAGUE_WEIGHTS = {
@@ -116,6 +119,7 @@ TRANSFER_TYPE_WEIGHTS = {
     "임대 후 선택 영입 (Loan w/ Option, 1년사용가치 기준)": 0.20,
     "바이백 조항 포함 이적 (Buy-back Clause, -5%)": 0.95,
     "셀온 지분 포함 이적 (Sell-on Clause, -3%)": 0.97,
+    "비공개 이적 (Undisclosed, 시장적정가 1:1 수렴 추정)": 1.00,
     "FA 자유계약 영입 (Free Transfer, 계약금 기준)": 1.00
 }
 
@@ -176,11 +180,11 @@ def format_currency_desc(eur_man_euro):
 # 3. 메인 6개 탭 구성
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "💰 적정 이적료 평가", 
-    "📱 FotMob 시즌 성적 & 이적 예측 (시트 저장)",
+    "📱 FotMob 시즌 성적 & 이적 예측 (포지션별 특화)",
     "🔍 과거 유사 이적 사례 비교 (Comps TOP 5 & 10)",
     "🎯 이적 첫 시즌 실제 성적 입력 & 모델 검증",
     "👥 신규 이적생 vs 과거 유사 선수 다각도 벤치마크",
-    "🏆 이적시장 구단/리그별 종합 결산 & 파워 랭킹"
+    "🏆 이적시장 구단/리그별 종합 결산 & 데이터룸"
 ])
 
 # ================= TAB 1: 적정 이적료 평가 =================
@@ -281,15 +285,11 @@ with tab1:
             - **0.48 ~ 0.52**: 사우디 SPL(0.52), J1리그(0.50), K리그1(0.48)
             """)
 
-            st.markdown("#### 3️⃣ 계약 기간 및 기타 핵심 가중치 요약")
+            st.markdown("#### 3️⃣ 계약 형태 및 비공개 이적 처리 원칙")
             st.markdown("""
-            - **임대/FA 보정**: 단순 임대/선택 영입(1년치 사용가치 20% 자동환산) / FA(계약금 기준 비교)
-            - **잔여 계약**: 4년+(1.04) / 3년(1.02) / 2년(1.00 기준) / 1년(0.92) / 6개월(0.80)
-            - **영입 구단**: Tier 1 엘리트(1.05) / Tier 2 빅클럽(1.02) / Tier 3 중상위(1.00) / Tier 4(0.98) / Tier 5(0.95)
-            - **스쿼드 쿼터**: EPL 홈그로운 HG(+4%, 1.04) / 구단 자체 유스(+2%, 1.02) / 비EU(-2%, 0.98)
-            - **UCL 검증**: 16강+ 주전(+3%, 1.03) / UEL 및 국대(+1%, 1.01)
-            - **메디컬/부상**: 철강왕(+1%, 1.01) / 잔부상(-3%, 0.97) / 장기부상 이력(-6%, 0.94)
-            - **영입 절박성**: 최우선 보강(+4%, 1.04) / 비상사태·패닉바이(+8%, 1.08)
+            - **비공개 이적 (Undisclosed)**: 보도된 추정치가 없으면 시장 적정가와 1:1 수렴한 것으로 간주 (평가율 0%, 기본 7.5점)
+            - **단순 1년 임대**: 1년 감가상각 사용가치(20%)로 자동 환산하여 임대료와 비교
+            - **FA 자유계약**: 지급 계약금(사이닝보너스) 기준 비교 및 평점 상한선 통제
             """)
 
         st.markdown("---")
@@ -297,12 +297,33 @@ with tab1:
         if tm_market_value > 0: st.caption(f"💡 시장가치 환산: **{format_currency_desc(tm_market_value)}**")
         
         is_loan_type = "임대" in transfer_type and "의무" not in transfer_type
+        is_undisclosed = "비공개" in transfer_type
+        
         fee_label = "실제 수령/지출 임대료 (Loan Fee, 만 유로, €)" if is_loan_type else ("실제 방출(판매) 이적료 (만 유로, €)" if is_out_trade else "실제 영입(지출) 이적료 (만 유로, €)")
         
-        actual_transfer_fee = st.number_input(fee_label, min_value=0, value=5960 if not is_loan_type else 500, step=50, key=f"fee_{k_id}")
-        if actual_transfer_fee > 0: st.caption(f"💡 실제금액 환산: **{format_currency_desc(actual_transfer_fee)}**")
-        elif is_loan_type or "FA" in transfer_type: st.caption("💡 무상 거래 또는 이적료 0원")
+        actual_transfer_fee = st.number_input(
+            fee_label, 
+            min_value=0, 
+            value=0 if is_undisclosed else (5960 if not is_loan_type else 500), 
+            step=50, 
+            key=f"fee_{k_id}",
+            disabled=is_undisclosed
+        )
         
+        if is_undisclosed:
+            st.info("💡 **비공개 이적 선택됨**: 실제 이적료가 공개되지 않아 시장 적정가와 동일하게 추정하여 분석합니다.")
+        elif actual_transfer_fee > 0:
+            st.caption(f"💡 실제금액 환산: **{format_currency_desc(actual_transfer_fee)}**")
+
+        # 🌟 [선택 입력] 주급(Weekly Wage) 입력 및 연간 비용 계산
+        with st.expander("💼 [선택 입력] 주급(Weekly Wage) & 연간 총비용(Total Package) 분석", expanded=False):
+            weekly_wage_in = st.number_input("선수 주급 (만 유로, €/주)", min_value=0.0, value=12.0, step=0.5, key=f"wage_{k_id}")
+            annual_wage_eur = weekly_wage_in * 52
+            annual_transfer_amort = (actual_transfer_fee / 4.0) if actual_transfer_fee > 0 else 0.0
+            total_annual_cost = annual_transfer_amort + annual_wage_eur
+            st.caption(f"📌 **주급 환산**: 주당 약 {weekly_wage_in*10000*rate_krw/100000000:.1f}억원 (£{weekly_wage_in*rate_gbp:.1f}만)")
+            st.markdown(f"- **연간 총비용 (이적료 4년 분할상각 + 1년 연봉)**: `€{total_annual_cost:,.1f}만` (약 {total_annual_cost*10000*rate_krw/100000000:.0f}억원/년)")
+
         player_notes = st.text_area("개인 메모 / 스카우팅 코멘트", placeholder="예: 대인 방어 및 후방 빌드업 우수", key=f"note_{k_id}")
 
     league_w = LEAGUE_WEIGHTS[selling_league]
@@ -322,11 +343,17 @@ with tab1:
 
     base_calc_val = tm_market_value * league_w * age_w * club_w * contract_w * pos_w * vers_w * reg_w * opta_w * ttype_w * stage_w * inj_w * urg_w
     fair_value = base_calc_val * season_factor
-    diff = actual_transfer_fee - fair_value
+    
+    # 비공개 이적일 경우 실제 이적료를 산출 적정가와 동일하게 처리
+    calc_actual_fee = fair_value if is_undisclosed else actual_transfer_fee
+    
+    diff = calc_actual_fee - fair_value
     diff_desc = format_currency_desc(abs(diff))
     overpay_pct = (diff / fair_value) * 100 if fair_value > 0 else 0.0
 
-    if fair_value == 0 and actual_transfer_fee == 0: 
+    if is_undisclosed:
+        status_label = "⚖️ 비공개 (적정가 추정)"
+    elif fair_value == 0 and calc_actual_fee == 0: 
         status_label = "입력 대기 중"
     elif abs(diff) <= (fair_value * 0.05): 
         status_label = "⚖️ 적정가 (Fair Deal)"
@@ -346,31 +373,33 @@ with tab1:
         market_mid = (market_min + market_max) / 2.0
         range_desc = "+5% ~ +10% 시장 프리미엄"
     
-    ext_diff = actual_transfer_fee - market_mid
+    ext_diff = calc_actual_fee - market_mid
     ext_overpay_pct = (ext_diff / market_mid) * 100 if market_mid > 0 else 0.0
 
-    if fair_value == 0 and actual_transfer_fee == 0:
+    if is_undisclosed:
+        ext_status_label = "⚖️ 비공개 (시장가 적정 추정)"
+    elif fair_value == 0 and calc_actual_fee == 0:
         ext_status_label = "분석 대기 중"
-    elif market_min <= actual_transfer_fee <= market_max:
+    elif market_min <= calc_actual_fee <= market_max:
         ext_status_label = "⚖️ 시장가 적합 (Market Fair Deal)"
-    elif actual_transfer_fee > market_max:
-        over_max_pct = ((actual_transfer_fee - market_max) / market_max) * 100
+    elif calc_actual_fee > market_max:
+        over_max_pct = ((calc_actual_fee - market_max) / market_max) * 100
         ext_status_label = f"⚠️ 시장 상한 초과 (+{over_max_pct:.1f}%)"
     else:
-        under_min_pct = ((market_min - actual_transfer_fee) / market_min) * 100
+        under_min_pct = ((market_min - calc_actual_fee) / market_min) * 100
         ext_status_label = f"💎 시장가 대비 혜자 (-{under_min_pct:.1f}%)"
 
-    if tm_market_value > 0 and (actual_transfer_fee > 0 or is_loan_type or "FA" in transfer_type):
+    if tm_market_value > 0 and (calc_actual_fee > 0 or is_loan_type or "FA" in transfer_type or is_undisclosed):
         base_deal_score = 7.50
         score_multiplier = 1.0 if is_out_trade else -1.0
-        val_score_delta = max(-3.5, min(2.5, score_multiplier * (overpay_pct / 20.0)))
+        val_score_delta = 0.0 if is_undisclosed else max(-3.5, min(2.5, score_multiplier * (overpay_pct / 20.0)))
         rating_delta = max(-0.8, min(1.0, (cur_rating - 7.00) * 1.5))
         age_delta = max(-1.0, min(0.8, (age_w - 1.00) * 8.0))
         risk_delta = (stage_w - 1.00) * 5.0 + (inj_w - 1.00) * 5.0 + (reg_w - 1.00) * 3.0 + (urg_w - 1.00) * 2.0
         
         final_deal_score = round(max(1.00, min(10.00, base_deal_score + val_score_delta + rating_delta + age_delta + risk_delta)), 2)
         
-        ext_val_score_delta = max(-3.5, min(2.5, score_multiplier * (ext_overpay_pct / 20.0)))
+        ext_val_score_delta = 0.0 if is_undisclosed else max(-3.5, min(2.5, score_multiplier * (ext_overpay_pct / 20.0)))
         ext_deal_score = round(max(1.00, min(10.00, base_deal_score + ext_val_score_delta + rating_delta + age_delta + risk_delta)), 2)
 
         def get_grade_info(score):
@@ -387,8 +416,6 @@ with tab1:
         ext_deal_score = 0.00
         deal_grade = "분석 대기 중"
         ext_deal_grade = "분석 대기 중"
-        deal_badge_type = "info"
-        ext_badge_type = "info"
 
     with col2:
         st.subheader("📊 분석 결과 및 12대 세부 지표")
@@ -410,36 +437,40 @@ with tab1:
             st.metric("산출 적정가", f"€{fair_value:,.1f}만")
             if fair_value > 0: st.caption(f"{format_currency_desc(fair_value).split(' | ')[0]}")
         with res_c2:
-            st.metric("실제 거래액", f"€{actual_transfer_fee:,.1f}만", delta=f"{diff:+,.1f}만 (€)" if actual_transfer_fee > 0 else None, delta_color="inverse" if not is_out_trade else "normal")
-            if actual_transfer_fee > 0: st.caption(f"{format_currency_desc(actual_transfer_fee).split(' | ')[0]}")
+            fee_display = "비공개 (추정)" if is_undisclosed else f"€{calc_actual_fee:,.1f}만"
+            st.metric("실제 거래액", fee_display, delta=f"{diff:+,.1f}만 (€)" if not is_undisclosed and calc_actual_fee > 0 else None, delta_color="inverse" if not is_out_trade else "normal")
+            if not is_undisclosed and calc_actual_fee > 0: st.caption(f"{format_currency_desc(calc_actual_fee).split(' | ')[0]}")
         with res_c3:
-            st.metric("평가율 / 진단", f"{overpay_pct:+.1f}%" if fair_value > 0 else "-", delta=status_label.split(" ")[0])
+            st.metric("평가율 / 진단", f"{overpay_pct:+.1f}%" if fair_value > 0 and not is_undisclosed else "0.0%", delta=status_label.split(" ")[0])
             st.caption(status_label)
         with res_c4:
             st.metric("이적 거래 평점", f"★ {final_deal_score:.2f}", delta=deal_grade.split(" ")[0])
             st.caption(deal_grade.split(" (")[0])
 
         st.markdown("---")
-        st.markdown("##### 📌 **12대 핵심 가중치 세부 적용치 (Multipliers)**")
         
-        r1_1, r1_2, r1_3, r1_4 = st.columns(4)
-        r1_1.metric("1. 리그 난이도", f"{league_w:.2f}")
-        r1_2.metric("2. 나이(에이징)", f"{age_w:.2f}")
-        r1_3.metric("3. 영입 구단", f"{club_w:.2f}")
-        r1_4.metric("4. 잔여 계약", f"{contract_w:.2f}")
-        
-        r2_1, r2_2, r2_3, r2_4 = st.columns(4)
-        r2_1.metric("5. 포지션", f"{pos_w:.2f}")
-        r2_2.metric("6. 멀티 능력", f"{vers_w:.2f}")
-        r2_3.metric("7. 쿼터/HG", f"{reg_w:.2f}")
-        r2_4.metric("8. 평점/실적", f"{opta_w:.2f}")
-        
-        r3_1, r3_2, r3_3, r3_4 = st.columns(4)
-        r3_1.metric("9. 계약 형태", f"{ttype_w:.2f}")
-        r3_2.metric("10. UCL 검증", f"{stage_w:.2f}")
-        r3_3.metric("11. 메디컬/부상", f"{inj_w:.2f}")
-        r3_4.metric("12. 영입 절박성", f"{urg_w:.2f}")
-        
+        # 🌟 [신설] 12대 가중치 육각형 레이더 차트 (Plotly)
+        with st.expander("📊 [이미지 캡처용] 선수 12대 스카우팅 육각형 레이더 차트", expanded=True):
+            radar_categories = ['리그 템포', '나이/포텐', '구단 스케일', '계약 상태', '포지션 희소성', 'UCL/빅매치', '부상 내구성', '영입 절박성']
+            radar_values = [league_w * 100, age_w * 100, club_w * 100, contract_w * 100, pos_w * 100, stage_w * 100, inj_w * 100, urg_w * 100]
+            
+            fig = go.Figure()
+            fig.add_trace(go.Scatterpolar(
+                r=radar_values + [radar_values[0]],
+                theta=radar_categories + [radar_categories[0]],
+                fill='toself',
+                fillcolor='rgba(31, 119, 180, 0.3)' if not is_out_trade else 'rgba(214, 39, 40, 0.3)',
+                line=dict(color='#1f77b4' if not is_out_trade else '#d62728', width=2),
+                name=display_name
+            ))
+            fig.update_layout(
+                polar=dict(radialaxis=dict(visible=True, range=[50, 115])),
+                showlegend=False,
+                margin=dict(l=40, r=40, t=30, b=30),
+                height=320
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
         st.divider()
         
         st.markdown(f"#### 📢 **[외부 발표용] 시장가 범위 & 진단 평점 ({season_icon} {season_val.split(' ')[1] if ' ' in season_val else ''})**")
@@ -457,15 +488,17 @@ with tab1:
                 - **종합 판정 등급**: **{ext_deal_grade.split(' (')[0]}**
                 """)
             with ext_c2:
+                fee_ext_str = "비공개 (추정)" if is_undisclosed else f"€{calc_actual_fee:,.0f}만"
                 st.markdown(f"""
                 - **외부 시장 진단**: **{ext_status_label}**
-                - **실제 거래액**: `€{actual_transfer_fee:,.0f}만`
+                - **실제 거래액**: `{fee_ext_str}`
                 """)
 
-        if player_name.strip() and (tm_market_value > 0 or actual_transfer_fee > 0 or is_loan_type or "FA" in transfer_type):
+        if player_name.strip() and (tm_market_value > 0 or calc_actual_fee > 0 or is_loan_type or "FA" in transfer_type or is_undisclosed):
             with st.expander("📋 [클릭하여 복사] 외부 발표용 공식 브리핑 요약 텍스트", expanded=True):
                 nat_text = f"({player_nat}, 만 {player_age}세)" if player_nat else f"(만 {player_age}세)"
                 route_text = f"[{in_from_team} ➔ {in_to_team}]" if in_from_team.strip() and in_to_team.strip() else ""
+                fee_brf_str = "비공개 (적정가 수렴 추정)" if is_undisclosed else f"€{calc_actual_fee:,.1f}만 ({format_currency_desc(calc_actual_fee)})"
                 
                 summary_text = f"""⚽ [{season_val} {tag_badge} 공식 이적 분석 브리핑] {player_name} {nat_text} {route_text}
 ━━━━━━━━━━━━━━━━━━━━
@@ -478,7 +511,7 @@ with tab1:
 ━━━━━━━━━━━━━━━━━━━━
 📊 [외부 발표용 공식 평가]
 📌 현실 시장 거래 예상 범위 ({range_desc}): €{market_min:,.1f}만 ~ €{market_max:,.1f}만 ({format_currency_desc(market_min).split(' | ')[0]} ~ {format_currency_desc(market_max)})
-💰 실제 거래액: €{actual_transfer_fee:,.1f}만 ({format_currency_desc(actual_transfer_fee)})
+💰 실제 거래액: {fee_brf_str}
 🏆 외부 발표용 이적 평점: ★ {ext_deal_score:.2f} / 10.00점 ({ext_deal_grade})
 🔍 최종 시장 진단: {ext_status_label}
 ━━━━━━━━━━━━━━━━━━━━
@@ -487,14 +520,14 @@ with tab1:
                 if player_notes.strip(): summary_text += f"📝 스카우팅 메모: {player_notes.strip()}\n"
                 st.code(summary_text.strip(), language="text")
 
-# ================= TAB 2: FotMob 시즌 성적 & 이적 예측 =================
+# ================= TAB 2: FotMob 시즌 성적 & 이적 예측 (포지션별 특화) =================
 with tab2:
-    st.subheader("📱 FotMob 스타일 시즌 스탯 입력 & 이적 첫 시즌 성적 프로젝션")
+    st.subheader("📱 FotMob 스타일 시즌 스탯 입력 & 포지션별 맞춤 성적 프로젝션")
     
     default_proj_mins = 1440 if is_winter else 3036
     
     f_c1, f_c2, f_c3, f_c4 = st.columns(4)
-    with f_c1: f_pos = st.selectbox("선수 포지션", ["⚽ 스트라이커 (ST/CF)", "⚡ 윙어 / 공미 (WG/CAM)", "🏃 중앙 미드필더 (CM/CDM)", "🛡️ 수비수 (CB/FB)"], index=3, key="f_tab_pos")
+    with f_c1: f_pos = st.selectbox("프로젝션 포지션 분류", ["⚽ 공격수 (ST/CF/WG)", "🏃 미드필더 (CAM/CM/CDM)", "🛡️ 수비수 (CB/FB/WB)", "🧤 골키퍼 (GK)"], index=0 if "ST" in main_position or "WG" in main_position else (2 if "CB" in main_position or "LB" in main_position or "RB" in main_position else (3 if "GK" in main_position else 1)), key="f_tab_pos")
     with f_c2: f_from_l = st.selectbox("원소속 리그 (기록 기준)", list(LEAGUE_WEIGHTS.keys()), index=0, key="f_tab_from_l")
     with f_c3: f_to_l = st.selectbox("이적할 리그", list(LEAGUE_WEIGHTS.keys()), index=list(LEAGUE_WEIGHTS.keys()).index(in_to_league_choice) if in_to_league_choice in LEAGUE_WEIGHTS else 0, key="f_tab_to_l")
     with f_c4: f_target_mins = st.number_input("이적 팀 예상 출전 시간(분)", 450, 3420, default_proj_mins, 90, key="f_tab_target_mins")
@@ -527,130 +560,101 @@ with tab2:
     base_p90 = in_mins / 90.0 if in_mins > 0 else 1.0
     target_p90 = f_target_mins / 90.0
 
-    st.markdown("#### 1️⃣ 슈팅 및 득점 (Shooting & Goals)")
-    s1, s2, s3, s4, s5 = st.columns(5)
-    with s1: in_goals = st.number_input("득점 (Goals)", 0, 50, value=st.session_state["f_goals"], key="in_goals_box")
-    with s2: in_xg = st.number_input("기대 득점 (xG)", 0.0, 50.0, value=st.session_state["f_xg"], step=0.01, key="in_xg_box")
-    with s3: in_shots = st.number_input("총 슈팅 (Shots)", 0, 200, value=st.session_state["f_shots"], key="in_shots_box")
-    with s4: in_sot = st.number_input("유효 슈팅 (On Target)", 0, 100, value=st.session_state["f_sot"], key="in_sot_box")
-    with s5: in_pk_goals = st.number_input("PK 득점 (Penalty)", 0, 20, 0, key="in_pk_box")
+    # 🌟 [포지션별 동적 입력창 분기]
+    if "공격수" in f_pos or "미드필더" in f_pos:
+        st.markdown("#### 1️⃣ 슈팅 및 공격 생산력 (Attacking & Creativity)")
+        s1, s2, s3, s4, s5 = st.columns(5)
+        with s1: in_goals = st.number_input("득점 (Goals)", 0, 50, value=st.session_state["f_goals"], key="in_goals_box")
+        with s2: in_xg = st.number_input("기대 득점 (xG)", 0.0, 50.0, value=st.session_state["f_xg"], step=0.01, key="in_xg_box")
+        with s3: in_assists = st.number_input("도움 (Assists)", 0, 30, value=st.session_state["f_assists"], key="in_assists_box")
+        with s4: in_xa = st.number_input("기대 도움 (xA)", 0.0, 30.0, value=st.session_state["f_xa"], step=0.01, key="in_xa_box")
+        with s5: in_shots = st.number_input("총 슈팅 (Shots)", 0, 200, value=st.session_state["f_shots"], key="in_shots_box")
 
-    st.session_state["f_goals"] = in_goals
-    st.session_state["f_xg"] = in_xg
-    st.session_state["f_shots"] = in_shots
-    st.session_state["f_sot"] = in_sot
-
-    st.markdown("#### 2️⃣ 패스 및 기회 창출 (Passing & Creativity)")
-    p1, p2, p3, p4, p5 = st.columns(5)
-    with p1: in_assists = st.number_input("도움 (Assists)", 0, 30, value=st.session_state["f_assists"], key="in_assists_box")
-    with p2: in_xa = st.number_input("기대 도움 (xA)", 0.0, 30.0, value=st.session_state["f_xa"], step=0.01, key="in_xa_box")
-    with p3: in_chances = st.number_input("기회 창출 (Chances)", 0, 150, value=st.session_state["f_chances"], key="in_chances_box")
-    with p4: in_big_chances = st.number_input("빅 찬스 메이킹", 0, 50, 1, key="in_bc_box")
-    with p5: in_pass_pct = st.number_input("패스 성공률 (%)", 30.0, 100.0, 88.2, 0.1, key="in_pass_pct_box")
-
-    st.session_state["f_assists"] = in_assists
-    st.session_state["f_xa"] = in_xa
-    st.session_state["f_chances"] = in_chances
-
-    st.markdown("#### 3️⃣ 경합 및 수비 기여 (Duels & Defending)")
-    d1, d2, d3, d4, d5 = st.columns(5)
-    with d1: in_dribbles = st.number_input("성공한 드리블", 0, 100, value=st.session_state["f_dribbles"], key="in_dribbles_box")
-    with d2: in_touches_box = st.number_input("박스 안 터치 (Box Touches)", 0, 300, value=st.session_state["f_touches_box"], key="in_touches_box")
-    with d3: in_duels_pct = st.number_input("지상 경합 승률 (%)", 20.0, 100.0, 62.4, 0.1, key="in_duels_box")
-    with d4: in_aerial_pct = st.number_input("공중볼 승률 (%)", 20.0, 100.0, 65.8, 0.1, key="in_aerial_box")
-    with d5: in_tackles = st.number_input("태클 성공 (Tackles)", 0, 150, value=st.session_state["f_tackles"], key="in_tackles_box")
-
-    st.session_state["f_dribbles"] = in_dribbles
-    st.session_state["f_touches_box"] = in_touches_box
-    st.session_state["f_tackles"] = in_tackles
+        st.session_state["f_goals"] = in_goals
+        st.session_state["f_xg"] = in_xg
+        st.session_state["f_assists"] = in_assists
+        st.session_state["f_xa"] = in_xa
+        st.session_state["f_shots"] = in_shots
+        in_tackles = st.session_state["f_tackles"]
+        in_interceptions = 15
+        in_clearances = 20
+        in_cs = 0
+        in_save_pct = 0.0
+    elif "수비수" in f_pos:
+        st.markdown("#### 1️⃣ 수비 및 안정성 지표 (Defending & Duels)")
+        d1, d2, d3, d4, d5 = st.columns(5)
+        with d1: in_tackles = st.number_input("태클 성공 (Tackles)", 0, 150, value=st.session_state["f_tackles"], key="in_tackles_def_box")
+        with d2: in_interceptions = st.number_input("가로채기 (Interceptions)", 0, 150, value=st.session_state["f_interceptions"], key="in_int_def_box")
+        with d3: in_clearances = st.number_input("걷어내기 (Clearances)", 0, 200, value=st.session_state["f_clearances"], key="in_clr_def_box")
+        with d4: in_goals = st.number_input("세트피스 득점 (Goals)", 0, 15, value=st.session_state["f_goals"], key="in_goals_def_box")
+        with d5: in_assists = st.number_input("도움 (Assists)", 0, 15, value=st.session_state["f_assists"], key="in_assists_def_box")
+        
+        st.session_state["f_tackles"] = in_tackles
+        st.session_state["f_interceptions"] = in_interceptions
+        st.session_state["f_clearances"] = in_clearances
+        st.session_state["f_goals"] = in_goals
+        st.session_state["f_assists"] = in_assists
+        in_xg = in_goals * 0.85
+        in_xa = in_assists * 0.85
+        in_shots = in_goals * 3
+        in_cs = 0
+        in_save_pct = 0.0
+    else:  # 골키퍼
+        st.markdown("#### 1️⃣ 골키퍼 선방 및 클린시트 (Goalkeeping)")
+        g1, g2, g3 = st.columns(3)
+        with g1: in_cs = st.number_input("클린시트 (무실점 경기)", 0, 30, value=st.session_state["f_cs"], key="in_cs_gk_box")
+        with g2: in_save_pct = st.number_input("선방률 (%)", 40.0, 100.0, value=st.session_state["f_save_pct"], step=0.1, key="in_save_gk_box")
+        with g3: in_goals = 0; in_assists = 0; in_xg = 0.0; in_xa = 0.0; in_shots = 0; in_tackles = 0; in_interceptions = 0; in_clearances = 0
+        st.session_state["f_cs"] = in_cs
+        st.session_state["f_save_pct"] = in_save_pct
 
     st.divider()
 
+    # 프로젝션 계산
     p90_xg = (in_xg / base_p90) * final_l_factor
     p90_xa = (in_xa / base_p90) * final_l_factor
     p90_shots = (in_shots / base_p90) * final_l_factor
-    p90_sot = (in_sot / base_p90) * final_l_factor
-    p90_chances = (in_chances / base_p90) * final_l_factor
-    p90_dribbles = (in_dribbles / base_p90) * final_l_factor
-    p90_box_touches = (in_touches_box / base_p90) * final_l_factor
     p90_tackles = (in_tackles / base_p90) * (1.0 / raw_l_factor)
+    p90_interceptions = (in_interceptions / base_p90) * (1.0 / raw_l_factor)
+    p90_clearances = (in_clearances / base_p90) * (1.0 / raw_l_factor)
     
     finishing_ratio = in_goals / in_xg if in_xg > 0 else 1.0
-    
     proj_goals = round(p90_xg * target_p90 * finishing_ratio, 1)
     proj_xg = round(p90_xg * target_p90, 2)
     proj_assists = round(p90_xa * target_p90, 1)
     proj_xa = round(p90_xa * target_p90, 2)
     proj_shots = round(p90_shots * target_p90, 0)
-    proj_sot = round(p90_sot * target_p90, 0)
-    proj_chances = round(p90_chances * target_p90, 0)
-    proj_dribbles = round(p90_dribbles * target_p90, 0)
-    proj_box_touches = round(p90_box_touches * target_p90, 0)
     proj_tackles = round(p90_tackles * target_p90, 0)
+    proj_interceptions = round(p90_interceptions * target_p90, 0)
+    proj_clearances = round(p90_clearances * target_p90, 0)
+    proj_cs = round((in_cs / base_p90) * target_p90 * final_l_factor, 0)
+    proj_save_pct = round(max(55.0, min(85.0, in_save_pct - (1.0 - final_l_factor) * 5.0)), 1)
     
     proj_rating = round(max(6.0, in_rating - (1.0 - final_l_factor) * 0.9), 2)
 
-    st.markdown(f"### 🎯 **FotMob 스타일 이적 첫 시즌 성적 예측 리포트 ({season_icon} {season_val.split(' ')[1] if ' ' in season_val else ''})**")
-    st.caption(f"이적 환경: **{f_from_l.split(' ')[1]}** ➔ **{f_to_l.split(' ')[1]}** | 리그 난이도: **{raw_l_factor:.2f}x** | {adapt_desc} | 최종 환산 계수: **{final_l_factor:.2f}x**")
+    st.markdown(f"### 🎯 **FotMob 스타일 이적 첫 시즌 성적 예측 리포트 ({f_pos.split(' ')[1]})**")
+    st.caption(f"이적 환경: **{f_from_l.split(' ')[1]}** ➔ **{f_to_l.split(' ')[1]}** | 최종 환산 계수: **{final_l_factor:.2f}x** ({adapt_desc})")
     
-    m1, m2, m3, m4, m5 = st.columns(5)
-    m1.metric("예상 평점 (Rating)", f"★ {proj_rating:.2f}", delta=f"{proj_rating - in_rating:+.2f}")
-    m2.metric("예상 득점 (xG)", f"{proj_goals:.0f} 골", delta=f"xG {proj_xg:.2f}")
-    m3.metric("예상 도움 (xA)", f"{proj_assists:.0f} 도움", delta=f"xA {proj_xa:.2f}")
-    m4.metric("예상 공격포인트", f"{proj_goals + proj_assists:.0f} P", delta=f"{proj_goals:.0f}G + {proj_assists:.0f}A")
-    m5.metric("예상 슈팅 (유효)", f"{int(proj_shots)} 회", delta=f"유효 {int(proj_sot)}회")
-
-    st.markdown("<br>", unsafe_allow_html=True)
-    
-    st.markdown("#### 📊 **직전 시즌 실제 기록 vs 이적 첫 시즌 예측 데이터 비교표**")
-    df_compare = pd.DataFrame({
-        "FotMob 스탯 항목": [
-            "출전 경기 / 선발 (Matches / Starts)",
-            "출전 시간 (Minutes)",
-            "득점 (Goals)",
-            "기대 득점 (xG)",
-            "도움 (Assists)",
-            "기대 도움 (xA)",
-            "총 슈팅 / 유효 슈팅 (Shots / SoT)",
-            "90분당 슈팅 수 (Shots/90)",
-            "시즌 기회 창출 (Chances Created)",
-            "성공한 드리블 (Successful Dribbles)",
-            "박스 안 터치 (Box Touches)",
-            "시즌 태클 성공 (Tackles Won)",
-            "FotMob 평균 평점 (Rating)"
-        ],
-        f"직전 시즌 실제치 ({f_from_l.split(' ')[1]})": [
-            f"{in_matches}경기 ({in_starts}선발)",
-            f"{in_mins:,} 분",
-            f"{in_goals} 골",
-            f"{in_xg:.2f}",
-            f"{in_assists} 도움",
-            f"{in_xa:.2f}",
-            f"{in_shots}회 ({in_sot}회)",
-            f"{(in_shots/base_p90):.2f} 회",
-            f"{in_chances} 회",
-            f"{in_dribbles} 회",
-            f"{in_touches_box} 회",
-            f"{in_tackles} 회",
-            f"★ {in_rating:.2f}"
-        ],
-        f"이적 첫 시즌 예측치 ({f_to_l.split(' ')[1]})": [
-            f"약 {target_p90:.0f}경기 상당",
-            f"{f_target_mins:,} 분",
-            f"{proj_goals:.1f} 골",
-            f"{proj_xg:.2f}",
-            f"{proj_assists:.1f} 도움",
-            f"{proj_xa:.2f}",
-            f"{int(proj_shots)}회 ({int(proj_sot)}회)",
-            f"{p90_shots:.2f} 회",
-            f"{int(proj_chances)} 회",
-            f"{int(proj_dribbles)} 회",
-            f"{int(proj_box_touches)} 회",
-            f"{int(proj_tackles)} 회",
-            f"★ {proj_rating:.2f}"
-        ]
-    })
-    st.table(df_compare)
+    if "골키퍼" in f_pos:
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("예상 평점 (Rating)", f"★ {proj_rating:.2f}", delta=f"{proj_rating - in_rating:+.2f}")
+        m2.metric("예상 클린시트", f"{int(proj_cs)} 경기", delta=f"{int(proj_cs - in_cs):+d}회")
+        m3.metric("예상 선방률", f"{proj_save_pct:.1f} %", delta=f"{proj_save_pct - in_save_pct:+.1f}%")
+        m4.metric("예상 출전시간", f"{f_target_mins:,} 분")
+    elif "수비수" in f_pos:
+        m1, m2, m3, m4, m5 = st.columns(5)
+        m1.metric("예상 평점 (Rating)", f"★ {proj_rating:.2f}", delta=f"{proj_rating - in_rating:+.2f}")
+        m2.metric("예상 태클 성공", f"{int(proj_tackles)} 회", delta=f"{int(proj_tackles - in_tackles):+d}회")
+        m3.metric("예상 가로채기", f"{int(proj_interceptions)} 회", delta=f"{int(proj_interceptions - in_interceptions):+d}회")
+        m4.metric("예상 걷어내기", f"{int(proj_clearances)} 회", delta=f"{int(proj_clearances - in_clearances):+d}회")
+        m5.metric("예상 공격포인트", f"{proj_goals + proj_assists:.0f} P", delta=f"{proj_goals:.0f}G+{proj_assists:.0f}A")
+    else:
+        m1, m2, m3, m4, m5 = st.columns(5)
+        m1.metric("예상 평점 (Rating)", f"★ {proj_rating:.2f}", delta=f"{proj_rating - in_rating:+.2f}")
+        m2.metric("예상 득점 (xG)", f"{proj_goals:.0f} 골", delta=f"xG {proj_xg:.2f}")
+        m3.metric("예상 도움 (xA)", f"{proj_assists:.0f} 도움", delta=f"xA {proj_xa:.2f}")
+        m4.metric("예상 공격포인트", f"{proj_goals + proj_assists:.0f} P", delta=f"{proj_goals:.0f}G+{proj_assists:.0f}A")
+        m5.metric("예상 슈팅", f"{int(proj_shots)} 회")
 
     st.markdown("---")
     
@@ -658,7 +662,7 @@ with tab2:
     tag_btn_name = "🔴 방출(OUT) 데이터" if is_out_trade else "🔵 영입(IN) 데이터"
     st.markdown(f"#### 💾 **'{display_pname}'** 선수의 {tag_btn_name} 구글 시트 저장")
     
-    if st.button(f"💾 {tag_btn_name} 구글 시트에 저장하기 (순지출/가중평균 결산 연동)", type="primary", use_container_width=True, key="save_btn_tab2"):
+    if st.button(f"💾 {tag_btn_name} 구글 시트에 저장하기 (42개 항목 동기화)", type="primary", use_container_width=True, key="save_btn_tab2"):
         if not player_name.strip():
             st.warning("⚠️ 선수 이름을 [💰 적정 이적료 평가] 탭에 먼저 입력해 주세요.")
         else:
@@ -681,7 +685,7 @@ with tab2:
                     "buying_tier": buying_club_tier.split(":")[0],
                     "transfer_type": ttype_short,
                     "tm_val": float(tm_market_value),
-                    "fee": float(actual_transfer_fee),
+                    "fee": float(calc_actual_fee),
                     "fair_val": round(fair_value, 1),
                     "diff": round(diff, 1),
                     "status": status_label,
@@ -715,7 +719,8 @@ with tab2:
                     "from_team": in_from_team.strip(),
                     "to_team": in_to_team.strip(),
                     "to_league_name": in_to_league_choice.split(" (")[0],
-                    "trade_type": "OUT" if is_out_trade else "IN"
+                    "trade_type": "OUT" if is_out_trade else "IN",
+                    "weekly_wage": float(weekly_wage_in) if 'weekly_wage_in' in locals() else 0.0
                 }
                 
                 try:
@@ -743,7 +748,7 @@ with tab3:
     
     c_in1, c_in2, c_in3, c_in4, c_in5 = st.columns(5)
     with c_in1:
-        target_fee = st.number_input("비교 기준 이적료 (만 €)", min_value=0, value=int(actual_transfer_fee) if actual_transfer_fee > 0 else 5000, step=100, key="comps_fee")
+        target_fee = st.number_input("비교 기준 이적료 (만 €)", min_value=0, value=int(calc_actual_fee) if calc_actual_fee > 0 else 5000, step=100, key="comps_fee")
     with c_in2:
         target_score = st.number_input("비교 기준 이적 평점", min_value=1.00, max_value=10.00, value=float(final_deal_score) if final_deal_score > 0 else 7.50, step=0.1, key="comps_score")
     with c_in3:
@@ -858,7 +863,7 @@ with tab3:
         except Exception as e:
             st.error(f"⚠️ 데이터 비교 중 오류: {e}")
 
-# ================= TAB 4: 이적 첫 시즌 실제 성적 입력 & 모델 검증 (미입력 추림 기능 적용) =================
+# ================= TAB 4: 이적 첫 시즌 실제 성적 입력 & 모델 검증 =================
 with tab4:
     st.subheader("🎯 이적 첫 시즌 실제 성적 입력 & 모델 예측 정확도 사후 검증")
     st.caption("시즌 종료 후 선수가 실제로 기록한 최종 스탯(xG, xA 포함)을 입력하여 모델 예측치와의 오차율 및 적중률을 산출하고 [검증데이터] 시트에 업데이트합니다.")
@@ -878,7 +883,6 @@ with tab4:
     if val_df.empty or len(val_df) == 0 or "이적시즌" not in val_df.columns:
         st.info("💡 **아직 [검증데이터] 시트에 저장된 데이터가 없습니다.**\n\n- 2번 탭에서 영입(IN) 선수를 저장하시면 이곳에 자동으로 나타납니다.")
     else:
-        # 실제 성적 입력 완료 여부 판별 열 추가
         def check_status(row):
             act_r = str(row.get("실제평점", "")).strip()
             act_m = str(row.get("실제출전시간", "")).strip()
@@ -889,7 +893,6 @@ with tab4:
         val_df["입력상태"] = val_df.apply(check_status, axis=1)
 
         st.markdown("#### 1️⃣ 검증할 시즌 및 미입력 선수 필터링")
-        
         available_seasons = list(val_df["이적시즌"].dropna().unique())
         
         v_top1, v_top2 = st.columns([1, 1])
@@ -898,7 +901,6 @@ with tab4:
 
         filtered_season_df = val_df[val_df["이적시즌"] == sel_val_season]
         
-        # 🌟 [진행률 대시보드 메트릭]
         total_in_season = len(filtered_season_df)
         completed_cnt = len(filtered_season_df[filtered_season_df["입력상태"] == "✅ 검증 완료"])
         pending_cnt = total_in_season - completed_cnt
@@ -907,7 +909,6 @@ with tab4:
         with v_top2:
             st.info(f"📊 **`{sel_val_season}` 검증 진행도**: **총 {total_in_season}명 중 {completed_cnt}명 완료 / {pending_cnt}명 대기** (`{progress_pct:.0f}%` 달성)")
 
-        # 🌟 [스마트 필터: 미입력 선수만 보기 체크박스]
         show_pending_only = st.checkbox("⏳ 실제 성적 미입력(검증 대기) 선수만 모아보기", value=True if pending_cnt > 0 else False, key="filter_pending_only")
 
         if show_pending_only:
@@ -1047,7 +1048,7 @@ with tab5:
         p_curr_name = player_name.strip() if player_name.strip() else "신규 영입 대상 선수"
         p_curr_age = int(player_age)
         p_curr_pos = main_position.split(" (")[0]
-        p_curr_fee = float(actual_transfer_fee) if actual_transfer_fee > 0 else 5000.0
+        p_curr_fee = float(calc_actual_fee) if calc_actual_fee > 0 else 5000.0
         p_curr_score = float(final_deal_score) if final_deal_score > 0 else 7.50
         p_curr_p90 = (st.session_state["f_xg"] + st.session_state["f_xa"]) / ((st.session_state["f_mins"] / 90.0) if st.session_state["f_mins"] > 0 else 1.0)
         p_curr_rating = float(st.session_state["f_rating"])
@@ -1138,23 +1139,30 @@ with tab5:
 
             st.table(df_bench)
 
-            st.info(f"""
-            💡 **벤치마크 인사이트**:
-            - **이적료 규모**: '{p_curr_name}' 선수는 과거 '{t_name}'의 거래액(€{t_fee:,.0f}만) 대비 **{p_curr_fee - t_fee:+,.0f}만 유로**의 차이를 보입니다.
-            - **가성비 & 평점 비교**: 모델 이적 평점 기준으로 **★{final_deal_score - t_score:+.2f}점**의 평가 격차가 산출되었습니다.
-            """)
+            # 🌟 [신설] 1:1 선수 다각도 레이더 차트 맞대결
+            st.markdown("##### ⚔️ **두 선수의 1:1 스카우팅 프로필 레이더 비교**")
+            bench_fig = go.Figure()
+            comp_categories = ['이적료 규모', '이적 평점', '직전 FotMob 평점', '90분당 생산력', '나이(적정성)']
+            
+            p_val_scaled = [min(100, p_curr_fee/1000*10), final_deal_score*10, p_curr_rating*10, min(100, p_curr_p90*100), (35-p_curr_age)*5]
+            t_val_scaled = [min(100, t_fee/1000*10), t_score*10, t_rating*10, min(100, t_p90*100), (35-t_age)*5]
 
-# ================= TAB 6: 이적시장 구단/리그별 종합 결산 & 파워 랭킹 =================
+            bench_fig.add_trace(go.Scatterpolar(r=p_val_scaled + [p_val_scaled[0]], theta=comp_categories + [comp_categories[0]], fill='toself', name=p_curr_name, line=dict(color='#1f77b4')))
+            bench_fig.add_trace(go.Scatterpolar(r=t_val_scaled + [t_val_scaled[0]], theta=comp_categories + [comp_categories[0]], fill='toself', name=f"{t_name} ({t_season})", line=dict(color='#ff7f0e')))
+            bench_fig.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, 100])), height=350, margin=dict(l=40, r=40, t=30, b=30))
+            st.plotly_chart(bench_fig, use_container_width=True)
+
+# ================= TAB 6: 이적시장 구단/리그별 종합 결산 & 데이터룸 (삭제 기능 포함) =================
 with tab6:
-    st.subheader("🏆 이적시장 구단별 종합 성적표 & 리그 파워 랭킹 (Transfer Market Report)")
-    st.caption("시트에 누적된 영입(IN) 및 방출(OUT) 데이터를 종합하여 순지출(Net Spend)과 '이적료 가중 평균 평점' 기반의 구단/리그별 순위를 산출합니다.")
+    st.subheader("🏆 이적시장 구단별 종합 성적표 & 리그 파워 랭킹 & 데이터룸")
+    st.caption("시트에 누적된 영입(IN) 및 방출(OUT) 데이터를 종합하여 순지출(Net Spend)과 '이적료 가중 평균 평점' 기반의 구단/리그별 순위를 산출하고, 오기입된 데이터를 관리 및 삭제합니다.")
 
     m_hist_df = fetch_sheet_history()
 
     if m_hist_df.empty or len(m_hist_df) == 0 or "이적시즌" not in m_hist_df.columns:
         st.info("💡 **아직 구글 시트에 누적된 이적 데이터가 없습니다.**\n\n1번 및 2번 탭에서 팀명을 포함하여 이적 데이터를 저장하시면 이곳에 구단별 성적표 및 리그별/전체 통합 파워 랭킹이 자동으로 집계됩니다.")
     else:
-        rank_mode = st.radio("분석 모드 선택", ["🏢 구단별 이적시장 종합 성적표 (Club Report Card)", "🌍 리그별 / 10대 리그 전체 통합 파워 랭킹 (Power Rankings)"], horizontal=True)
+        rank_mode = st.radio("분석 모드 선택", ["🏢 구단별 이적시장 종합 성적표 (Club Report Card)", "🌍 리그별 / 10대 리그 전체 통합 파워 랭킹 (Power Rankings)", "🛠️ 저장 데이터 조회 및 삭제 관리 (Data Management)"], horizontal=True)
 
         st.markdown("---")
 
@@ -1237,7 +1245,7 @@ with tab6:
                         st.dataframe(team_out_df[avail_cols], use_container_width=True)
 
         # 2) 리그별 / 10대 리그 전체 통합 파워 랭킹 모드
-        else:
+        elif "리그별" in rank_mode:
             st.markdown("#### 🌍 **리그별 & 10대 리그 전체 통합 파워 랭킹 (Power Rankings)**")
             
             c_rk1, c_rk2 = st.columns(2)
@@ -1308,7 +1316,7 @@ with tab6:
 
                     if is_all_leagues and "이적팀리그" in l_target_df.columns:
                         st.markdown("---")
-                        st.markdown("##### 📊 **리그별 평균 이적시장 평점 및 총 지출액 비교**")
+                        st.markdown("##### 📊 **리그별 평균 이적시장 평점 및 총 거래액 비교**")
                         league_summary = l_target_df.groupby("이적팀리그").agg(
                             참여구단수=("이적팀명", "nunique"),
                             총거래건수=("선수명", "count"),
@@ -1338,3 +1346,52 @@ with tab6:
                         **{worst_deal_row.get('선수명', '선수')}** ({worst_deal_row.get('이적팀명', '팀')})  
                         - 거래액: `€{float(worst_deal_row.get('실제이적료(만€)', 0)):,.0f}만` | 평점: `★ {float(worst_deal_row.get('이적평점', 0)):.2f}`
                         """)
+
+        # 3) 🌟 [신설] 저장 데이터 관리 및 삭제 모드
+        else:
+            st.markdown("#### 🛠️ **구글 시트 저장 데이터 조회 및 삭제 관리 (Data Management)**")
+            st.caption("테스트로 잘못 저장했거나 중복 저장된 선수 데이터를 선택하여 구글 시트에서 즉시 안전하게 삭제합니다.")
+            
+            del_c1, del_c2 = st.columns(2)
+            del_seasons = list(m_hist_df["이적시즌"].dropna().unique())
+            with del_c1:
+                sel_del_season = st.selectbox("삭제 대상 이적 시즌 선택", del_seasons, key="del_season_sel")
+
+            del_season_df = m_hist_df[m_hist_df["이적시즌"] == sel_del_season]
+            del_players = list(del_season_df["선수명"].dropna().unique()) if "선수명" in del_season_df.columns else []
+
+            with del_c2:
+                sel_del_player = st.selectbox("삭제할 선수 선택", del_players, key="del_player_sel") if del_players else None
+
+            if sel_del_player:
+                target_del_row = del_season_df[del_season_df["선수명"] == sel_del_player].iloc[-1]
+                st.warning(f"⚠️ 삭제 대상: **'{sel_del_player}'** (시즌: `{sel_del_season}` | 이적료: `€{target_del_row.get('실제이적료(만€)', 0):,.0f}만` | 평점: `★{target_del_row.get('이적평점', 0):.2f}`)")
+                
+                if st.button(f"🗑️ '{sel_del_player}' 데이터 구글 시트에서 영구 삭제하기", type="primary", use_container_width=True, key="del_exec_btn"):
+                    with st.spinner("구글 시트에서 데이터를 삭제 중입니다..."):
+                        del_payload = {
+                            "action": "delete_row",
+                            "season": sel_del_season,
+                            "name": sel_del_player
+                        }
+                        try:
+                            res = requests.post(
+                                GOOGLE_SHEET_WEBAPP_URL,
+                                data=json.dumps(del_payload),
+                                headers={"Content-Type": "text/plain;charset=utf-8"},
+                                timeout=30,
+                                allow_redirects=True
+                            )
+                            res_json = res.json()
+                            if res_json.get("status") == "success":
+                                st.success(f"✅ '{sel_del_player}' 선수의 데이터가 성공적으로 삭제되었습니다!")
+                                st.cache_data.clear()
+                                st.rerun()
+                            else:
+                                st.error("⚠️ 삭제 실패: 일치하는 데이터를 찾지 못했습니다.")
+                        except Exception as e:
+                            st.error(f"⚠️ 통신 오류: {e}")
+
+            st.markdown("---")
+            st.markdown("##### 📋 **전체 메인 시트 저장 데이터 목록**")
+            st.dataframe(m_hist_df, use_container_width=True)
