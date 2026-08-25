@@ -315,7 +315,7 @@ with tab1:
         elif actual_transfer_fee > 0:
             st.caption(f"💡 실제금액 환산: **{format_currency_desc(actual_transfer_fee)}**")
 
-        # 🌟 [선택 입력] 주급(Weekly Wage) 입력 및 연간 비용 계산
+        # 주급(Weekly Wage) 입력 및 연간 비용 계산
         with st.expander("💼 [선택 입력] 주급(Weekly Wage) & 연간 총비용(Total Package) 분석", expanded=False):
             weekly_wage_in = st.number_input("선수 주급 (만 유로, €/주)", min_value=0.0, value=12.0, step=0.5, key=f"wage_{k_id}")
             annual_wage_eur = weekly_wage_in * 52
@@ -344,7 +344,6 @@ with tab1:
     base_calc_val = tm_market_value * league_w * age_w * club_w * contract_w * pos_w * vers_w * reg_w * opta_w * ttype_w * stage_w * inj_w * urg_w
     fair_value = base_calc_val * season_factor
     
-    # 비공개 이적일 경우 실제 이적료를 산출 적정가와 동일하게 처리
     calc_actual_fee = fair_value if is_undisclosed else actual_transfer_fee
     
     diff = calc_actual_fee - fair_value
@@ -449,7 +448,7 @@ with tab1:
 
         st.markdown("---")
         
-        # 🌟 [신설] 12대 가중치 육각형 레이더 차트 (Plotly)
+        # 12대 가중치 육각형 레이더 차트
         with st.expander("📊 [이미지 캡처용] 선수 12대 스카우팅 육각형 레이더 차트", expanded=True):
             radar_categories = ['리그 템포', '나이/포텐', '구단 스케일', '계약 상태', '포지션 희소성', 'UCL/빅매치', '부상 내구성', '영입 절박성']
             radar_values = [league_w * 100, age_w * 100, club_w * 100, contract_w * 100, pos_w * 100, stage_w * 100, inj_w * 100, urg_w * 100]
@@ -560,15 +559,15 @@ with tab2:
     base_p90 = in_mins / 90.0 if in_mins > 0 else 1.0
     target_p90 = f_target_mins / 90.0
 
-    # 🌟 [포지션별 동적 입력창 분기]
+    # 🌟 [포지션별 안전 최대값(50) 통제]
     if "공격수" in f_pos or "미드필더" in f_pos:
         st.markdown("#### 1️⃣ 슈팅 및 공격 생산력 (Attacking & Creativity)")
         s1, s2, s3, s4, s5 = st.columns(5)
-        with s1: in_goals = st.number_input("득점 (Goals)", 0, 50, value=st.session_state["f_goals"], key="in_goals_box")
-        with s2: in_xg = st.number_input("기대 득점 (xG)", 0.0, 50.0, value=st.session_state["f_xg"], step=0.01, key="in_xg_box")
-        with s3: in_assists = st.number_input("도움 (Assists)", 0, 30, value=st.session_state["f_assists"], key="in_assists_box")
-        with s4: in_xa = st.number_input("기대 도움 (xA)", 0.0, 30.0, value=st.session_state["f_xa"], step=0.01, key="in_xa_box")
-        with s5: in_shots = st.number_input("총 슈팅 (Shots)", 0, 200, value=st.session_state["f_shots"], key="in_shots_box")
+        with s1: in_goals = st.number_input("득점 (Goals)", 0, 50, value=min(int(st.session_state["f_goals"]), 50), key="in_goals_box")
+        with s2: in_xg = st.number_input("기대 득점 (xG)", 0.0, 50.0, value=min(float(st.session_state["f_xg"]), 50.0), step=0.01, key="in_xg_box")
+        with s3: in_assists = st.number_input("도움 (Assists)", 0, 50, value=min(int(st.session_state["f_assists"]), 50), key="in_assists_box")
+        with s4: in_xa = st.number_input("기대 도움 (xA)", 0.0, 50.0, value=min(float(st.session_state["f_xa"]), 50.0), step=0.01, key="in_xa_box")
+        with s5: in_shots = st.number_input("총 슈팅 (Shots)", 0, 200, value=min(int(st.session_state["f_shots"]), 200), key="in_shots_box")
 
         st.session_state["f_goals"] = in_goals
         st.session_state["f_xg"] = in_xg
@@ -583,11 +582,11 @@ with tab2:
     elif "수비수" in f_pos:
         st.markdown("#### 1️⃣ 수비 및 안정성 지표 (Defending & Duels)")
         d1, d2, d3, d4, d5 = st.columns(5)
-        with d1: in_tackles = st.number_input("태클 성공 (Tackles)", 0, 150, value=st.session_state["f_tackles"], key="in_tackles_def_box")
-        with d2: in_interceptions = st.number_input("가로채기 (Interceptions)", 0, 150, value=st.session_state["f_interceptions"], key="in_int_def_box")
-        with d3: in_clearances = st.number_input("걷어내기 (Clearances)", 0, 200, value=st.session_state["f_clearances"], key="in_clr_def_box")
-        with d4: in_goals = st.number_input("세트피스 득점 (Goals)", 0, 15, value=st.session_state["f_goals"], key="in_goals_def_box")
-        with d5: in_assists = st.number_input("도움 (Assists)", 0, 15, value=st.session_state["f_assists"], key="in_assists_def_box")
+        with d1: in_tackles = st.number_input("태클 성공 (Tackles)", 0, 150, value=min(int(st.session_state["f_tackles"]), 150), key="in_tackles_def_box")
+        with d2: in_interceptions = st.number_input("가로채기 (Interceptions)", 0, 150, value=min(int(st.session_state["f_interceptions"]), 150), key="in_int_def_box")
+        with d3: in_clearances = st.number_input("걷어내기 (Clearances)", 0, 200, value=min(int(st.session_state["f_clearances"]), 200), key="in_clr_def_box")
+        with d4: in_goals = st.number_input("세트피스 득점 (Goals)", 0, 50, value=min(int(st.session_state["f_goals"]), 50), key="in_goals_def_box")
+        with d5: in_assists = st.number_input("도움 (Assists)", 0, 50, value=min(int(st.session_state["f_assists"]), 50), key="in_assists_def_box")
         
         st.session_state["f_tackles"] = in_tackles
         st.session_state["f_interceptions"] = in_interceptions
@@ -602,8 +601,8 @@ with tab2:
     else:  # 골키퍼
         st.markdown("#### 1️⃣ 골키퍼 선방 및 클린시트 (Goalkeeping)")
         g1, g2, g3 = st.columns(3)
-        with g1: in_cs = st.number_input("클린시트 (무실점 경기)", 0, 30, value=st.session_state["f_cs"], key="in_cs_gk_box")
-        with g2: in_save_pct = st.number_input("선방률 (%)", 40.0, 100.0, value=st.session_state["f_save_pct"], step=0.1, key="in_save_gk_box")
+        with g1: in_cs = st.number_input("클린시트 (무실점 경기)", 0, 30, value=min(int(st.session_state["f_cs"]), 30), key="in_cs_gk_box")
+        with g2: in_save_pct = st.number_input("선방률 (%)", 40.0, 100.0, value=min(float(st.session_state["f_save_pct"]), 100.0), step=0.1, key="in_save_gk_box")
         with g3: in_goals = 0; in_assists = 0; in_xg = 0.0; in_xa = 0.0; in_shots = 0; in_tackles = 0; in_interceptions = 0; in_clearances = 0
         st.session_state["f_cs"] = in_cs
         st.session_state["f_save_pct"] = in_save_pct
@@ -1139,7 +1138,6 @@ with tab5:
 
             st.table(df_bench)
 
-            # 🌟 [신설] 1:1 선수 다각도 레이더 차트 맞대결
             st.markdown("##### ⚔️ **두 선수의 1:1 스카우팅 프로필 레이더 비교**")
             bench_fig = go.Figure()
             comp_categories = ['이적료 규모', '이적 평점', '직전 FotMob 평점', '90분당 생산력', '나이(적정성)']
@@ -1347,7 +1345,7 @@ with tab6:
                         - 거래액: `€{float(worst_deal_row.get('실제이적료(만€)', 0)):,.0f}만` | 평점: `★ {float(worst_deal_row.get('이적평점', 0)):.2f}`
                         """)
 
-        # 3) 🌟 [신설] 저장 데이터 관리 및 삭제 모드
+        # 3) 저장 데이터 관리 및 삭제 모드
         else:
             st.markdown("#### 🛠️ **구글 시트 저장 데이터 조회 및 삭제 관리 (Data Management)**")
             st.caption("테스트로 잘못 저장했거나 중복 저장된 선수 데이터를 선택하여 구글 시트에서 즉시 안전하게 삭제합니다.")
