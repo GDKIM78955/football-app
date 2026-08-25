@@ -1145,10 +1145,10 @@ with tab4:
                     }
                     try:
                         res = requests.post(
-                            GOOGLE_SHEET_WEBAPP_URL,
-                            data=json.dumps(update_payload),
-                            headers={"Content-Type": "text/plain;charset=utf-8"},
-                            timeout=30,
+                            GOOGLE_SHEET_WEBAPP_URL, 
+                            data=json.dumps(update_payload), 
+                            headers={"Content-Type": "text/plain;charset=utf-8"}, 
+                            timeout=30, 
                             allow_redirects=True
                         )
                         res_json = res.json()
@@ -1284,7 +1284,7 @@ with tab5:
             bench_fig.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, 100])), height=350, margin=dict(l=40, r=40, t=30, b=30))
             st.plotly_chart(bench_fig, use_container_width=True)
 
-# ================= TAB 6: 이적시장 구단/리그별 종합 결산 & 데이터룸 (양방향 대칭 평점 완벽 적용) =================
+# ================= TAB 6: 이적시장 구단/리그별 종합 결산 & 데이터룸 (KeyError 방어 로직 적용) =================
 with tab6:
     st.subheader("🏆 이적시장 구단별 종합 성적표 & 리그 파워 랭킹 & 데이터룸")
     st.caption("시트에 누적된 영입(IN) 및 방출(OUT) 데이터를 종합하여 순지출(Net Spend)과 '이적료 가중 평균 평점' 기반의 구단/리그별 순위를 산출하고, 오기입된 데이터를 관리 및 삭제합니다.")
@@ -1296,7 +1296,7 @@ with tab6:
 
         st.markdown("---")
 
-        # 1) 구단별 이적시장 성적표 모드 (🌟 구매자 vs 판매자 대칭 평점 자동 분리)
+        # 1) 구단별 이적시장 성적표 모드
         if "구단별" in rank_mode:
             st.markdown("#### 🏢 **특정 구단의 이적시장 결산 성적표 (IN/OUT & 순지출)**")
             
@@ -1324,19 +1324,15 @@ with tab6:
                 total_out_income = team_out_df["실제이적료(만€)"].astype(float).sum() if not team_out_df.empty and "실제이적료(만€)" in team_out_df.columns else 0.0
                 net_spend = total_in_spent - total_out_income
 
-                # 🌟 [영입 구단 vs 판매 구단 대칭 평점 자동 환산 함수]
                 def get_adjusted_deal_score(row, is_buy_side):
                     recorded_score = float(row.get("이적평점", 7.50))
                     orig_trade_type = str(row.get("거래구분", "IN")).strip()
-                    # 만약 판매(OUT)로 기록된 딜을 영입팀(구매자)이 볼 때는 점수 대칭 역산
                     if is_buy_side and orig_trade_type == "OUT":
                         return round(max(1.0, min(10.0, 15.00 - recorded_score)), 2)
-                    # 만약 영입(IN)으로 기록된 딜을 판매팀(방출자)이 볼 때는 점수 대칭 역산
                     elif not is_buy_side and orig_trade_type == "IN":
                         return round(max(1.0, min(10.0, 15.00 - recorded_score)), 2)
                     return recorded_score
 
-                # 영입 및 방출 개별 평점 보정
                 if not team_in_df.empty:
                     team_in_df["이적평점"] = team_in_df.apply(lambda r: get_adjusted_deal_score(r, is_buy_side=True), axis=1)
                 if not team_out_df.empty:
@@ -1389,7 +1385,7 @@ with tab6:
                         avail_cols = [c for c in display_cols if c in team_out_df.columns]
                         st.dataframe(team_out_df[avail_cols], use_container_width=True)
 
-        # 2) 리그별 / 10대 리그 전체 통합 파워 랭킹 모드
+        # 2) 리그별 / 10대 리그 전체 통합 파워 랭킹 모드 (🌟 KeyError 완벽 방어)
         elif "리그별" in rank_mode:
             st.markdown("#### 🌍 **리그별 & 10대 리그 전체 통합 파워 랭킹 (Power Rankings)**")
             
@@ -1421,36 +1417,45 @@ with tab6:
                 if l_target_df.empty:
                     st.info("선택하신 조건에 해당하는 구단 데이터가 없습니다.")
                 else:
-                    def calc_team_stats(group):
-                        t_name = str(group["이적팀명"].iloc[0]).strip()
-                        in_trades = group[group["이적팀명"].astype(str).str.strip() == t_name].copy()
+                    # 🌟 [KeyError 원천 차단] groupby.apply 대신 안전한 개별 순회 집계
+                    unique_teams = sorted(list(l_target_df["이적팀명"].astype(str).str.strip().unique()))
+                    team_stat_rows = []
+
+                    def get_adj_score(r, is_buy):
+                        rec = float(r.get("이적평점", 7.50))
+                        orig = str(r.get("거래구분", "IN")).strip()
+                        if is_buy and orig == "OUT": return round(max(1.0, min(10.0, 15.00 - rec)), 2)
+                        elif not is_buy and orig == "IN": return round(max(1.0, min(10.0, 15.00 - rec)), 2)
+                        return rec
+
+                    for t_name in unique_teams:
+                        in_trades = l_target_df[l_target_df["이적팀명"].astype(str).str.strip() == t_name].copy()
                         out_trades = league_filtered_df[league_filtered_df["원소속팀명"].astype(str).str.strip() == t_name].copy() if "원소속팀명" in league_filtered_df.columns else pd.DataFrame()
 
-                        in_spent = in_trades["실제이적료(만€)"].astype(float).sum() if not in_trades.empty else 0.0
-                        out_income = out_trades["실제이적료(만€)"].astype(float).sum() if not out_trades.empty else 0.0
+                        in_spent = in_trades["실제이적료(만€)"].astype(float).sum() if not in_trades.empty and "실제이적료(만€)" in in_trades.columns else 0.0
+                        out_income = out_trades["실제이적료(만€)"].astype(float).sum() if not out_trades.empty and "실제이적료(만€)" in out_trades.columns else 0.0
                         net_val = in_spent - out_income
-
-                        def get_adj_score(r, is_buy):
-                            rec = float(r.get("이적평점", 7.50))
-                            orig = str(r.get("거래구분", "IN")).strip()
-                            if is_buy and orig == "OUT": return round(max(1.0, min(10.0, 15.00 - rec)), 2)
-                            elif not is_buy and orig == "IN": return round(max(1.0, min(10.0, 15.00 - rec)), 2)
-                            return rec
 
                         if not in_trades.empty: in_trades["이적평점"] = in_trades.apply(lambda r: get_adj_score(r, True), axis=1)
                         if not out_trades.empty: out_trades["이적평점"] = out_trades.apply(lambda r: get_adj_score(r, False), axis=1)
 
                         all_trades = pd.concat([in_trades, out_trades])
-                        fees = all_trades["실제이적료(만€)"].astype(float)
-                        scores = all_trades["이적평점"].astype(float)
-                        if fees.sum() > 0:
-                            w = fees.apply(lambda x: max(x, 500.0))
-                            w_score = (scores * w).sum() / w.sum()
+                        if not all_trades.empty and "이적평점" in all_trades.columns:
+                            fees = all_trades["실제이적료(만€)"].astype(float)
+                            scores = all_trades["이적평점"].astype(float)
+                            if fees.sum() > 0:
+                                w = fees.apply(lambda x: max(x, 500.0))
+                                w_score = (scores * w).sum() / w.sum()
+                            else:
+                                w_score = scores.mean()
                         else:
-                            w_score = scores.mean() if not scores.empty else 7.50
+                            w_score = 7.50
 
-                        return pd.Series({
-                            "소속리그": group["이적팀리그"].iloc[0] if "이적팀리그" in group.columns else "",
+                        t_league_label = str(in_trades["이적팀리그"].iloc[0]).strip() if not in_trades.empty and "이적팀리그" in in_trades.columns else ""
+
+                        team_stat_rows.append({
+                            "이적팀명": t_name,
+                            "소속리그": t_league_label,
                             "가중이적평점": round(w_score, 2),
                             "영입(IN)": len(in_trades),
                             "방출(OUT)": len(out_trades),
@@ -1459,9 +1464,7 @@ with tab6:
                             "순지출(만€)": int(net_val)
                         })
 
-                    team_group = l_target_df.groupby("이적팀명").apply(calc_team_stats).reset_index()
-                    
-                    ranked_df = team_group.sort_values(by="가중이적평점", ascending=False).reset_index(drop=True)
+                    ranked_df = pd.DataFrame(team_stat_rows).sort_values(by="가중이적평점", ascending=False).reset_index(drop=True)
                     ranked_df.index = ranked_df.index + 1
                     ranked_df.index.name = "순위 (Rank)"
 
@@ -1533,10 +1536,10 @@ with tab6:
                         }
                         try:
                             res = requests.post(
-                                GOOGLE_SHEET_WEBAPP_URL,
-                                data=json.dumps(del_payload),
-                                headers={"Content-Type": "text/plain;charset=utf-8"},
-                                timeout=30,
+                                GOOGLE_SHEET_WEBAPP_URL, 
+                                data=json.dumps(del_payload), 
+                                headers={"Content-Type": "text/plain;charset=utf-8"}, 
+                                timeout=30, 
                                 allow_redirects=True
                             )
                             res_json = res.json()
