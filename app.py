@@ -357,12 +357,15 @@ with tab1:
             st.caption(f"💡 실제금액 환산: **{format_currency_desc(actual_transfer_fee)}**")
 
         with st.expander("💼 [선택 입력] 주급(Weekly Wage) & 연간 총비용(Total Package) 분석", expanded=False):
-            weekly_wage_in = st.number_input("선수 주급 (만 유로, €/주)", min_value=0.0, value=12.0, step=0.5, key=f"wage_{k_id}")
+            weekly_wage_in = st.number_input("선수 주급 (만 유로, €/주)", min_value=0.0, value=0.0, step=0.5, key=f"wage_{k_id}")
             annual_wage_eur = weekly_wage_in * 52
             annual_transfer_amort = (actual_transfer_fee / 4.0) if actual_transfer_fee > 0 else 0.0
             total_annual_cost = annual_transfer_amort + annual_wage_eur
-            st.caption(f"📌 **주급 환산**: 주당 약 {weekly_wage_in*10000*rate_krw/100000000:.1f}억원 (£{weekly_wage_in*rate_gbp:.1f}만)")
-            st.markdown(f"- **연간 총비용 (이적료 4년 분할상각 + 1년 연봉)**: `€{total_annual_cost:,.1f}만` (약 {total_annual_cost*10000*rate_krw/100000000:.0f}억원/년)")
+            if weekly_wage_in > 0:
+                st.caption(f"📌 **주급 환산**: 주당 약 {weekly_wage_in*10000*rate_krw/100000000:.1f}억원 (£{weekly_wage_in*rate_gbp:.1f}만)")
+                st.markdown(f"- **연간 총비용 (이적료 4년 분할상각 + 1년 연봉)**: `€{total_annual_cost:,.1f}만` (약 {total_annual_cost*10000*rate_krw/100000000:.0f}억원/년)")
+            else:
+                st.caption("ℹ️ 주급이 입력되지 않았습니다. (주급 미반영 순수 이적료 기준으로 분석)")
 
         player_notes = st.text_area("개인 메모 / 스카우팅 코멘트", placeholder="예: 대인 방어 및 후방 빌드업 우수", key=f"note_{k_id}")
 
@@ -531,6 +534,62 @@ with tab1:
                 - **외부 시장 진단**: **{ext_status_label}**
                 - **실제 거래액**: `{fee_ext_str}`
                 """)
+
+        # 🌟 [완전 복원] 12대 세부 가중치 실시간 적용 현황표 (수치 변화 실시간 확인용)
+        with st.expander("🔍 [실시간 확인] 12대 세부 가중치 적용 현황표 & 누적 배율", expanded=True):
+            total_multiplier = league_w * age_w * club_w * contract_w * pos_w * vers_w * reg_w * opta_w * ttype_w * stage_w * inj_w * urg_w * season_factor
+            
+            df_weights_live = pd.DataFrame({
+                "가중치 세부 항목": [
+                    "① 원소속 리그 템포 난이도",
+                    "② 포지션별 나이(에이징 커브)",
+                    "③ 영입 구단 규모 (클럽 티어)",
+                    "④ 이적 당시 잔여 계약 기간",
+                    "⑤ 주 포지션 시장 희소성",
+                    "⑥ 멀티 포지션 소화 능력",
+                    "⑦ 스쿼드 등록 / HG 쿼터",
+                    "⑧ FotMob 실적 및 평점 가중치",
+                    "⑨ 이적 형태 & 계약 조항",
+                    "⑩ UCL / 빅매치 검증도",
+                    "⑪ 부상 내구성 & 메디컬 리스크",
+                    "⑫ 영입 구단 절박성 & 취약 포지션",
+                    "❄️ 계절성 프리미엄 (겨울 특수)",
+                    "🎯 [종합] 최종 누적 가중치 배율"
+                ],
+                "선택된 조건 / 등급": [
+                    selling_league.split(" (")[0],
+                    f"만 {player_age}세 ({pos_short})",
+                    buying_club_tier.split(":")[0],
+                    remaining_contract.split(" (")[0],
+                    pos_short,
+                    versatility.split(" (")[0],
+                    reg_status.split(" (")[0],
+                    f"★{cur_rating:.2f} ({opta_desc.split(' (')[0]})",
+                    ttype_short,
+                    big_stage.split(" (")[0],
+                    injury_status.split(" (")[0],
+                    urgency_status.split(" (")[0],
+                    "+10% 겨울 프리미엄" if is_winter else "여름 표준 시장",
+                    "12대 가중치 총 곱셈 합산"
+                ],
+                "실시간 배율": [
+                    f"{league_w:.2f}x",
+                    f"{age_w:.2f}x",
+                    f"{club_w:.2f}x",
+                    f"{contract_w:.2f}x",
+                    f"{pos_w:.2f}x",
+                    f"{vers_w:.2f}x",
+                    f"{reg_w:.2f}x",
+                    f"{opta_w:.2f}x",
+                    f"{ttype_w:.2f}x",
+                    f"{stage_w:.2f}x",
+                    f"{inj_w:.2f}x",
+                    f"{urg_w:.2f}x",
+                    f"{season_factor:.2f}x",
+                    f"✨ {total_multiplier:.3f}x"
+                ]
+            })
+            st.table(df_weights_live)
 
         if player_name.strip() and (tm_market_value > 0 or calc_actual_fee > 0 or is_loan_type or "FA" in transfer_type or is_undisclosed):
             with st.expander("📋 [클릭하여 복사] 외부 발표용 공식 브리핑 요약 텍스트", expanded=True):
@@ -1284,7 +1343,7 @@ with tab5:
             bench_fig.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, 100])), height=350, margin=dict(l=40, r=40, t=30, b=30))
             st.plotly_chart(bench_fig, use_container_width=True)
 
-# ================= TAB 6: 이적시장 구단/리그별 종합 결산 & 데이터룸 (KeyError 방어 로직 적용) =================
+# ================= TAB 6: 이적시장 구단/리그별 종합 결산 & 데이터룸 =================
 with tab6:
     st.subheader("🏆 이적시장 구단별 종합 성적표 & 리그 파워 랭킹 & 데이터룸")
     st.caption("시트에 누적된 영입(IN) 및 방출(OUT) 데이터를 종합하여 순지출(Net Spend)과 '이적료 가중 평균 평점' 기반의 구단/리그별 순위를 산출하고, 오기입된 데이터를 관리 및 삭제합니다.")
@@ -1296,7 +1355,7 @@ with tab6:
 
         st.markdown("---")
 
-        # 1) 구단별 이적시장 성적표 모드
+        # 1) 구단별 이적시장 성적표 모드 (구매자 vs 판매자 대칭 평점 자동 분리)
         if "구단별" in rank_mode:
             st.markdown("#### 🏢 **특정 구단의 이적시장 결산 성적표 (IN/OUT & 순지출)**")
             
@@ -1385,7 +1444,7 @@ with tab6:
                         avail_cols = [c for c in display_cols if c in team_out_df.columns]
                         st.dataframe(team_out_df[avail_cols], use_container_width=True)
 
-        # 2) 리그별 / 10대 리그 전체 통합 파워 랭킹 모드 (🌟 KeyError 완벽 방어)
+        # 2) 리그별 / 10대 리그 전체 통합 파워 랭킹 모드
         elif "리그별" in rank_mode:
             st.markdown("#### 🌍 **리그별 & 10대 리그 전체 통합 파워 랭킹 (Power Rankings)**")
             
@@ -1417,7 +1476,6 @@ with tab6:
                 if l_target_df.empty:
                     st.info("선택하신 조건에 해당하는 구단 데이터가 없습니다.")
                 else:
-                    # 🌟 [KeyError 원천 차단] groupby.apply 대신 안전한 개별 순회 집계
                     unique_teams = sorted(list(l_target_df["이적팀명"].astype(str).str.strip().unique()))
                     team_stat_rows = []
 
@@ -1444,8 +1502,8 @@ with tab6:
                             fees = all_trades["실제이적료(만€)"].astype(float)
                             scores = all_trades["이적평점"].astype(float)
                             if fees.sum() > 0:
-                                w = fees.apply(lambda x: max(x, 500.0))
-                                w_score = (scores * w).sum() / w.sum()
+                                weights = fees.apply(lambda x: max(x, 500.0))
+                                w_score = (scores * w).sum() / weights.sum()
                             else:
                                 w_score = scores.mean()
                         else:
