@@ -191,7 +191,6 @@ with tab1:
 
     k_id = st.session_state["form_key_id"]
     
-    # 🌟 [신설] 영입(IN) vs 방출/판매(OUT) 구분 스위치
     trade_type_choice = st.radio("거래 유형 구분", ["🔵 영입 (IN)", "🔴 방출 / 판매 (OUT)"], horizontal=True, key=f"trade_type_{k_id}")
     is_out_trade = "방출" in trade_type_choice
     
@@ -282,6 +281,17 @@ with tab1:
             - **0.48 ~ 0.52**: 사우디 SPL(0.52), J1리그(0.50), K리그1(0.48)
             """)
 
+            st.markdown("#### 3️⃣ 계약 기간 및 기타 핵심 가중치 요약")
+            st.markdown("""
+            - **임대/FA 보정**: 단순 임대/선택 영입(1년치 사용가치 20% 자동환산) / FA(계약금 기준 비교)
+            - **잔여 계약**: 4년+(1.04) / 3년(1.02) / 2년(1.00 기준) / 1년(0.92) / 6개월(0.80)
+            - **영입 구단**: Tier 1 엘리트(1.05) / Tier 2 빅클럽(1.02) / Tier 3 중상위(1.00) / Tier 4(0.98) / Tier 5(0.95)
+            - **스쿼드 쿼터**: EPL 홈그로운 HG(+4%, 1.04) / 구단 자체 유스(+2%, 1.02) / 비EU(-2%, 0.98)
+            - **UCL 검증**: 16강+ 주전(+3%, 1.03) / UEL 및 국대(+1%, 1.01)
+            - **메디컬/부상**: 철강왕(+1%, 1.01) / 잔부상(-3%, 0.97) / 장기부상 이력(-6%, 0.94)
+            - **영입 절박성**: 최우선 보강(+4%, 1.04) / 비상사태·패닉바이(+8%, 1.08)
+            """)
+
         st.markdown("---")
         tm_market_value = st.number_input("트랜스퍼마르크트 시장 가치 (만 유로, €)", min_value=0, value=4500, step=50, key=f"tm_{k_id}")
         if tm_market_value > 0: st.caption(f"💡 시장가치 환산: **{format_currency_desc(tm_market_value)}**")
@@ -352,7 +362,6 @@ with tab1:
 
     if tm_market_value > 0 and (actual_transfer_fee > 0 or is_loan_type or "FA" in transfer_type):
         base_deal_score = 7.50
-        # 방출(OUT)일 때는 비싸게 팔수록 구단 평점이 높아지도록 역산 적용
         score_multiplier = 1.0 if is_out_trade else -1.0
         val_score_delta = max(-3.5, min(2.5, score_multiplier * (overpay_pct / 20.0)))
         rating_delta = max(-0.8, min(1.0, (cur_rating - 7.00) * 1.5))
@@ -849,7 +858,7 @@ with tab3:
         except Exception as e:
             st.error(f"⚠️ 데이터 비교 중 오류: {e}")
 
-# ================= TAB 4: 이적 첫 시즌 실제 성적 입력 & 모델 검증 =================
+# ================= TAB 4: 이적 첫 시즌 실제 성적 입력 & 모델 검증 (미입력 추림 기능 적용) =================
 with tab4:
     st.subheader("🎯 이적 첫 시즌 실제 성적 입력 & 모델 예측 정확도 사후 검증")
     st.caption("시즌 종료 후 선수가 실제로 기록한 최종 스탯(xG, xA 포함)을 입력하여 모델 예측치와의 오차율 및 적중률을 산출하고 [검증데이터] 시트에 업데이트합니다.")
@@ -869,20 +878,58 @@ with tab4:
     if val_df.empty or len(val_df) == 0 or "이적시즌" not in val_df.columns:
         st.info("💡 **아직 [검증데이터] 시트에 저장된 데이터가 없습니다.**\n\n- 2번 탭에서 영입(IN) 선수를 저장하시면 이곳에 자동으로 나타납니다.")
     else:
-        st.markdown("#### 1️⃣ 검증할 선수 및 이적 시즌 선택")
-        vc1, vc2 = st.columns(2)
+        # 실제 성적 입력 완료 여부 판별 열 추가
+        def check_status(row):
+            act_r = str(row.get("실제평점", "")).strip()
+            act_m = str(row.get("실제출전시간", "")).strip()
+            if act_r != "" and act_r != "nan" and act_m != "" and act_m != "nan" and act_m != "0":
+                return "✅ 검증 완료"
+            return "⏳ 검증 대기"
+
+        val_df["입력상태"] = val_df.apply(check_status, axis=1)
+
+        st.markdown("#### 1️⃣ 검증할 시즌 및 미입력 선수 필터링")
         
         available_seasons = list(val_df["이적시즌"].dropna().unique())
-        with vc1:
-            sel_val_season = st.selectbox("이적 시즌 선택", available_seasons, key="val_sel_season")
         
-        filtered_players = val_df[val_df["이적시즌"] == sel_val_season]
-        available_players = list(filtered_players["선수명"].dropna().unique()) if "선수명" in filtered_players.columns else []
-        with vc2:
-            sel_val_player = st.selectbox("선수 선택", available_players, key="val_sel_player") if available_players else None
+        v_top1, v_top2 = st.columns([1, 1])
+        with v_top1:
+            sel_val_season = st.selectbox("이적 시즌 선택", available_seasons, key="val_sel_season")
 
-        if sel_val_player:
-            target_row = filtered_players[filtered_players["선수명"] == sel_val_player].iloc[-1]
+        filtered_season_df = val_df[val_df["이적시즌"] == sel_val_season]
+        
+        # 🌟 [진행률 대시보드 메트릭]
+        total_in_season = len(filtered_season_df)
+        completed_cnt = len(filtered_season_df[filtered_season_df["입력상태"] == "✅ 검증 완료"])
+        pending_cnt = total_in_season - completed_cnt
+        progress_pct = (completed_cnt / total_in_season * 100) if total_in_season > 0 else 0.0
+
+        with v_top2:
+            st.info(f"📊 **`{sel_val_season}` 검증 진행도**: **총 {total_in_season}명 중 {completed_cnt}명 완료 / {pending_cnt}명 대기** (`{progress_pct:.0f}%` 달성)")
+
+        # 🌟 [스마트 필터: 미입력 선수만 보기 체크박스]
+        show_pending_only = st.checkbox("⏳ 실제 성적 미입력(검증 대기) 선수만 모아보기", value=True if pending_cnt > 0 else False, key="filter_pending_only")
+
+        if show_pending_only:
+            target_player_pool = filtered_season_df[filtered_season_df["입력상태"] == "⏳ 검증 대기"]
+        else:
+            target_player_pool = filtered_season_df
+
+        available_players = list(target_player_pool["선수명"].dropna().unique()) if "선수명" in target_player_pool.columns else []
+
+        if not available_players:
+            if show_pending_only:
+                st.success("🎉 이번 시즌 모든 영입 선수의 실제 성적 입력 및 검증이 100% 완료되었습니다!")
+            else:
+                st.warning("선택하신 조건에 해당하는 선수가 없습니다.")
+        else:
+            sel_val_player = st.selectbox(
+                f"선수 선택 ({len(available_players)}명 대상)", 
+                available_players, 
+                key="val_sel_player"
+            )
+
+            target_row = target_player_pool[target_player_pool["선수명"] == sel_val_player].iloc[-1]
 
             p_pos = str(target_row.get("포지션", "CB"))
             p_to_l = str(target_row.get("이적리그", "EPL"))
@@ -892,9 +939,10 @@ with tab4:
             proj_a = float(target_row.get("예측도움", 0))
             proj_xa = float(target_row.get("예측xA", 0))
             proj_r = float(target_row.get("예측평점", 7.0))
+            curr_status = str(target_row.get("입력상태", "⏳ 검증 대기"))
 
             st.markdown("---")
-            st.markdown(f"#### 2️⃣ **'{sel_val_player}'** 선수의 [모델 예측치] vs [시즌 실제 기록 입력]")
+            st.markdown(f"#### 2️⃣ **'{sel_val_player}'** 선수의 [모델 예측치] vs [시즌 실제 기록 입력] ({curr_status})")
             st.caption(f"📌 포지션: **{p_pos}** | 활약 리그: **{p_to_l}**")
 
             st.markdown("##### 📌 모델이 예측했던 기대 수치")
@@ -908,12 +956,12 @@ with tab4:
             st.markdown("<br>", unsafe_allow_html=True)
             st.markdown("##### 📥 시즌 종료 후 실제 최종 기록 입력 (FotMob 기준)")
             
-            exist_act_mins = int(target_row.get("실제출전시간", 0)) if pd.notnull(target_row.get("실제출전시간")) and str(target_row.get("실제출전시간")).strip() != "" else int(proj_m)
-            exist_act_goals = int(target_row.get("실제득점", 0)) if pd.notnull(target_row.get("실제득점")) and str(target_row.get("실제득점")).strip() != "" else int(round(proj_g))
-            exist_act_xg = float(target_row.get("실제xG", 0.0)) if pd.notnull(target_row.get("실제xG")) and str(target_row.get("실제xG")).strip() != "" else float(proj_xg)
-            exist_act_assists = int(target_row.get("실제도움", 0)) if pd.notnull(target_row.get("실제도움")) and str(target_row.get("실제도움")).strip() != "" else int(round(proj_a))
-            exist_act_xa = float(target_row.get("실제xA", 0.0)) if pd.notnull(target_row.get("실제xA")) and str(target_row.get("실제xA")).strip() != "" else float(proj_xa)
-            exist_act_rating = float(target_row.get("실제평점", 0.0)) if pd.notnull(target_row.get("실제평점")) and str(target_row.get("실제평점")).strip() != "" else float(proj_r)
+            exist_act_mins = int(target_row.get("실제출전시간", 0)) if pd.notnull(target_row.get("실제출전시간")) and str(target_row.get("실제출전시간")).strip() not in ["", "nan"] else int(proj_m)
+            exist_act_goals = int(target_row.get("실제득점", 0)) if pd.notnull(target_row.get("실제득점")) and str(target_row.get("실제득점")).strip() not in ["", "nan"] else int(round(proj_g))
+            exist_act_xg = float(target_row.get("실제xG", 0.0)) if pd.notnull(target_row.get("실제xG")) and str(target_row.get("실제xG")).strip() not in ["", "nan"] else float(proj_xg)
+            exist_act_assists = int(target_row.get("실제도움", 0)) if pd.notnull(target_row.get("실제도움")) and str(target_row.get("실제도움")).strip() not in ["", "nan"] else int(round(proj_a))
+            exist_act_xa = float(target_row.get("실제xA", 0.0)) if pd.notnull(target_row.get("실제xA")) and str(target_row.get("실제xA")).strip() not in ["", "nan"] else float(proj_xa)
+            exist_act_rating = float(target_row.get("실제평점", 0.0)) if pd.notnull(target_row.get("실제평점")) and str(target_row.get("실제평점")).strip() not in ["", "nan"] else float(proj_r)
             exist_act_notes = str(target_row.get("검증메모", "")) if pd.notnull(target_row.get("검증메모")) else ""
 
             in_ac1, in_ac2, in_ac3, in_ac4, in_ac5, in_ac6 = st.columns(6)
@@ -969,7 +1017,7 @@ with tab4:
                         )
                         res_json = res.json()
                         if res_json.get("status") == "success":
-                            st.success(f"✅ '{sel_val_player}' 선수의 실제 최종 성적(xG/xA 포함)이 [검증데이터] 시트에 성공적으로 기록되었습니다!")
+                            st.success(f"✅ '{sel_val_player}' 선수의 실제 최종 성적이 성공적으로 기록되었습니다!")
                             st.cache_data.clear()
                             st.rerun()
                         else:
@@ -977,9 +1025,12 @@ with tab4:
                     except Exception as e:
                         st.error(f"⚠️ 통신 오류: {e}")
 
-            st.markdown("---")
-            st.markdown("#### 📋 **[검증데이터] 시트 전체 누적 현황표**")
-            st.dataframe(val_df, use_container_width=True)
+        st.markdown("---")
+        st.markdown("#### 📋 **[검증데이터] 시트 전체 누적 현황표 (상태 배지 포함)**")
+        
+        display_val_cols = ["입력상태", "이적시즌", "선수명", "포지션", "이적리그", "예측출전시간", "실제출전시간", "예측득점", "실제득점", "예측평점", "실제평점", "검증메모"]
+        avail_v_cols = [c for c in display_val_cols if c in val_df.columns]
+        st.dataframe(val_df[avail_v_cols], use_container_width=True)
 
 # ================= TAB 5: 신규 이적생 vs 과거 유사 선수 다각도 벤치마크 =================
 with tab5:
@@ -1010,7 +1061,7 @@ with tab5:
         st.markdown("---")
         st.markdown("#### 2️⃣ 과거 유사 프로필 선수 1:1 직접 선택 대조 (Head-to-Head)")
         
-        past_player_names = [str(n).strip() for n in hist_full_df["선수명"].dropna().unique() if str(n).strip() != "" and str(n).strip() != "nan"]
+        past_player_names = [str(n).strip() for n in hist_full_df["선수명"].dropna().unique() if str(n).strip() not in ["", "nan"]]
         
         if not past_player_names:
             st.info("💡 과거 시트에 유효한 선수 데이터가 아직 없습니다.")
@@ -1107,7 +1158,7 @@ with tab6:
 
         st.markdown("---")
 
-        # 1) 구단별 이적시장 성적표 모드 (순지출 & 가중평균 적용)
+        # 1) 구단별 이적시장 성적표 모드
         if "구단별" in rank_mode:
             st.markdown("#### 🏢 **특정 구단의 이적시장 결산 성적표 (IN/OUT & 순지출)**")
             
@@ -1118,7 +1169,6 @@ with tab6:
 
             club_filtered_df = m_hist_df if sel_season_club == "전체 시즌" else m_hist_df[m_hist_df["이적시즌"] == sel_season_club]
             
-            # 영입팀명(이적팀명) 및 판매팀명(원소속팀명) 전체 수집
             to_teams = [str(t).strip() for t in club_filtered_df["이적팀명"].dropna().unique() if str(t).strip() not in ["", "nan"]] if "이적팀명" in club_filtered_df.columns else []
             from_teams = [str(t).strip() for t in club_filtered_df["원소속팀명"].dropna().unique() if str(t).strip() not in ["", "nan"]] if "원소속팀명" in club_filtered_df.columns else []
             all_club_names = sorted(list(set(to_teams + from_teams)))
@@ -1129,11 +1179,9 @@ with tab6:
                 with c_rc2:
                     sel_team_name = st.selectbox("조회할 구단(팀) 선택", all_club_names, key="report_team_sel")
 
-                # 영입(IN) 데이터 추출
                 in_mask = (club_filtered_df["이적팀명"] == sel_team_name) & (club_filtered_df.get("거래구분", "IN") != "OUT")
                 team_in_df = club_filtered_df[in_mask]
                 
-                # 방출(OUT) 데이터 추출
                 out_mask = (club_filtered_df["원소속팀명"] == sel_team_name) & (club_filtered_df.get("거래구분", "IN") == "OUT")
                 team_out_df = club_filtered_df[out_mask]
                 
@@ -1141,13 +1189,11 @@ with tab6:
                 total_out_income = team_out_df["실제이적료(만€)"].astype(float).sum() if not team_out_df.empty and "실제이적료(만€)" in team_out_df.columns else 0.0
                 net_spend = total_in_spent - total_out_income
                 
-                # 🌟 [이적료 규모 비례 가중 평균 평점 계산]
                 all_team_trades = pd.concat([team_in_df, team_out_df])
                 if not all_team_trades.empty and "이적평점" in all_team_trades.columns:
                     fees = all_team_trades["실제이적료(만€)"].astype(float)
                     scores = all_team_trades["이적평점"].astype(float)
                     if fees.sum() > 0:
-                        # 이적료 규모 가중 평균 (최소 가중치 보정 500만)
                         weights = fees.apply(lambda x: max(x, 500.0))
                         weighted_avg_score = (scores * weights).sum() / weights.sum()
                     else:
@@ -1172,7 +1218,6 @@ with tab6:
 
                 st.markdown("<br>", unsafe_allow_html=True)
                 
-                # 영입 및 방출 명단 탭 구분
                 sub_tab1, sub_tab2 = st.tabs([f"🔵 영입 명단 ({len(team_in_df)}명)", f"🔴 방출 명단 ({len(team_out_df)}명)"])
                 
                 display_cols = ["선수명", "포지션", "원소속팀명", "이적팀명", "실제이적료(만€)", "산출적정가(만€)", "이적평점", "스카우팅메모"]
@@ -1191,7 +1236,7 @@ with tab6:
                         avail_cols = [c for c in display_cols if c in team_out_df.columns]
                         st.dataframe(team_out_df[avail_cols], use_container_width=True)
 
-        # 2) 리그별 / 10대 리그 전체 통합 파워 랭킹 모드 (가중평균 적용)
+        # 2) 리그별 / 10대 리그 전체 통합 파워 랭킹 모드
         else:
             st.markdown("#### 🌍 **리그별 & 10대 리그 전체 통합 파워 랭킹 (Power Rankings)**")
             
@@ -1223,7 +1268,6 @@ with tab6:
                 if l_target_df.empty:
                     st.info("선택하신 조건에 해당하는 구단 데이터가 없습니다.")
                 else:
-                    # 팀별 가중 평균 및 순지출 집계 함수
                     def calc_team_stats(group):
                         in_trades = group[group.get("거래구분", "IN") != "OUT"]
                         out_trades = group[group.get("거래구분", "IN") == "OUT"]
@@ -1232,7 +1276,6 @@ with tab6:
                         out_income = out_trades["실제이적료(만€)"].astype(float).sum() if not out_trades.empty else 0.0
                         net_val = in_spent - out_income
                         
-                        # 가중 평점
                         fees = group["실제이적료(만€)"].astype(float)
                         scores = group["이적평점"].astype(float)
                         if fees.sum() > 0:
