@@ -611,11 +611,33 @@ with tab1:
                 if player_notes.strip(): summary_text += f"📝 스카우팅 메모: {player_notes.strip()}\n"
                 st.code(summary_text.strip(), language="text")
 
-# ================= TAB 2: FotMob 시즌 성적 & 이적 예측 =================
+# ================= TAB 2: FotMob 시즌 성적 & 이적 예측 (🌟 상시 가이드 & 기준 필터 탑재) =================
 with tab2:
     st.subheader("📱 FotMob 스타일 시즌 스탯 입력 & 이적 첫 시즌 성적 프로젝션")
     
-    default_proj_mins = 1440 if is_winter else 3036
+    # 🌟 [상시 노출 1] 데이터 입력 기준 가이드 배너
+    st.info("""
+    💡 **FotMob 과거 기록 입력 가이드**:
+    * **여름 이적 (Summer)**: 직전 풀 시즌(1년 전체, 약 2,500~3,200분) 실제 기록을 입력합니다.
+    * **겨울 이적 (Winter - 원칙)**: 이번 시즌 **전반기(8월~1월, 약 1,200~1,600분)** 기록을 입력합니다.
+    * **겨울 이적 (Winter - 예외)**: 전반기에 장기 부상이나 결장으로 **출전 시간이 300~400분 미만**인 경우 표본 왜곡 방지를 위해 **'직전 풀 시즌'** 기록을 입력해 주세요.
+    """)
+
+    # 🌟 [상시 노출 2] 라디오 버튼 선택 필터
+    winter_data_source = st.radio(
+        "📋 데이터 입력 기준 모드 선택",
+        [
+            "☀️ 직전 풀 시즌 스탯 (여름 이적 표준 / 1년 전체)",
+            "❄️ 이번 시즌 전반기 스탯 (겨울 이적 표준, 8월~1월)",
+            "⚠️ 직전 풀 시즌 스탯 (겨울 이적생 중 전반기 300~400분 미만 결장/부상 시)"
+        ],
+        index=1 if is_winter else 0,
+        horizontal=True,
+        key="global_data_source_radio"
+    )
+
+    is_winter_mode = "겨울" in winter_data_source
+    default_proj_mins = 1440 if is_winter_mode else 3036
     
     f_c1, f_c2, f_c3, f_c4 = st.columns(4)
     with f_c1: f_pos = st.selectbox("선수 포지션 분류", ["⚽ 필드 플레이어 (공격수/미드필더/수비수)", "🧤 골키퍼 (Goalkeeper)"], index=1 if "GK" in main_position else 0, key="f_tab_pos")
@@ -635,24 +657,7 @@ with tab2:
     final_l_factor = raw_l_factor * adapt_penalty
     
     st.divider()
-    st.markdown("### 📥 FotMob 시즌 실제 기록 입력 (지난 시즌 / 전반기 스탯)")
-
-    # 🌟 [신설] 겨울 이적시장 데이터 기준 안내 및 선택 필터
-    if is_winter:
-        st.info("""
-        ❄️ **겨울 이적시장(Winter) 데이터 입력 가이드**:
-        * **원칙**: 이번 시즌 **전반기(8월~1월, 약 1,200~1,600분)** 실제 기록을 입력합니다.
-        * **예외**: 전반기에 장기 부상이나 벤치 대기로 **출전 시간이 300~400분 미만**인 경우, 표본 왜곡을 방지하기 위해 **'직전 풀 시즌(1년 전)'** 기록을 입력해 주세요.
-        """)
-        winter_data_source = st.radio(
-            "📋 겨울 이적 데이터 입력 기준 선택",
-            ["📊 이번 시즌 전반기 스탯 (표준 권장, 8월~1월)", "🏛️ 직전 풀 시즌 스탯 (전반기 300~400분 미만 결장/부상 시)"],
-            index=0,
-            horizontal=True,
-            key="winter_data_source_radio"
-        )
-    else:
-        winter_data_source = "여름 표준"
+    st.markdown(f"### 📥 FotMob 시즌 실제 기록 입력 (`{winter_data_source.split(' (')[0]}` 기준)")
 
     b1, b2, b3, b4 = st.columns(4)
     with b1: in_matches = st.number_input("출전 경기 (Matches)", 1, 60, value=min(int(st.session_state["f_matches"]), 60), key="in_matches_box")
@@ -753,7 +758,7 @@ with tab2:
         proj_tackles = round(p90_tackles * target_p90, 0)
         proj_rating = round(max(6.0, in_rating - (1.0 - final_l_factor) * 0.9), 2)
 
-        season_type_desc = "후반기 잔여 시즌(약 16~19경기)" if is_winter else "1시즌 풀 타임"
+        season_type_desc = "후반기 잔여 시즌(약 16~19경기)" if is_winter_mode else "1시즌 풀 타임"
         st.markdown(f"### 🎯 **FotMob 스타일 이적 첫 시즌 성적 예측 리포트 (필드 플레이어 - {season_type_desc})**")
         st.caption(f"이적 환경: **{f_from_l.split(' ')[1]}** ➔ **{f_to_l.split(' ')[1]}** | 최종 환산 계수: **{final_l_factor:.2f}x** ({adapt_desc}) | 기준: **{winter_data_source}**")
         
@@ -825,7 +830,7 @@ with tab2:
         
         proj_goals = 0.0; proj_xg = 0.0; proj_assists = 0.0; proj_xa = 0.0; proj_shots = 0.0
 
-        season_type_desc = "후반기 잔여 시즌" if is_winter else "1시즌 풀 타임"
+        season_type_desc = "후반기 잔여 시즌" if is_winter_mode else "1시즌 풀 타임"
         st.markdown(f"### 🧤 **FotMob 스타일 이적 첫 시즌 골키퍼 성적 예측 리포트 ({season_type_desc})**")
         st.caption(f"이적 환경: **{f_from_l.split(' ')[1]}** ➔ **{f_to_l.split(' ')[1]}** | 리그 난이도 계수: **{final_l_factor:.2f}x** ({adapt_desc}) | 기준: **{winter_data_source}**")
 
@@ -889,8 +894,8 @@ with tab2:
                 contract_desc = remaining_contract.split(" (")[0]
                 nat_str = player_nat if player_nat.strip() else "미상"
                 detailed_notes = f"[{'방출' if is_out_trade else '영입'}|{ttype_short}|{reg_short}|{urg_short}|UCL:{stage_w:.2f}|메디컬:{inj_w:.2f}] 계약:{contract_desc}"
-                if is_winter:
-                    detailed_notes += f" | 겨울기준:{winter_data_source.split(' ')[1]}"
+                if is_winter_mode:
+                    detailed_notes += f" | 겨울기준:{winter_data_source.split(' (')[0]}"
                 if player_notes.strip():
                     detailed_notes += f" | {player_notes.strip()}"
                 if "골키퍼" in f_pos:
