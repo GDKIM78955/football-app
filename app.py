@@ -530,7 +530,6 @@ with tab1:
                 - **실제 거래액**: `{fee_ext_str}`
                 """)
 
-        # 🌟 12대 세부 가중치 실시간 적용 현황표
         with st.expander("🔍 [실시간 확인] 12대 세부 가중치 적용 현황표 & 누적 배율", expanded=True):
             total_multiplier = league_w * age_w * club_w * contract_w * pos_w * vers_w * reg_w * opta_w * ttype_w * stage_w * inj_w * urg_w * season_factor
             
@@ -636,8 +635,25 @@ with tab2:
     final_l_factor = raw_l_factor * adapt_penalty
     
     st.divider()
-    st.markdown("### 📥 FotMob 시즌 실제 기록 입력 (지난 시즌/전반기 스탯)")
-    
+    st.markdown("### 📥 FotMob 시즌 실제 기록 입력 (지난 시즌 / 전반기 스탯)")
+
+    # 🌟 [신설] 겨울 이적시장 데이터 기준 안내 및 선택 필터
+    if is_winter:
+        st.info("""
+        ❄️ **겨울 이적시장(Winter) 데이터 입력 가이드**:
+        * **원칙**: 이번 시즌 **전반기(8월~1월, 약 1,200~1,600분)** 실제 기록을 입력합니다.
+        * **예외**: 전반기에 장기 부상이나 벤치 대기로 **출전 시간이 300~400분 미만**인 경우, 표본 왜곡을 방지하기 위해 **'직전 풀 시즌(1년 전)'** 기록을 입력해 주세요.
+        """)
+        winter_data_source = st.radio(
+            "📋 겨울 이적 데이터 입력 기준 선택",
+            ["📊 이번 시즌 전반기 스탯 (표준 권장, 8월~1월)", "🏛️ 직전 풀 시즌 스탯 (전반기 300~400분 미만 결장/부상 시)"],
+            index=0,
+            horizontal=True,
+            key="winter_data_source_radio"
+        )
+    else:
+        winter_data_source = "여름 표준"
+
     b1, b2, b3, b4 = st.columns(4)
     with b1: in_matches = st.number_input("출전 경기 (Matches)", 1, 60, value=min(int(st.session_state["f_matches"]), 60), key="in_matches_box")
     with b2: in_starts = st.number_input("선발 출전 (Starts)", 0, 60, value=min(int(st.session_state["f_starts"]), 60), key="in_starts_box")
@@ -737,8 +753,9 @@ with tab2:
         proj_tackles = round(p90_tackles * target_p90, 0)
         proj_rating = round(max(6.0, in_rating - (1.0 - final_l_factor) * 0.9), 2)
 
-        st.markdown(f"### 🎯 **FotMob 스타일 이적 첫 시즌 성적 예측 리포트 (필드 플레이어)**")
-        st.caption(f"이적 환경: **{f_from_l.split(' ')[1]}** ➔ **{f_to_l.split(' ')[1]}** | 최종 환산 계수: **{final_l_factor:.2f}x** ({adapt_desc})")
+        season_type_desc = "후반기 잔여 시즌(약 16~19경기)" if is_winter else "1시즌 풀 타임"
+        st.markdown(f"### 🎯 **FotMob 스타일 이적 첫 시즌 성적 예측 리포트 (필드 플레이어 - {season_type_desc})**")
+        st.caption(f"이적 환경: **{f_from_l.split(' ')[1]}** ➔ **{f_to_l.split(' ')[1]}** | 최종 환산 계수: **{final_l_factor:.2f}x** ({adapt_desc}) | 기준: **{winter_data_source}**")
         
         m1, m2, m3, m4, m5 = st.columns(5)
         m1.metric("예상 평점 (Rating)", f"★ {proj_rating:.2f}", delta=f"{proj_rating - in_rating:+.2f}")
@@ -765,7 +782,7 @@ with tab2:
                 "시즌 태클 성공 (Tackles Won)",
                 "FotMob 평균 평점 (Rating)"
             ],
-            f"직전 시즌 실제치 ({f_from_l.split(' ')[1]})": [
+            f"입력된 실제치 ({f_from_l.split(' ')[1]})": [
                 f"{in_matches}경기 ({in_starts}선발)",
                 f"{in_mins:,} 분",
                 f"{in_goals} 골",
@@ -780,7 +797,7 @@ with tab2:
                 f"{in_tackles} 회",
                 f"★ {in_rating:.2f}"
             ],
-            f"이적 첫 시즌 예측치 ({f_to_l.split(' ')[1]})": [
+            f"이적 팀 예측치 ({season_type_desc})": [
                 f"약 {target_p90:.0f}경기 상당",
                 f"{f_target_mins:,} 분",
                 f"{proj_goals:.1f} 골",
@@ -808,8 +825,9 @@ with tab2:
         
         proj_goals = 0.0; proj_xg = 0.0; proj_assists = 0.0; proj_xa = 0.0; proj_shots = 0.0
 
-        st.markdown(f"### 🧤 **FotMob 스타일 이적 첫 시즌 골키퍼 성적 예측 리포트**")
-        st.caption(f"이적 환경: **{f_from_l.split(' ')[1]}** ➔ **{f_to_l.split(' ')[1]}** | 리그 난이도 계수: **{final_l_factor:.2f}x** ({adapt_desc})")
+        season_type_desc = "후반기 잔여 시즌" if is_winter else "1시즌 풀 타임"
+        st.markdown(f"### 🧤 **FotMob 스타일 이적 첫 시즌 골키퍼 성적 예측 리포트 ({season_type_desc})**")
+        st.caption(f"이적 환경: **{f_from_l.split(' ')[1]}** ➔ **{f_to_l.split(' ')[1]}** | 리그 난이도 계수: **{final_l_factor:.2f}x** ({adapt_desc}) | 기준: **{winter_data_source}**")
 
         gk_m1, gk_m2, gk_m3, gk_m4, gk_m5 = st.columns(5)
         gk_m1.metric("예상 평점 (Rating)", f"★ {proj_rating:.2f}", delta=f"{proj_rating - in_rating:+.2f}")
@@ -832,7 +850,7 @@ with tab2:
                 "공중에서 잡기 (High Claims)",
                 "FotMob 평균 평점 (Rating)"
             ],
-            f"직전 시즌 실제치 ({f_from_l.split(' ')[1]})": [
+            f"입력된 실제치 ({f_from_l.split(' ')[1]})": [
                 f"{in_matches}경기 ({in_starts}선발)",
                 f"{in_mins:,} 분",
                 f"{in_gk_saves} 회",
@@ -843,7 +861,7 @@ with tab2:
                 f"{in_gk_claims} 회",
                 f"★ {in_rating:.2f}"
             ],
-            f"이적 첫 시즌 예측치 ({f_to_l.split(' ')[1]})": [
+            f"이적 팀 예측치 ({season_type_desc})": [
                 f"약 {target_p90:.0f}경기 상당",
                 f"{f_target_mins:,} 분",
                 f"{int(proj_gk_saves)} 회",
@@ -871,6 +889,8 @@ with tab2:
                 contract_desc = remaining_contract.split(" (")[0]
                 nat_str = player_nat if player_nat.strip() else "미상"
                 detailed_notes = f"[{'방출' if is_out_trade else '영입'}|{ttype_short}|{reg_short}|{urg_short}|UCL:{stage_w:.2f}|메디컬:{inj_w:.2f}] 계약:{contract_desc}"
+                if is_winter:
+                    detailed_notes += f" | 겨울기준:{winter_data_source.split(' ')[1]}"
                 if player_notes.strip():
                     detailed_notes += f" | {player_notes.strip()}"
                 if "골키퍼" in f_pos:
