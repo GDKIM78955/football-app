@@ -487,6 +487,7 @@ with tab1:
         
         is_loan_type = "임대" in transfer_type and "의무" not in transfer_type
         is_undisclosed = "비공개" in transfer_type
+        is_fa = "FA" in transfer_type
         
         fee_label = "실제 수령/지출 임대료 (Loan Fee, 만 유로, €)" if is_loan_type else ("실제 방출(판매) 이적료 (만 유로, €)" if is_out_trade else "실제 영입(지출) 이적료 (만 유로, €)")
         
@@ -504,7 +505,8 @@ with tab1:
         elif actual_transfer_fee > 0:
             st.caption(f"💡 실제금액 환산: **{format_currency_desc(actual_transfer_fee)}**")
 
-        with st.expander("💼 [선택/수정 입력] 주급(Weekly Wage) & 연간 총비용 분석", expanded=True if cf.get("wage", 0.0) > 0 else False):
+        # 🌟 주급(연봉) 입력창
+        with st.expander("💼 [선택/수정 입력] 주급(Weekly Wage) & 연간 총비용 분석", expanded=True if cf.get("wage", 0.0) > 0 or is_fa or is_loan_type else False):
             weekly_wage_in = st.number_input("선수 주급 (만 유로, €/주)", min_value=0.0, value=float(cf.get("wage", 0.0)), step=0.5, key=f"wage_{k_id}")
             annual_wage_eur = weekly_wage_in * 52
             annual_transfer_amort = (actual_transfer_fee / 4.0) if actual_transfer_fee > 0 else 0.0
@@ -513,7 +515,12 @@ with tab1:
                 st.caption(f"📌 **주급 환산**: 주당 약 {weekly_wage_in*10000*rate_krw/100000000:.1f}억원 (£{weekly_wage_in*rate_gbp:.1f}만)")
                 st.markdown(f"- **연간 총비용 (이적료 4년 분할상각 + 1년 연봉)**: `€{total_annual_cost:,.1f}만` (약 {total_annual_cost*10000*rate_krw/100000000:.0f}억원/년)")
             else:
-                st.caption("ℹ️ 주급이 입력되지 않았습니다. (주급이 공개되었을 때 여기에 입력하고 수정 업데이트하세요)")
+                if is_fa:
+                    st.warning("⚠️ **FA 영입 주의**: FA는 이적료가 없으므로 주급(연봉)을 입력해야 실제 계약 가성비(오버페이/적정 평점)가 정확하게 평가됩니다.")
+                elif is_loan_type:
+                    st.info("💡 **임대 영입 안내**: 주급 보조액이 있다면 주급을 입력해 주세요. (연간 총 사용가치와 직접 대조됩니다)")
+                else:
+                    st.caption("ℹ️ 주급이 입력되지 않았습니다. (주급 미입력 시 순수 이적료 기준으로 분석)")
 
         player_notes = st.text_area("개인 메모 / 스카우팅 코멘트", value=cf.get("notes", ""), placeholder="예: 대인 방어 및 후방 빌드업 우수", key=f"note_{k_id}")
 
@@ -537,12 +544,44 @@ with tab1:
     
     calc_actual_fee = fair_value if is_undisclosed else actual_transfer_fee
     
-    diff = calc_actual_fee - fair_value
+    # 🌟 [신규 정밀화 로직] FA 및 단순 임대 시 주급(Wage) 기반 실질 평가율 산출
+    # 선수의 적정 주급 추정선: 시장가치의 약 0.25% (예: 4000만 유로 선수 -> 주당 약 10만 유로)
+    expected_fair_weekly_wage = (fair_value * 0.0025) if fair_value > 0 else 5.0
+    
+    if is_fa:
+        # FA는 이적료가 0이므로, 주급이 입력되었으면 '주급 초과율'로 평가율을 대체 산정
+        if weekly_wage_in > 0:
+            wage_overpay_pct = ((weekly_wage_in - expected_fair_weekly_wage) / expected_fair_weekly_wage) * 100
+            overpay_pct = wage_overpay_pct
+            diff = (weekly_wage_in - expected_fair_weekly_wage) * 52 # 연간 오버페이 지출액
+        else:
+            overpay_pct = 0.0
+            diff = 0.0
+    elif is_loan_type:
+        # 임대는 1년 총 사용비용(임대료 + 1년 연봉) vs 1년 사용가치(적정가의 20%) 비교
+        expected_1yr_use_val = (fair_value / 0.20) * 0.20 if "임대" in transfer_type else fair_value
+        actual_1yr_cost = calc_actual_fee + (weekly_wage_in * 52)
+        if expected_1yr_use_val > 0:
+            overpay_pct = ((actual_1yr_cost - expected_1yr_use_val) / expected_1yr_use_val) * 100
+            diff = actual_1yr_cost - expected_1yr_use_val
+        else:
+            overpay_pct = 0.0
+            diff = 0.0
+    else:
+        diff = calc_actual_fee - fair_value
+        overpay_pct = (diff / fair_value) * 100 if fair_value > 0 else 0.0
+
     diff_desc = format_currency_desc(abs(diff))
-    overpay_pct = (diff / fair_value) * 100 if fair_value > 0 else 0.0
 
     if is_undisclosed:
         status_label = "⚖️ 비공개 (적정가 추정)"
+    elif is_fa and weekly_wage_in > 0:
+        if abs(overpay_pct) <= 10.0:
+            status_label = "⚖️ 적정 주급 FA 영입 (Fair Package)"
+        elif overpay_pct > 0:
+            status_label = f"⚠️ 주급 오버페이 FA (+{overpay_pct:.1f}%)"
+        else:
+            status_label = f"💎 주급 혜자 FA 계약 ({overpay_pct:.1f}%)"
     elif fair_value == 0 and calc_actual_fee == 0: 
         status_label = "입력 대기 중"
     elif abs(diff) <= (fair_value * 0.05): 
@@ -579,16 +618,37 @@ with tab1:
         under_min_pct = ((market_min - calc_actual_fee) / market_min) * 100
         ext_status_label = f"💎 시장가 대비 혜자 (-{under_min_pct:.1f}%)"
 
-    if tm_market_value > 0 and (calc_actual_fee > 0 or is_loan_type or "FA" in transfer_type or is_undisclosed):
-        base_deal_score = 7.50
-        score_multiplier = 1.0 if is_out_trade else -1.0
-        val_score_delta = 0.0 if is_undisclosed else max(-3.5, min(2.5, score_multiplier * (overpay_pct / 20.0)))
+    # 🌟 [신규 정밀화 로직] FA 및 임대 무조건 10점 방지 & 현실적 평점 계산
+    if tm_market_value > 0 and (calc_actual_fee > 0 or is_loan_type or is_fa or is_undisclosed):
+        if is_fa:
+            # FA는 기본선 8.00점 (자유계약 이점 감안)
+            base_deal_score = 8.00
+            if weekly_wage_in > 0:
+                # 주급이 적정선보다 너무 높으면 점수 대폭 감점, 적정 주급이면 8점대 후반 유지
+                wage_score_delta = max(-3.0, min(1.5, -(overpay_pct / 30.0)))
+            else:
+                wage_score_delta = 0.5 # 주급 미입력 시 기본 FA 보너스
+            val_score_delta = wage_score_delta
+        elif is_loan_type:
+            base_deal_score = 7.50
+            val_score_delta = max(-3.0, min(2.0, -(overpay_pct / 25.0)))
+        else:
+            base_deal_score = 7.50
+            score_multiplier = 1.0 if is_out_trade else -1.0
+            val_score_delta = 0.0 if is_undisclosed else max(-3.5, min(2.5, score_multiplier * (overpay_pct / 20.0)))
+            
+            # 일반 이적에서도 주급이 과도하면 추가 감점 (-0.1 ~ -0.6점)
+            if weekly_wage_in > 0 and expected_fair_weekly_wage > 0:
+                if weekly_wage_in > expected_fair_weekly_wage * 1.5:
+                    val_score_delta -= min(0.6, (weekly_wage_in - expected_fair_weekly_wage * 1.5) / 10.0)
+
         rating_delta = max(-0.8, min(1.0, (cur_rating - 7.00) * 1.5))
         age_delta = max(-1.0, min(0.8, (age_w - 1.00) * 8.0))
         risk_delta = (stage_w - 1.00) * 5.0 + (inj_w - 1.00) * 5.0 + (reg_w - 1.00) * 3.0 + (urg_w - 1.00) * 2.0
         
         final_deal_score = round(max(1.00, min(10.00, base_deal_score + val_score_delta + rating_delta + age_delta + risk_delta)), 2)
-        ext_val_score_delta = 0.0 if is_undisclosed else max(-3.5, min(2.5, score_multiplier * (ext_overpay_pct / 20.0)))
+        
+        ext_val_score_delta = val_score_delta if (is_fa or is_loan_type) else (0.0 if is_undisclosed else max(-3.5, min(2.5, score_multiplier * (ext_overpay_pct / 20.0))))
         ext_deal_score = round(max(1.00, min(10.00, base_deal_score + ext_val_score_delta + rating_delta + age_delta + risk_delta)), 2)
 
         def get_grade_info(score):
@@ -627,11 +687,11 @@ with tab1:
             st.metric("산출 적정가", f"€{fair_value:,.1f}만")
             if fair_value > 0: st.caption(f"{format_currency_desc(fair_value).split(' | ')[0]}")
         with res_c2:
-            fee_display = "비공개 (추정)" if is_undisclosed else f"€{calc_actual_fee:,.1f}만"
-            st.metric("실제 거래액", fee_display, delta=f"{diff:+,.1f}만 (€)" if not is_undisclosed and calc_actual_fee > 0 else None, delta_color="inverse" if not is_out_trade else "normal")
+            fee_display = "비공개 (추정)" if is_undisclosed else (f"€{calc_actual_fee:,.1f}만" if not is_fa else "FA (이적료 €0)")
+            st.metric("실제 거래액", fee_display, delta=f"{diff:+,.1f}만 (€)" if not is_undisclosed and not is_fa and calc_actual_fee > 0 else None, delta_color="inverse" if not is_out_trade else "normal")
             if not is_undisclosed and calc_actual_fee > 0: st.caption(f"{format_currency_desc(calc_actual_fee).split(' | ')[0]}")
         with res_c3:
-            st.metric("평가율 / 진단", f"{overpay_pct:+.1f}%" if fair_value > 0 and not is_undisclosed else "0.0%", delta=status_label.split(" ")[0])
+            st.metric("평가율 / 진단", f"{overpay_pct:+.1f}%" if (fair_value > 0 or is_fa) and not is_undisclosed else "0.0%", delta=status_label.split(" ")[0])
             st.caption(status_label)
         with res_c4:
             st.metric("이적 거래 평점", f"★ {final_deal_score:.2f}", delta=deal_grade.split(" ")[0])
@@ -677,7 +737,7 @@ with tab1:
                 - **종합 판정 등급**: **{ext_deal_grade.split(' (')[0]}**
                 """)
             with ext_c2:
-                fee_ext_str = "비공개 (추정)" if is_undisclosed else f"€{calc_actual_fee:,.0f}만"
+                fee_ext_str = "비공개 (추정)" if is_undisclosed else (f"€{calc_actual_fee:,.0f}만" if not is_fa else "FA (자유계약)")
                 st.markdown(f"""
                 - **외부 시장 진단**: **{ext_status_label}**
                 - **실제 거래액**: `{fee_ext_str}`
@@ -1132,16 +1192,16 @@ with tab2:
                     "deal_score": float(final_deal_score),
                     "prev_matches": int(st.session_state["f_matches"]),
                     "prev_mins": int(st.session_state["f_mins"]),
-                    "prev_goals": int(in_goals),
-                    "prev_xg": float(in_xg),
-                    "prev_assists": int(in_assists),
-                    "prev_xa": float(in_xa),
-                    "prev_shots": int(in_shots),
-                    "prev_sot": int(in_sot if 'in_sot' in locals() else 0),
-                    "prev_chances": int(in_chances),
-                    "prev_dribbles": int(in_dribbles),
-                    "prev_touches_box": int(in_touches_box),
-                    "prev_tackles": int(in_tackles),
+                    "prev_goals": int(st.session_state["f_goals"]),
+                    "prev_xg": float(st.session_state["f_xg"]),
+                    "prev_assists": int(st.session_state["f_assists"]),
+                    "prev_xa": float(st.session_state["f_xa"]),
+                    "prev_shots": int(st.session_state["f_shots"]),
+                    "prev_sot": int(st.session_state["f_sot"]),
+                    "prev_chances": int(st.session_state["f_chances"]),
+                    "prev_dribbles": int(st.session_state["f_dribbles"]),
+                    "prev_touches_box": int(st.session_state["f_touches_box"]),
+                    "prev_tackles": int(st.session_state["f_tackles"]),
                     "prev_rating": float(st.session_state["f_rating"]),
                     "to_league": f_to_l.split(" (")[0],
                     "proj_mins": int(f_target_mins),
