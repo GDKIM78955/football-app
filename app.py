@@ -505,7 +505,6 @@ with tab1:
         elif actual_transfer_fee > 0:
             st.caption(f"💡 실제금액 환산: **{format_currency_desc(actual_transfer_fee)}**")
 
-        # 🌟 주급(연봉) 입력창
         with st.expander("💼 [선택/수정 입력] 주급(Weekly Wage) & 연간 총비용 분석", expanded=True if cf.get("wage", 0.0) > 0 or is_fa or is_loan_type else False):
             weekly_wage_in = st.number_input("선수 주급 (만 유로, €/주)", min_value=0.0, value=float(cf.get("wage", 0.0)), step=0.5, key=f"wage_{k_id}")
             annual_wage_eur = weekly_wage_in * 52
@@ -544,21 +543,17 @@ with tab1:
     
     calc_actual_fee = fair_value if is_undisclosed else actual_transfer_fee
     
-    # 🌟 [신규 정밀화 로직] FA 및 단순 임대 시 주급(Wage) 기반 실질 평가율 산출
-    # 선수의 적정 주급 추정선: 시장가치의 약 0.25% (예: 4000만 유로 선수 -> 주당 약 10만 유로)
     expected_fair_weekly_wage = (fair_value * 0.0025) if fair_value > 0 else 5.0
     
     if is_fa:
-        # FA는 이적료가 0이므로, 주급이 입력되었으면 '주급 초과율'로 평가율을 대체 산정
         if weekly_wage_in > 0:
             wage_overpay_pct = ((weekly_wage_in - expected_fair_weekly_wage) / expected_fair_weekly_wage) * 100
             overpay_pct = wage_overpay_pct
-            diff = (weekly_wage_in - expected_fair_weekly_wage) * 52 # 연간 오버페이 지출액
+            diff = (weekly_wage_in - expected_fair_weekly_wage) * 52
         else:
             overpay_pct = 0.0
             diff = 0.0
     elif is_loan_type:
-        # 임대는 1년 총 사용비용(임대료 + 1년 연봉) vs 1년 사용가치(적정가의 20%) 비교
         expected_1yr_use_val = (fair_value / 0.20) * 0.20 if "임대" in transfer_type else fair_value
         actual_1yr_cost = calc_actual_fee + (weekly_wage_in * 52)
         if expected_1yr_use_val > 0:
@@ -618,16 +613,13 @@ with tab1:
         under_min_pct = ((market_min - calc_actual_fee) / market_min) * 100
         ext_status_label = f"💎 시장가 대비 혜자 (-{under_min_pct:.1f}%)"
 
-    # 🌟 [신규 정밀화 로직] FA 및 임대 무조건 10점 방지 & 현실적 평점 계산
     if tm_market_value > 0 and (calc_actual_fee > 0 or is_loan_type or is_fa or is_undisclosed):
         if is_fa:
-            # FA는 기본선 8.00점 (자유계약 이점 감안)
             base_deal_score = 8.00
             if weekly_wage_in > 0:
-                # 주급이 적정선보다 너무 높으면 점수 대폭 감점, 적정 주급이면 8점대 후반 유지
                 wage_score_delta = max(-3.0, min(1.5, -(overpay_pct / 30.0)))
             else:
-                wage_score_delta = 0.5 # 주급 미입력 시 기본 FA 보너스
+                wage_score_delta = 0.5
             val_score_delta = wage_score_delta
         elif is_loan_type:
             base_deal_score = 7.50
@@ -637,7 +629,6 @@ with tab1:
             score_multiplier = 1.0 if is_out_trade else -1.0
             val_score_delta = 0.0 if is_undisclosed else max(-3.5, min(2.5, score_multiplier * (overpay_pct / 20.0)))
             
-            # 일반 이적에서도 주급이 과도하면 추가 감점 (-0.1 ~ -0.6점)
             if weekly_wage_in > 0 and expected_fair_weekly_wage > 0:
                 if weekly_wage_in > expected_fair_weekly_wage * 1.5:
                     val_score_delta -= min(0.6, (weekly_wage_in - expected_fair_weekly_wage * 1.5) / 10.0)
@@ -770,7 +761,7 @@ with tab1:
             })
             st.table(df_weights_live)
 
-    # 🌟 [1번 탭] 신규 저장 or 기존 데이터 수정 덮어쓰기 버튼
+    # 🌟 [1번 탭] 신규 저장 or 기존 데이터 수정 덮어쓰기 버튼 (저장/수정 후 폼 자동 초기화 리셋 적용)
     st.markdown("---")
     display_pname_t1 = player_name.strip() if player_name.strip() else "선수명 미입력"
     tag_btn_name_t1 = "🔴 방출(OUT) 데이터" if is_out_trade else "🔵 영입(IN) 데이터"
@@ -880,6 +871,9 @@ with tab1:
                     if res.status_code in [200, 302] and res_json.get("status") == "success":
                         st.session_state["last_saved_msg"] = f"✅ '{player_name}' 선수의 데이터가 성공적으로 {'수정(업데이트)' if edit_toggle else '저장'}되었습니다!"
                         st.cache_data.clear()
+                        
+                        # 🌟 [핵심] 저장/수정 성공 시 폼 입력창을 깨끗하게 초기화하고 폼 ID를 갱신하여 리셋
+                        st.session_state["current_form"] = default_form_template.copy()
                         st.session_state["form_key_id"] += 1
                         st.rerun()
                     else:
@@ -1192,16 +1186,16 @@ with tab2:
                     "deal_score": float(final_deal_score),
                     "prev_matches": int(st.session_state["f_matches"]),
                     "prev_mins": int(st.session_state["f_mins"]),
-                    "prev_goals": int(st.session_state["f_goals"]),
-                    "prev_xg": float(st.session_state["f_xg"]),
-                    "prev_assists": int(st.session_state["f_assists"]),
-                    "prev_xa": float(st.session_state["f_xa"]),
-                    "prev_shots": int(st.session_state["f_shots"]),
-                    "prev_sot": int(st.session_state["f_sot"]),
-                    "prev_chances": int(st.session_state["f_chances"]),
-                    "prev_dribbles": int(st.session_state["f_dribbles"]),
-                    "prev_touches_box": int(st.session_state["f_touches_box"]),
-                    "prev_tackles": int(st.session_state["f_tackles"]),
+                    "prev_goals": int(in_goals),
+                    "prev_xg": float(in_xg),
+                    "prev_assists": int(in_assists),
+                    "prev_xa": float(in_xa),
+                    "prev_shots": int(in_shots),
+                    "prev_sot": int(in_sot if 'in_sot' in locals() else 0),
+                    "prev_chances": int(in_chances),
+                    "prev_dribbles": int(in_dribbles),
+                    "prev_touches_box": int(in_touches_box),
+                    "prev_tackles": int(in_tackles),
                     "prev_rating": float(st.session_state["f_rating"]),
                     "to_league": f_to_l.split(" (")[0],
                     "proj_mins": int(f_target_mins),
@@ -1236,6 +1230,9 @@ with tab2:
                     if res.status_code in [200, 302]:
                         st.session_state["last_saved_msg"] = f"✅ '{player_name}' 선수의 {tag_btn_name}가 성공적으로 저장되었습니다!"
                         st.cache_data.clear()
+                        
+                        # 🌟 [핵심] 저장 성공 후 폼 자동 초기화 리셋
+                        st.session_state["current_form"] = default_form_template.copy()
                         st.session_state["form_key_id"] += 1
                         st.rerun()
                     else:
