@@ -234,7 +234,8 @@ with tab1:
         "reg_status": list(REGISTRATION_WEIGHTS.keys())[1],
         "big_stage": list(BIG_STAGE_WEIGHTS.keys())[0],
         "injury": list(INJURY_WEIGHTS.keys())[1],
-        "urgency": list(URGENCY_WEIGHTS.keys())[0]
+        "urgency": list(URGENCY_WEIGHTS.keys())[0],
+        "option_exercised": False
     }
 
     if "current_form" not in st.session_state:
@@ -347,7 +348,8 @@ with tab1:
                             "reg_status": reg_match,
                             "big_stage": list(BIG_STAGE_WEIGHTS.keys())[0],
                             "injury": list(INJURY_WEIGHTS.keys())[1],
-                            "urgency": urg_match
+                            "urgency": urg_match,
+                            "option_exercised": "옵션발동" in notes_val
                         }
 
                         st.session_state["f_mins"] = int(find_val(rd, ["직전출전시간", "직전_출전시간", "출전시간", "mins"], 2206))
@@ -392,6 +394,12 @@ with tab1:
         with c_s2: 
             transfer_type = st.selectbox("이적 형태 & 계약 조항", list(TRANSFER_TYPE_WEIGHTS.keys()), index=list(TRANSFER_TYPE_WEIGHTS.keys()).index(cf.get("transfer_type", list(TRANSFER_TYPE_WEIGHTS.keys())[0])) if cf.get("transfer_type", "") in TRANSFER_TYPE_WEIGHTS else 0, key=f"ttype_{k_id}")
             
+        # 🌟 [신규 기능 추가] 임대 후 옵션 발동 체크박스 (체크 시 일반 완전 이적 자동 보정)
+        option_exercised = st.checkbox("📌 임대 후 옵션 발동 (완전 전환 완료된 건)", value=cf.get("option_exercised", False), key=f"opt_exec_{k_id}", help="체크하시면 모델 계산 시 '일반 완전 이적(Permanent)' 기준으로 공정하게 평가됩니다.")
+        if option_exercised:
+            transfer_type = "일반 완전 이적 (Permanent, 기준)"
+            st.info("💡 **안내**: 임대 후 옵션이 발동되어 완전 이적으로 처리되므로, 평점 평가 시 일반 완전 이적 기준(1.00)으로 자동 적용됩니다.")
+
         c_n1, c_n2, c_n3 = st.columns([2, 1, 1])
         with c_n1: player_name = st.text_input("선수 이름", value=cf.get("name", ""), placeholder="예: Ezri Konsa", key=f"name_{k_id}")
         with c_n2: player_nat = st.text_input("국적", value=cf.get("nat", ""), placeholder="예: 잉글랜드", key=f"nat_{k_id}")
@@ -485,7 +493,7 @@ with tab1:
         tm_market_value = st.number_input("트랜스퍼마르크트 시장 가치 (만 유로, €)", min_value=0, value=cf.get("tm", 4500), step=50, key=f"tm_{k_id}")
         if tm_market_value > 0: st.caption(f"💡 시장가치 환산: **{format_currency_desc(tm_market_value)}**")
         
-        is_loan_type = "임대" in transfer_type and "의무" not in transfer_type
+        is_loan_type = "임대" in transfer_type and "의무" not in transfer_type and not option_exercised
         is_undisclosed = "비공개" in transfer_type
         is_fa = "FA" in transfer_type
         
@@ -761,7 +769,6 @@ with tab1:
             })
             st.table(df_weights_live)
 
-    # 🌟 [1번 탭] 신규 저장 or 기존 데이터 수정 덮어쓰기 버튼 (저장/수정 후 폼 자동 초기화 리셋 적용)
     st.markdown("---")
     display_pname_t1 = player_name.strip() if player_name.strip() else "선수명 미입력"
     tag_btn_name_t1 = "🔴 방출(OUT) 데이터" if is_out_trade else "🔵 영입(IN) 데이터"
@@ -779,6 +786,8 @@ with tab1:
                 contract_desc = remaining_contract.split(" (")[0]
                 nat_str = player_nat if player_nat.strip() else "미상"
                 detailed_notes = f"[{'방출' if is_out_trade else '영입'}|{ttype_short}|{reg_short}|{urg_short}|UCL:{stage_w:.2f}|메디컬:{inj_w:.2f}] 계약:{contract_desc}"
+                if option_exercised:
+                    detailed_notes += " | [임대후옵션발동완료]"
                 if player_notes.strip():
                     detailed_notes += f" | {player_notes.strip()}"
                 
@@ -871,8 +880,6 @@ with tab1:
                     if res.status_code in [200, 302] and res_json.get("status") == "success":
                         st.session_state["last_saved_msg"] = f"✅ '{player_name}' 선수의 데이터가 성공적으로 {'수정(업데이트)' if edit_toggle else '저장'}되었습니다!"
                         st.cache_data.clear()
-                        
-                        # 🌟 [핵심] 저장/수정 성공 시 폼 입력창을 깨끗하게 초기화하고 폼 ID를 갱신하여 리셋
                         st.session_state["current_form"] = default_form_template.copy()
                         st.session_state["form_key_id"] += 1
                         st.rerun()
@@ -931,7 +938,9 @@ with tab2:
     with b1: in_matches = st.number_input("출전 경기 (Matches)", 1, 60, value=min(int(st.session_state["f_matches"]), 60), key=f"in_matches_box_{k_id}")
     with b2: in_starts = st.number_input("선발 출전 (Starts)", 0, 60, value=min(int(st.session_state["f_starts"]), 60), key=f"in_starts_box_{k_id}")
     with b3: in_mins = st.number_input("출전 시간 (Minutes)", 90, 4500, value=min(int(st.session_state["f_mins"]), 4500), key=f"in_mins_box_{k_id}")
-    with b4: in_rating = st.number_input("FotMob 평균 평점", 5.0, 10.0, value=float(st.session_state["f_rating"]), step=0.01, key=f"in_rating_box_{k_id}")
+    
+    safe_rating_val = max(1.0, min(10.0, float(st.session_state["f_rating"])))
+    with b4: in_rating = st.number_input("FotMob 평균 평점", 1.0, 10.0, value=safe_rating_val, step=0.01, key=f"in_rating_box_{k_id}")
     
     st.session_state["f_mins"] = in_mins
     st.session_state["f_rating"] = in_rating
@@ -1162,6 +1171,8 @@ with tab2:
                 contract_desc = remaining_contract.split(" (")[0]
                 nat_str = player_nat if player_nat.strip() else "미상"
                 detailed_notes = f"[{'방출' if is_out_trade else '영입'}|{ttype_short}|{reg_short}|{urg_short}|UCL:{stage_w:.2f}|메디컬:{inj_w:.2f}] 계약:{contract_desc}"
+                if option_exercised:
+                    detailed_notes += " | [임대후옵션발동완료]"
                 if is_winter_mode:
                     detailed_notes += f" | 겨울기준:{winter_data_source.split(' (')[0]}"
                 if player_notes.strip():
@@ -1230,8 +1241,6 @@ with tab2:
                     if res.status_code in [200, 302]:
                         st.session_state["last_saved_msg"] = f"✅ '{player_name}' 선수의 {tag_btn_name}가 성공적으로 저장되었습니다!"
                         st.cache_data.clear()
-                        
-                        # 🌟 [핵심] 저장 성공 후 폼 자동 초기화 리셋
                         st.session_state["current_form"] = default_form_template.copy()
                         st.session_state["form_key_id"] += 1
                         st.rerun()
@@ -1665,7 +1674,7 @@ with tab6:
             all_club_names = sorted(list(set(to_teams + from_teams)))
 
             if not all_club_names:
-                st.warning("⚠️ 아직 시트에 구단명이 입력된 이적 데이터가 없습니다. 1번 탭에서 구단명을 입력하고 새로 저장해 보세요.")
+                st.warning("⚠️ 아직 시트에 구단명이 입력된 이적 데이터가 없습니다. 1번 탭에서 구단명이 입력된 선수를 저장해보세요.")
             else:
                 with c_rc2:
                     sel_team_name = st.selectbox("조회할 구단(팀) 선택", all_club_names, key="report_team_sel")
