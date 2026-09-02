@@ -209,7 +209,6 @@ with tab1:
         st.success(st.session_state["last_saved_msg"])
         st.session_state["last_saved_msg"] = None
 
-    # 저장소 기본값 초기화
     if "current_form" not in st.session_state:
         st.session_state["current_form"] = {
             "name": "", "nat": "", "age": 28, "from_team": "", "to_team": "",
@@ -678,16 +677,16 @@ with tab1:
                     "deal_score": float(final_deal_score),
                     "prev_matches": int(st.session_state["f_matches"]),
                     "prev_mins": int(st.session_state["f_mins"]),
-                    "prev_goals": int(st.session_state["f_goals"]),
-                    "prev_xg": float(st.session_state["f_xg"]),
-                    "prev_assists": int(st.session_state["f_assists"]),
-                    "prev_xa": float(st.session_state["f_xa"]),
-                    "prev_shots": int(st.session_state["f_shots"]),
-                    "prev_sot": int(st.session_state["f_sot"]),
-                    "prev_chances": int(st.session_state["f_chances"]),
-                    "prev_dribbles": int(st.session_state["f_dribbles"]),
-                    "prev_touches_box": int(st.session_state["f_touches_box"]),
-                    "prev_tackles": int(st.session_state["f_tackles"]),
+                    "prev_goals": int(in_goals),
+                    "prev_xg": float(in_xg),
+                    "prev_assists": int(in_assists),
+                    "prev_xa": float(in_xa),
+                    "prev_shots": int(in_shots),
+                    "prev_sot": int(in_sot if 'in_sot' in locals() else 0),
+                    "prev_chances": int(in_chances),
+                    "prev_dribbles": int(in_dribbles),
+                    "prev_touches_box": int(in_touches_box),
+                    "prev_tackles": int(in_tackles),
                     "prev_rating": float(cur_rating),
                     "to_league": in_to_league_choice.split(" (")[0],
                     "proj_mins": int(f_target_mins_t1),
@@ -760,7 +759,8 @@ with tab2:
     with f_c1: f_pos = st.selectbox("선수 포지션 분류", ["⚽ 필드 플레이어 (공격수/미드필더/수비수)", "🧤 골키퍼 (Goalkeeper)"], index=1 if "GK" in main_position else 0, key="f_tab_pos")
     with f_c2: f_from_l = st.selectbox("원소속 리그 (기록 기준)", list(LEAGUE_WEIGHTS.keys()), index=0, key="f_tab_from_l")
     with f_c3: f_to_l = st.selectbox("이적할 리그", list(LEAGUE_WEIGHTS.keys()), index=list(LEAGUE_WEIGHTS.keys()).index(in_to_league_choice) if in_to_league_choice in LEAGUE_WEIGHTS else 0, key="f_tab_to_l")
-    with f_c4: f_target_mins = st.number_input("이적 팀 예상 출전 시간(분)", 450, 3420, default_proj_mins, 90, key="f_tab_target_mins")
+    # 🌟 [개선] 골키퍼/풀타임 출전 고려 상한선을 3,420 -> 4,500분으로 확대
+    with f_c4: f_target_mins = st.number_input("이적 팀 예상 출전 시간(분)", min_value=450, max_value=4500, value=min(int(default_proj_mins), 4500), step=90, key="f_tab_target_mins")
     
     raw_l_factor = LEAGUE_WEIGHTS[f_from_l] / LEAGUE_WEIGHTS[f_to_l]
     if LEAGUE_WEIGHTS[f_to_l] > LEAGUE_WEIGHTS[f_from_l]:
