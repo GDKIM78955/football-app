@@ -803,7 +803,6 @@ with tab1:
     display_pname_t1 = player_name.strip() if player_name.strip() else "선수명 미입력"
     tag_btn_name_t1 = "🔴 방출(OUT) 데이터" if is_out_trade else "🔵 영입(IN) 데이터"
     
-    # 🌟 수정 모드일 때와 신규 저장일 때 action을 명확히 구분하여 row_index와 함께 전송
     action_type = "update" if edit_toggle else "save_all"
     btn_label_t1 = f"🔄 '{display_pname_t1}' 수정된 데이터 구글 시트에 업데이트(덮어쓰기)" if edit_toggle else f"💾 {tag_btn_name_t1} 구글 시트에 바로 저장하기 (총 54개 항목 동기화)"
     
@@ -852,7 +851,7 @@ with tab1:
 
                 payload = {
                     "action": action_type,
-                    "row_index": st.session_state.get("edit_row_index") if edit_toggle else None,
+                    "row_index": st.session_state.get("edit_row_index"),
                     "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
                     "season": season_val,
                     "name": player_name,
@@ -948,13 +947,6 @@ with tab1:
 with tab2:
     st.subheader("📱 FotMob 스타일 시즌 스탯 입력 & 이적 첫 시즌 성적 프로젝션")
     
-    st.info("""
-    💡 **FotMob 과거 기록 입력 가이드**:
-    * **여름 이적 (Summer)**: 직전 풀 시즌(1년 전체, 약 2,500~3,200분) 실제 기록을 입력합니다.
-    * **겨울 이적 (Winter - 원칙)**: 이번 시즌 **전반기(8월~1월, 약 1,200~1,600분)** 기록을 입력합니다.
-    * **겨울 이적 (Winter - 예외)**: 전반기에 장기 부상이나 결장으로 **출전 시간이 300~400분 미만**인 경우 표본 왜곡 방지를 위해 **'직전 풀 시즌'** 기록을 입력해 주세요.
-    """)
-
     winter_data_source = st.radio(
         "📋 데이터 입력 기준 모드 선택",
         [
@@ -973,9 +965,6 @@ with tab2:
     with f_c1: f_pos = st.selectbox("선수 포지션 분류", ["⚽ 필드 플레이어 (공격수/미드필더/수비수)", "🧤 골키퍼 (Goalkeeper)"], index=1 if "GK" in main_position else 0, key=f"f_tab_pos_{k_id}")
     with f_c2: f_from_l = st.selectbox("원소속 리그 (기록 기준)", list(LEAGUE_WEIGHTS.keys()), index=list(LEAGUE_WEIGHTS.keys()).index(selling_league) if selling_league in LEAGUE_WEIGHTS else 0, key=f"f_tab_from_l_{k_id}")
     with f_c3: f_to_l = st.selectbox("이적할 리그", list(LEAGUE_WEIGHTS.keys()), index=list(LEAGUE_WEIGHTS.keys()).index(in_to_league_choice) if in_to_league_choice in LEAGUE_WEIGHTS else 0, key=f"f_tab_to_l_{k_id}")
-    
-    st.markdown("##### ⏱️ 이적 팀 예상 출전 시간(분) 세분화 조건 선택")
-    st.caption("아래 프리셋을 선택하시면 아래 입력창의 숫자가 곧바로 자동 연동됩니다.")
     
     time_preset_options = [
         "직접 수동 입력 (아래 입력창 사용)",
@@ -1351,22 +1340,6 @@ with tab2:
                     if res.status_code in [200, 302]:
                         st.session_state["last_saved_msg"] = f"✅ '{player_name}' 선수의 {tag_btn_name}가 성공적으로 저장되었습니다!"
                         st.cache_data.clear()
-                        
-                        st.session_state["current_form"] = default_form_template.copy()
-                        reset_stats = {
-                            "f_mins": 90, "f_goals": 0, "f_xg": 0.0, "f_assists": 0, "f_xa": 0.0,
-                            "f_rating": 6.50, "f_matches": 1, "f_starts": 0, "f_shots": 0, "f_sot": 0,
-                            "f_chances": 0, "f_dribbles": 0, "f_touches_box": 0, "f_tackles": 0,
-                            "f_gk_saves": 0, "f_gk_conceded": 0, "f_gk_prevented": 0.0,
-                            "f_gk_cs": 0, "f_gk_errors": 0, "f_gk_claims": 0,
-                            "f_big_chances": 0, "f_pk_goals": 0, "f_pass_pct": 0.0, "f_duels_pct": 0.0, "f_aerial_pct": 0.0,
-                            "custom_proj_mins": 3000
-                        }
-                        for r_k, r_v in reset_stats.items():
-                            st.session_state[r_k] = r_v
-
-                        st.session_state["form_key_id"] += 1
-                        st.session_state["stat_key_id"] += 1
                         st.rerun()
                     else:
                         st.error(f"⚠️ 저장 실패 (응답 코드: {res.status_code})")
