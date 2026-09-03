@@ -394,7 +394,6 @@ with tab1:
         with c_s2: 
             transfer_type = st.selectbox("이적 형태 & 계약 조항", list(TRANSFER_TYPE_WEIGHTS.keys()), index=list(TRANSFER_TYPE_WEIGHTS.keys()).index(cf.get("transfer_type", list(TRANSFER_TYPE_WEIGHTS.keys())[0])) if cf.get("transfer_type", "") in TRANSFER_TYPE_WEIGHTS else 0, key=f"ttype_{k_id}")
             
-        # 🌟 [신규 기능 추가] 임대 후 옵션 발동 체크박스 (체크 시 일반 완전 이적 자동 보정)
         option_exercised = st.checkbox("📌 임대 후 옵션 발동 (완전 전환 완료된 건)", value=cf.get("option_exercised", False), key=f"opt_exec_{k_id}", help="체크하시면 모델 계산 시 '일반 완전 이적(Permanent)' 기준으로 공정하게 평가됩니다.")
         if option_exercised:
             transfer_type = "일반 완전 이적 (Permanent, 기준)"
@@ -914,11 +913,40 @@ with tab2:
     is_winter_mode = "겨울" in winter_data_source
     default_proj_mins = 1440 if is_winter_mode else 3036
     
-    f_c1, f_c2, f_c3, f_c4 = st.columns(4)
+    f_c1, f_c2, f_c3 = st.columns(3)
     with f_c1: f_pos = st.selectbox("선수 포지션 분류", ["⚽ 필드 플레이어 (공격수/미드필더/수비수)", "🧤 골키퍼 (Goalkeeper)"], index=1 if "GK" in main_position else 0, key=f"f_tab_pos_{k_id}")
     with f_c2: f_from_l = st.selectbox("원소속 리그 (기록 기준)", list(LEAGUE_WEIGHTS.keys()), index=list(LEAGUE_WEIGHTS.keys()).index(selling_league) if selling_league in LEAGUE_WEIGHTS else 0, key=f"f_tab_from_l_{k_id}")
     with f_c3: f_to_l = st.selectbox("이적할 리그", list(LEAGUE_WEIGHTS.keys()), index=list(LEAGUE_WEIGHTS.keys()).index(in_to_league_choice) if in_to_league_choice in LEAGUE_WEIGHTS else 0, key=f"f_tab_to_l_{k_id}")
-    with f_c4: f_target_mins = st.number_input("이적 팀 예상 출전 시간(분)", min_value=450, max_value=4500, value=min(int(default_proj_mins), 4500), step=90, key=f"f_tab_target_mins_{k_id}")
+    
+    # 🌟 [신규 기능 추가] 이적 팀 예상 출전 시간 6개 세분화 자동 필터 기능
+    st.markdown("##### ⏱️ 이적 팀 예상 출전 시간(분) 세분화 조건 선택")
+    st.caption("아래 6가지 상황 중 선수의 실제 팀 내 입지와 체급에 가장 알맞은 조건을 선택하시면, 예상 출전 시간이 자동으로 정밀 세팅됩니다.")
+    
+    time_preset_options = [
+        "직접 수동 입력 (아래 슬라이더/입력창 사용)",
+        "🔥 메인 핵심 주전 (3,000분 / 34~38경기 풀타임)",
+        "⭐ 준주전 / 주력 로테이션 (2,200분 / 22~25경기 선발급)",
+        "⚖️ 로테이션 뎁스 자원 (1,500분 / 15~18경기 선발급)",
+        "🌱 유망주 / 로테이션 벤치 자원 (900분 / 8~10경기 선발급)",
+        "❄️ 겨울 이적생 후반기 잔여 소화 (1,440분 / 후반기 풀타임)"
+    ]
+    
+    sel_time_preset = st.selectbox("출전 시간 세분화 프리셋 선택", time_preset_options, index=0, key=f"time_preset_box_{k_id}")
+    
+    preset_mapping = {
+        "🔥 메인 핵심 주전 (3,000분 / 34~38경기 풀타임)": 3000,
+        "⭐ 준주전 / 주력 로테이션 (2,200분 / 22~25경기 선발급)": 2200,
+        "⚖️ 로테이션 뎁스 자원 (1,500분 / 15~18경기 선발급)": 1500,
+        "🌱 유망주 / 로테이션 벤치 자원 (900분 / 8~10경기 선발급)": 900,
+        "❄️ 겨울 이적생 후반기 잔여 소화 (1,440분 / 후반기 풀타임)": 1440
+    }
+    
+    if sel_time_preset != "직접 수동 입력 (아래 슬라이더/입력창 사용)":
+        default_target_mins_val = preset_mapping[sel_time_preset]
+    else:
+        default_target_mins_val = min(int(default_proj_mins), 4500)
+
+    f_target_mins = st.number_input("최종 적용될 예상 출전 시간(분)", min_value=90, max_value=4500, value=default_target_mins_val, step=90, key=f"f_tab_target_mins_{k_id}")
     
     raw_l_factor = LEAGUE_WEIGHTS[f_from_l] / LEAGUE_WEIGHTS[f_to_l]
     if LEAGUE_WEIGHTS[f_to_l] > LEAGUE_WEIGHTS[f_from_l]:
