@@ -17,7 +17,7 @@ st.set_page_config(
 GOOGLE_SHEET_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwUX4diDBw2jD8WufrSa_0PejibYm7tIfyf1ia7O-QTfj1Ae6SQb3bZZ9pmNvDUAT6C/exec"
 SPREADSHEET_ID = "16CeAQp1-xqc-mhtvlP0vLlQu5k1pg8DW5A-m29WCFdw"
 
-# 🌟 구글 시트 표준 CSV 링크를 통해 메인기록부 데이터를 다이렉트로 안전하게 로드 (지옥 같은 딜레이 및 권한 오류 완전 차단)
+# 🌟 구글 시트 표준 CSV 링크를 통한 메인기록부 데이터 로드
 @st.cache_data(ttl=2)
 def fetch_sheet_history():
     try:
@@ -35,7 +35,6 @@ history_df = fetch_sheet_history()
 @st.cache_data(ttl=2)
 def fetch_validation_data():
     try:
-        # 검증데이터 탭 GID 확인 후 필요시 수정 가능 (일반적으로 두 번째 탭)
         val_url = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/export?format=csv&gid=15389686"
         df = pd.read_csv(val_url)
         if not df.empty and "선수명" in df.columns:
@@ -215,6 +214,7 @@ def format_currency_desc(eur_man_euro):
     gbp_man = eur_man_euro * rate_gbp
     return f"약 {krw_eok:,.1f}억원 | £{gbp_man:,.1f}만"
 
+# 🌟 데이터 로드 시 컬럼명을 유연하게 찾아내는 강화된 매칭 함수
 def find_val(row_dict, candidates, default=0):
     for c in candidates:
         c_clean = str(c).lower().replace(" ", "").replace("_", "").replace("(", "").replace(")", "")
@@ -227,6 +227,17 @@ def find_val(row_dict, candidates, default=0):
                         return float(val) if isinstance(default, float) else int(float(val))
                     except:
                         pass
+    return default
+
+def find_str_val(row_dict, candidates, default=""):
+    for c in candidates:
+        c_clean = str(c).lower().replace(" ", "").replace("_", "").replace("(", "").replace(")", "")
+        for k in row_dict.keys():
+            k_clean = str(k).lower().replace(" ", "").replace("_", "").replace("(", "").replace(")", "")
+            if c_clean in k_clean or k_clean in c_clean:
+                val = row_dict[k]
+                if pd.notnull(val) and str(val).strip() not in ["", "nan", "None"]:
+                    return str(val).strip()
     return default
 
 # 3. 메인 6개 탭 구성
@@ -302,32 +313,32 @@ with tab1:
                         if match_idx_list:
                             st.session_state["edit_row_index"] = match_idx_list[-1] + 2
 
-                        pos_saved = str(rd.get("포지션", ""))
+                        pos_saved = find_str_val(rd, ["포지션", "position", "pos"])
                         pos_match = list(POSITION_WEIGHTS.keys())[4]
                         for p_k in POSITION_WEIGHTS.keys():
                             if pos_saved and pos_saved in p_k:
                                 pos_match = p_k
                                 break
                                 
-                        fl_saved = str(rd.get("원소속리그", ""))
+                        fl_saved = find_str_val(rd, ["원소속리그", "from_league", "보내는리그", "원소속"])
                         from_l_match = list(LEAGUE_WEIGHTS.keys())[0]
                         for l_k in LEAGUE_WEIGHTS.keys():
                             if fl_saved and fl_saved in l_k:
                                 from_l_match = l_k
                                 break
 
-                        tl_saved = str(rd.get("이적팀리그", ""))
+                        tl_saved = find_str_val(rd, ["이적팀리그", "to_league", "to_league_name"])
                         to_l_match = list(LEAGUE_WEIGHTS.keys())[0]
                         for l_k in LEAGUE_WEIGHTS.keys():
                             if tl_saved and tl_saved in l_k:
                                 to_l_match = l_k
                                 break
 
-                        raw_notes_val = str(rd.get("스카우팅메모", ""))
+                        raw_notes_val = find_str_val(rd, ["스카우팅메모", "notes", "메모"])
                         clean_notes_val = raw_notes_val.split(" | [영입")[0].split(" | [방출")[0].strip()
 
                         tier_match = list(CLUB_TIERS.keys())[1]
-                        tier_saved = str(rd.get("영입구단티어", ""))
+                        tier_saved = find_str_val(rd, ["영입구단티어", "buying_tier", "tier"])
                         for t_k in CLUB_TIERS.keys():
                             if tier_saved and tier_saved in t_k:
                                 tier_match = t_k
@@ -340,7 +351,7 @@ with tab1:
                                 break
 
                         ttype_match = list(TRANSFER_TYPE_WEIGHTS.keys())[0]
-                        tt_saved = str(rd.get("이적형태", ""))
+                        tt_saved = find_str_val(rd, ["이적형태", "transfer_type"])
                         for tt_k in TRANSFER_TYPE_WEIGHTS.keys():
                             if tt_saved and tt_saved in tt_k:
                                 ttype_match = tt_k
@@ -358,15 +369,16 @@ with tab1:
                                 urg_match = u_k
                                 break
 
+                        # 🌟 국적, 팀명, 이적료, 주급 등을 완벽하게 매칭하여 복원
                         st.session_state["current_form"] = {
-                            "name": str(rd.get("선수명", "")),
-                            "nat": str(rd.get("국적", "")),
+                            "name": find_str_val(rd, ["선수명", "name"]),
+                            "nat": find_str_val(rd, ["국적", "nat", "nationality"]),
                             "age": int(find_val(rd, ["만나이", "나이", "age"], 28)),
-                            "from_team": str(rd.get("원소속팀명", "")),
-                            "to_team": str(rd.get("이적팀명", "")),
-                            "tm": int(find_val(rd, ["TM시장가치", "시장가치", "tm", "tm_val"], 4500)),
+                            "from_team": find_str_val(rd, ["원소속팀명", "from_team", "원소속팀"]),
+                            "to_team": find_str_val(rd, ["이적팀명", "to_team", "이적팀"]),
+                            "tm": int(find_val(rd, ["TM시장가치", "시장가치", "tm", "tm_val", "tm시장가치(만€)"], 4500)),
                             "fee": int(find_val(rd, ["실제이적료", "이적료", "fee", "실제이적료(만€)"], 0)),
-                            "wage": float(find_val(rd, ["주급", "wage", "주급(만€)"], 0.0)),
+                            "wage": float(find_val(rd, ["주급", "wage", "주급(만€)", "weekly_wage"], 0.0)),
                             "notes": clean_notes_val,
                             "season": sel_e_season,
                             "pos": pos_match,
@@ -375,7 +387,7 @@ with tab1:
                             "buying_tier": tier_match,
                             "contract": contract_match,
                             "transfer_type": ttype_match,
-                            "trade_type": "🔴 방출 / 판매 (OUT)" if str(rd.get("거래구분", "")).strip() == "OUT" else "🔵 영입 (IN)",
+                            "trade_type": "🔴 방출 / 판매 (OUT)" if "OUT" in find_str_val(rd, ["거래구분", "trade_type"]) else "🔵 영입 (IN)",
                             "reg_status": reg_match,
                             "big_stage": list(BIG_STAGE_WEIGHTS.keys())[0],
                             "injury": list(INJURY_WEIGHTS.keys())[1],
