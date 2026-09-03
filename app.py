@@ -23,6 +23,9 @@ VAL_SHEET_CSV_URL = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/ex
 
 if "form_key_id" not in st.session_state:
     st.session_state["form_key_id"] = 0
+# 🌟 2번 탭 위젯 캐시 찌꺼기 방지를 위한 리셋 전용 카운터 추가
+if "stat_key_id" not in st.session_state:
+    st.session_state["stat_key_id"] = 0
 if "last_saved_msg" not in st.session_state:
     st.session_state["last_saved_msg"] = None
 if "custom_proj_mins" not in st.session_state:
@@ -381,6 +384,7 @@ with tab1:
                         st.rerun()
 
     k_id = st.session_state["form_key_id"]
+    s_id = st.session_state["stat_key_id"] # 🌟 위젯 캐시 강제 갱신용 식별자
     cf = st.session_state["current_form"]
 
     st.markdown("---")
@@ -883,6 +887,7 @@ with tab1:
                         st.session_state["last_saved_msg"] = f"✅ '{player_name}' 선수의 데이터가 성공적으로 {'수정(업데이트)' if edit_toggle else '저장'}되었습니다!"
                         st.cache_data.clear()
                         
+                        # 폼 및 2번 탭 스탯 전체 초기화 & 위젯 캐시 강제 갱신 트리거
                         st.session_state["current_form"] = default_form_template.copy()
                         reset_stats = {
                             "f_mins": 90, "f_goals": 0, "f_xg": 0.0, "f_assists": 0, "f_xa": 0.0,
@@ -896,6 +901,7 @@ with tab1:
                             st.session_state[r_k] = r_v
 
                         st.session_state["form_key_id"] += 1
+                        st.session_state["stat_key_id"] += 1 # 🌟 위젯 키 새로고침하여 캐시 잔재 박멸
                         st.rerun()
                     else:
                         st.error(f"⚠️ 저장/수정 실패: {res_json.get('message', '통신 오류')}")
@@ -981,13 +987,14 @@ with tab2:
     st.divider()
     st.markdown(f"### 📥 FotMob 시즌 실제 기록 입력 (`{winter_data_source.split(' (')[0]}` 기준)")
 
+    # 🌟 2번 탭 모든 입력 위젯에 s_id(stat_key_id)를 붙여 저장/리셋 시 캐시 찌꺼기 완벽 박멸
     b1, b2, b3, b4 = st.columns(4)
-    with b1: in_matches = st.number_input("출전 경기 (Matches)", 1, 60, value=min(int(st.session_state["f_matches"]), 60), key=f"in_matches_box_{k_id}")
-    with b2: in_starts = st.number_input("선발 출전 (Starts)", 0, 60, value=min(int(st.session_state["f_starts"]), 60), key=f"in_starts_box_{k_id}")
-    with b3: in_mins = st.number_input("출전 시간 (Minutes)", 90, 4500, value=min(int(st.session_state["f_mins"]), 4500), key=f"in_mins_box_{k_id}")
+    with b1: in_matches = st.number_input("출전 경기 (Matches)", 1, 60, value=min(int(st.session_state["f_matches"]), 60), key=f"in_matches_box_{k_id}_{s_id}")
+    with b2: in_starts = st.number_input("선발 출전 (Starts)", 0, 60, value=min(int(st.session_state["f_starts"]), 60), key=f"in_starts_box_{k_id}_{s_id}")
+    with b3: in_mins = st.number_input("출전 시간 (Minutes)", 90, 4500, value=min(int(st.session_state["f_mins"]), 4500), key=f"in_mins_box_{k_id}_{s_id}")
     
     safe_rating_val = max(1.0, min(10.0, float(st.session_state["f_rating"])))
-    with b4: in_rating = st.number_input("FotMob 평균 평점", 1.0, 10.0, value=safe_rating_val, step=0.01, key=f"in_rating_box_{k_id}")
+    with b4: in_rating = st.number_input("FotMob 평균 평점", 1.0, 10.0, value=safe_rating_val, step=0.01, key=f"in_rating_box_{k_id}_{s_id}")
     
     st.session_state["f_mins"] = in_mins
     st.session_state["f_rating"] = in_rating
@@ -1000,11 +1007,11 @@ with tab2:
     if "골키퍼" not in f_pos:
         st.markdown("#### 1️⃣ 슈팅 및 득점 (Shooting & Goals)")
         s1, s2, s3, s4, s5 = st.columns(5)
-        with s1: in_goals = st.number_input("득점 (Goals)", 0, 50, value=min(int(st.session_state["f_goals"]), 50), key=f"in_goals_box_{k_id}")
-        with s2: in_xg = st.number_input("기대 득점 (xG)", 0.0, 50.0, value=min(float(st.session_state["f_xg"]), 50.0), step=0.01, key=f"in_xg_box_{k_id}")
-        with s3: in_shots = st.number_input("총 슈팅 (Shots)", 0, 200, value=min(int(st.session_state["f_shots"]), 200), key=f"in_shots_box_{k_id}")
-        with s4: in_sot = st.number_input("유효 슈팅 (On Target)", 0, 100, value=min(int(st.session_state["f_sot"]), 100), key=f"in_sot_box_{k_id}")
-        with s5: in_pk_goals = st.number_input("PK 득점 (Penalty)", 0, 20, 0, key=f"in_pk_box_{k_id}")
+        with s1: in_goals = st.number_input("득점 (Goals)", 0, 50, value=min(int(st.session_state["f_goals"]), 50), key=f"in_goals_box_{k_id}_{s_id}")
+        with s2: in_xg = st.number_input("기대 득점 (xG)", 0.0, 50.0, value=min(float(st.session_state["f_xg"]), 50.0), step=0.01, key=f"in_xg_box_{k_id}_{s_id}")
+        with s3: in_shots = st.number_input("총 슈팅 (Shots)", 0, 200, value=min(int(st.session_state["f_shots"]), 200), key=f"in_shots_box_{k_id}_{s_id}")
+        with s4: in_sot = st.number_input("유효 슈팅 (On Target)", 0, 100, value=min(int(st.session_state["f_sot"]), 100), key=f"in_sot_box_{k_id}_{s_id}")
+        with s5: in_pk_goals = st.number_input("PK 득점 (Penalty)", 0, 20, 0, key=f"in_pk_box_{k_id}_{s_id}")
 
         st.session_state["f_goals"] = in_goals
         st.session_state["f_xg"] = in_xg
@@ -1013,11 +1020,11 @@ with tab2:
 
         st.markdown("#### 2️⃣ 패스 및 기회 창출 (Passing & Creativity)")
         p1, p2, p3, p4, p5 = st.columns(5)
-        with p1: in_assists = st.number_input("도움 (Assists)", 0, 50, value=min(int(st.session_state["f_assists"]), 50), key=f"in_assists_box_{k_id}")
-        with p2: in_xa = st.number_input("기대 도움 (xA)", 0.0, 50.0, value=min(float(st.session_state["f_xa"]), 50.0), step=0.01, key=f"in_xa_box_{k_id}")
-        with p3: in_chances = st.number_input("기회 창출 (Chances)", 0, 150, value=min(int(st.session_state["f_chances"]), 150), key=f"in_chances_box_{k_id}")
-        with p4: in_big_chances = st.number_input("빅 찬스 메이킹", 0, 50, 0, key=f"in_bc_box_{k_id}")
-        with p5: in_pass_pct = st.number_input("패스 성공률 (%)", 0.0, 100.0, 0.0, 0.1, key=f"in_pass_pct_box_{k_id}")
+        with p1: in_assists = st.number_input("도움 (Assists)", 0, 50, value=min(int(st.session_state["f_assists"]), 50), key=f"in_assists_box_{k_id}_{s_id}")
+        with p2: in_xa = st.number_input("기대 도움 (xA)", 0.0, 50.0, value=min(float(st.session_state["f_xa"]), 50.0), step=0.01, key=f"in_xa_box_{k_id}_{s_id}")
+        with p3: in_chances = st.number_input("기회 창출 (Chances)", 0, 150, value=min(int(st.session_state["f_chances"]), 150), key=f"in_chances_box_{k_id}_{s_id}")
+        with p4: in_big_chances = st.number_input("빅 찬스 메이킹", 0, 50, 0, key=f"in_bc_box_{k_id}_{s_id}")
+        with p5: in_pass_pct = st.number_input("패스 성공률 (%)", 0.0, 100.0, 0.0, 0.1, key=f"in_pass_pct_box_{k_id}_{s_id}")
 
         st.session_state["f_assists"] = in_assists
         st.session_state["f_xa"] = in_xa
@@ -1025,11 +1032,11 @@ with tab2:
 
         st.markdown("#### 3️⃣ 경합 및 수비 기여 (Duels & Defending)")
         d1, d2, d3, d4, d5 = st.columns(5)
-        with d1: in_dribbles = st.number_input("성공한 드리블", 0, 100, value=min(int(st.session_state["f_dribbles"]), 100), key=f"in_dribbles_box_{k_id}")
-        with d2: in_touches_box = st.number_input("박스 안 터치 (Box Touches)", 0, 300, value=min(int(st.session_state["f_touches_box"]), 300), key=f"in_touches_box_{k_id}")
-        with d3: in_duels_pct = st.number_input("지상 경합 승률 (%)", 0.0, 100.0, 0.0, 0.1, key=f"in_duels_box_{k_id}")
-        with d4: in_aerial_pct = st.number_input("공중볼 승률 (%)", 0.0, 100.0, 0.0, 0.1, key=f"in_aerial_box_{k_id}")
-        with d5: in_tackles = st.number_input("태클 성공 (Tackles)", 0, 150, value=min(int(st.session_state["f_tackles"]), 150), key=f"in_tackles_box_{k_id}")
+        with d1: in_dribbles = st.number_input("성공한 드리블", 0, 100, value=min(int(st.session_state["f_dribbles"]), 100), key=f"in_dribbles_box_{k_id}_{s_id}")
+        with d2: in_touches_box = st.number_input("박스 안 터치 (Box Touches)", 0, 300, value=min(int(st.session_state["f_touches_box"]), 300), key=f"in_touches_box_{k_id}_{s_id}")
+        with d3: in_duels_pct = st.number_input("지상 경합 승률 (%)", 0.0, 100.0, 0.0, 0.1, key=f"in_duels_box_{k_id}_{s_id}")
+        with d4: in_aerial_pct = st.number_input("공중볼 승률 (%)", 0.0, 100.0, 0.0, 0.1, key=f"in_aerial_box_{k_id}_{s_id}")
+        with d5: in_tackles = st.number_input("태클 성공 (Tackles)", 0, 150, value=min(int(st.session_state["f_tackles"]), 150), key=f"in_tackles_box_{k_id}_{s_id}")
 
         st.session_state["f_dribbles"] = in_dribbles
         st.session_state["f_touches_box"] = in_touches_box
@@ -1038,14 +1045,14 @@ with tab2:
     else:
         st.markdown("#### 🧤 FotMob 실제 골키퍼 지표 입력 (Goalkeeping)")
         gk1, gk2, gk3 = st.columns(3)
-        with gk1: in_gk_saves = st.number_input("선방 (Saves)", 0, 250, value=int(st.session_state["f_gk_saves"]), key=f"in_gk_saves_box_{k_id}")
-        with gk2: in_gk_conceded = st.number_input("실점 수 (Goals Conceded)", 0, 120, value=int(st.session_state["f_gk_conceded"]), key=f"in_gk_conceded_box_{k_id}")
-        with gk3: in_gk_prevented = st.number_input("득점 차단 (Goals Prevented)", -20.0, 30.0, value=float(st.session_state["f_gk_prevented"]), step=0.01, key=f"in_gk_prevented_box_{k_id}")
+        with gk1: in_gk_saves = st.number_input("선방 (Saves)", 0, 250, value=int(st.session_state["f_gk_saves"]), key=f"in_gk_saves_box_{k_id}_{s_id}")
+        with gk2: in_gk_conceded = st.number_input("실점 수 (Goals Conceded)", 0, 120, value=int(st.session_state["f_gk_conceded"]), key=f"in_gk_conceded_box_{k_id}_{s_id}")
+        with gk3: in_gk_prevented = st.number_input("득점 차단 (Goals Prevented)", -20.0, 30.0, value=float(st.session_state["f_gk_prevented"]), step=0.01, key=f"in_gk_prevented_box_{k_id}_{s_id}")
 
         gk4, gk5, gk6 = st.columns(3)
-        with gk4: in_gk_cs = st.number_input("클린 시트 (Clean Sheets)", 0, 35, value=int(st.session_state["f_gk_cs"]), key=f"in_gk_cs_box_{k_id}")
-        with gk5: in_gk_errors = st.number_input("골로 이어진 실수 (Errors Led to Goal)", 0, 15, value=int(st.session_state["f_gk_errors"]), key=f"in_gk_errors_box_{k_id}")
-        with gk6: in_gk_claims = st.number_input("공중에서 잡기 (High Claims)", 0, 80, value=int(st.session_state["f_gk_claims"]), key=f"in_gk_claims_box_{k_id}")
+        with gk4: in_gk_cs = st.number_input("클린 시트 (Clean Sheets)", 0, 35, value=int(st.session_state["f_gk_cs"]), key=f"in_gk_cs_box_{k_id}_{s_id}")
+        with gk5: in_gk_errors = st.number_input("골로 이어진 실수 (Errors Led to Goal)", 0, 15, value=int(st.session_state["f_gk_errors"]), key=f"in_gk_errors_box_{k_id}_{s_id}")
+        with gk6: in_gk_claims = st.number_input("공중에서 잡기 (High Claims)", 0, 80, value=int(st.session_state["f_gk_claims"]), key=f"in_gk_claims_box_{k_id}_{s_id}")
 
         st.session_state["f_gk_saves"] = in_gk_saves
         st.session_state["f_gk_conceded"] = in_gk_conceded
@@ -1302,6 +1309,7 @@ with tab2:
                             st.session_state[r_k] = r_v
 
                         st.session_state["form_key_id"] += 1
+                        st.session_state["stat_key_id"] += 1 # 🌟 위젯 키 갱신 트리거
                         st.rerun()
                     else:
                         st.error(f"⚠️ 저장 실패 (응답 코드: {res.status_code})")
