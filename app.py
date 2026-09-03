@@ -17,7 +17,7 @@ st.set_page_config(
 GOOGLE_SHEET_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwUX4diDBw2jD8WufrSa_0PejibYm7tIfyf1ia7O-QTfj1Ae6SQb3bZZ9pmNvDUAT6C/exec"
 SPREADSHEET_ID = "16CeAQp1-xqc-mhtvlP0vLlQu5k1pg8DW5A-m29WCFdw"
 
-# 🌟 [완벽 안정형] Apps Script doGet (JSON API)을 통해 메인기록부 데이터를 100% 누락 없이 로드
+# 🌟 [완벽 호환형] Apps Script doGet (JSON API)을 통해 메인기록부 데이터 로드
 @st.cache_data(ttl=2)
 def fetch_sheet_history():
     try:
@@ -219,7 +219,7 @@ def format_currency_desc(eur_man_euro):
     gbp_man = eur_man_euro * rate_gbp
     return f"약 {krw_eok:,.1f}억원 | £{gbp_man:,.1f}만"
 
-# 🌟 [초강력 키워드 부분 일치 매칭 함수] 어떤 컬럼명이든 키워드가 포함되어 있으면 무조건 값을 찾아냄
+# 🌟 키워드 기반 유연한 값 추출 함수
 def find_val(row_dict, keywords, default=0):
     for k, v in row_dict.items():
         k_str = str(k).lower().strip()
@@ -370,7 +370,6 @@ with tab1:
                                 urg_match = u_k
                                 break
 
-                        # 🌟 모든 필드를 키워드 기반으로 누락 없이 완벽 복원
                         st.session_state["current_form"] = {
                             "name": find_str_val(rd, ["선수명", "name"]),
                             "nat": find_str_val(rd, ["국적", "nat", "country"]),
