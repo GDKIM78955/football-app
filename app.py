@@ -772,13 +772,14 @@ with tab1:
     display_pname_t1 = player_name.strip() if player_name.strip() else "선수명 미입력"
     tag_btn_name_t1 = "🔴 방출(OUT) 데이터" if is_out_trade else "🔵 영입(IN) 데이터"
     
+    # 🌟 [핵심 수정] 수정 모드일 때는 action_type을 'update_existing'으로 정확히 분기
+    action_type = "update_existing" if edit_toggle else "save_all"
     btn_label_t1 = f"🔄 '{display_pname_t1}' 수정된 데이터 구글 시트에 업데이트(덮어쓰기)" if edit_toggle else f"💾 {tag_btn_name_t1} 구글 시트에 바로 저장하기 (총 48개 항목 동기화)"
     
     if st.button(btn_label_t1, type="primary", use_container_width=True, key="save_btn_tab1"):
         if not player_name.strip():
             st.warning("⚠️ 선수 이름을 먼저 입력해 주세요.")
         else:
-            action_type = "update_existing" if edit_toggle else "save_all"
             spinner_msg = f"'{player_name}' 선수의 데이터를 구글 시트에 업데이트(수정) 중입니다..." if edit_toggle else "구글 시트에 신규 데이터를 기록 중입니다..."
             
             with st.spinner(spinner_msg):
@@ -918,7 +919,6 @@ with tab2:
     with f_c2: f_from_l = st.selectbox("원소속 리그 (기록 기준)", list(LEAGUE_WEIGHTS.keys()), index=list(LEAGUE_WEIGHTS.keys()).index(selling_league) if selling_league in LEAGUE_WEIGHTS else 0, key=f"f_tab_from_l_{k_id}")
     with f_c3: f_to_l = st.selectbox("이적할 리그", list(LEAGUE_WEIGHTS.keys()), index=list(LEAGUE_WEIGHTS.keys()).index(in_to_league_choice) if in_to_league_choice in LEAGUE_WEIGHTS else 0, key=f"f_tab_to_l_{k_id}")
     
-    # 🌟 [신규 기능 추가] 이적 팀 예상 출전 시간 6개 세분화 자동 필터 기능
     st.markdown("##### ⏱️ 이적 팀 예상 출전 시간(분) 세분화 조건 선택")
     st.caption("아래 6가지 상황 중 선수의 실제 팀 내 입지와 체급에 가장 알맞은 조건을 선택하시면, 예상 출전 시간이 자동으로 정밀 세팅됩니다.")
     
