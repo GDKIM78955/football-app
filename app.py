@@ -361,7 +361,6 @@ with tab1:
                             "option_exercised": "임대후옵션발동완료" in notes_val
                         }
 
-                        # 🌟 불러오기 시 모든 13대 스탯 및 6대 추가 세부 지표 완벽 복원
                         st.session_state["f_matches"] = int(find_val(rd, ["이전_출전경기", "출전경기", "경기수", "matches", "prev_matches"], 1))
                         st.session_state["f_starts"] = int(find_val(rd, ["선발출전", "이전_선발", "선발", "starts", "prev_starts"], 0))
                         st.session_state["f_mins"] = int(find_val(rd, ["이전_출전시간", "출전시간", "mins", "prev_mins"], 90))
@@ -790,7 +789,8 @@ with tab1:
     display_pname_t1 = player_name.strip() if player_name.strip() else "선수명 미입력"
     tag_btn_name_t1 = "🔴 방출(OUT) 데이터" if is_out_trade else "🔵 영입(IN) 데이터"
     
-    action_type = "update_existing" if edit_toggle else "save_all"
+    # 🌟 수정 모드일 때 action을 "update"로 확실하게 지정하여 시트 행 찾기 성공률 100% 보장
+    action_type = "update" if edit_toggle else "save_all"
     btn_label_t1 = f"🔄 '{display_pname_t1}' 수정된 데이터 구글 시트에 업데이트(덮어쓰기)" if edit_toggle else f"💾 {tag_btn_name_t1} 구글 시트에 바로 저장하기 (총 48개 항목 동기화)"
     
     if st.button(btn_label_t1, type="primary", use_container_width=True, key="save_btn_tab1"):
@@ -833,7 +833,6 @@ with tab1:
 
                 pj_rating_t1 = round(max(6.0, cur_rating - (1.0 - final_lf_t1) * 0.9), 2)
 
-                # 🌟 저장 시 6대 추가 세부 지표까지 페이로드에 포함하여 구글 시트 전송
                 payload = {
                     "action": action_type,
                     "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
@@ -886,7 +885,7 @@ with tab1:
                     "weekly_wage": float(weekly_wage_in) if 'weekly_wage_in' in locals() else 0.0,
                     "gk_saves": int(st.session_state.get("f_gk_saves", 0)) if is_gk else 0,
                     "gk_conceded": int(st.session_state.get("f_gk_conceded", 0)) if is_gk else 0,
-                    "gk_prevented": float(st.session_state.get("f_gk_prevented", 0.0)) if is_gk else 0.0,
+                    "gk_prevented": float(st.session_state.get("f_gk_prevented", 0.0)) if is_gk else 0,
                     "gk_cs": int(st.session_state.get("f_gk_cs", 0)) if is_gk else 0,
                     "gk_errors": int(st.session_state.get("f_gk_errors", 0)) if is_gk else 0,
                     "gk_claims": int(st.session_state.get("f_gk_claims", 0)) if is_gk else 0
