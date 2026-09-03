@@ -882,7 +882,20 @@ with tab1:
                     if res.status_code in [200, 302] and res_json.get("status") == "success":
                         st.session_state["last_saved_msg"] = f"✅ '{player_name}' 선수의 데이터가 성공적으로 {'수정(업데이트)' if edit_toggle else '저장'}되었습니다!"
                         st.cache_data.clear()
+                        
+                        # 폼 및 2번 탭 스탯 전체 초기화
                         st.session_state["current_form"] = default_form_template.copy()
+                        reset_stats = {
+                            "f_mins": 2206, "f_goals": 16, "f_xg": 17.44, "f_assists": 4, "f_xa": 3.33,
+                            "f_rating": 7.32, "f_matches": 28, "f_starts": 25, "f_shots": 88, "f_sot": 43,
+                            "f_chances": 25, "f_dribbles": 14, "f_touches_box": 153, "f_tackles": 24,
+                            "f_gk_saves": 78, "f_gk_conceded": 28, "f_gk_prevented": 2.45,
+                            "f_gk_cs": 10, "f_gk_errors": 0, "f_gk_claims": 18,
+                            "custom_proj_mins": 3036
+                        }
+                        for r_k, r_v in reset_stats.items():
+                            st.session_state[r_k] = r_v
+
                         st.session_state["form_key_id"] += 1
                         st.rerun()
                     else:
@@ -1276,7 +1289,20 @@ with tab2:
                     if res.status_code in [200, 302]:
                         st.session_state["last_saved_msg"] = f"✅ '{player_name}' 선수의 {tag_btn_name}가 성공적으로 저장되었습니다!"
                         st.cache_data.clear()
+                        
+                        # 폼 및 2번 탭 스탯 전체 초기화
                         st.session_state["current_form"] = default_form_template.copy()
+                        reset_stats = {
+                            "f_mins": 2206, "f_goals": 16, "f_xg": 17.44, "f_assists": 4, "f_xa": 3.33,
+                            "f_rating": 7.32, "f_matches": 28, "f_starts": 25, "f_shots": 88, "f_sot": 43,
+                            "f_chances": 25, "f_dribbles": 14, "f_touches_box": 153, "f_tackles": 24,
+                            "f_gk_saves": 78, "f_gk_conceded": 28, "f_gk_prevented": 2.45,
+                            "f_gk_cs": 10, "f_gk_errors": 0, "f_gk_claims": 18,
+                            "custom_proj_mins": 3036
+                        }
+                        for r_k, r_v in reset_stats.items():
+                            st.session_state[r_k] = r_v
+
                         st.session_state["form_key_id"] += 1
                         st.rerun()
                     else:
