@@ -13,23 +13,17 @@ st.set_page_config(
     layout="wide"
 )
 
-# 🌟 최신 구글 Apps Script 웹 앱 URL 및 스프레드시트 ID 적용
 GOOGLE_SHEET_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwUX4diDBw2jD8WufrSa_0PejibYm7tIfyf1ia7O-QTfj1Ae6SQb3bZZ9pmNvDUAT6C/exec"
 SPREADSHEET_ID = "16CeAQp1-xqc-mhtvlP0vLlQu5k1pg8DW5A-m29WCFdw"
 
-# 🌟 [완벽 호환형] Apps Script doGet (JSON API)을 통해 메인기록부 데이터 로드
+# 🌟 [초안정성 보장] 구글 시트 CSV Export 다이렉트 로드 (Apps Script 의존성 완전 제거)
 @st.cache_data(ttl=2)
 def fetch_sheet_history():
     try:
-        res = requests.get(GOOGLE_SHEET_WEBAPP_URL, timeout=15, allow_redirects=True)
-        res_json = res.json()
-        if res_json.get("status") == "success":
-            rows = res_json.get("data", [])
-            if len(rows) > 1:
-                headers = rows[0]
-                data_rows = rows[1:]
-                df = pd.DataFrame(data_rows, columns=headers)
-                return df
+        csv_url = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/export?format=csv&gid=0"
+        df = pd.read_csv(csv_url)
+        if not df.empty:
+            return df
     except Exception:
         pass
     return pd.DataFrame()
@@ -219,7 +213,6 @@ def format_currency_desc(eur_man_euro):
     gbp_man = eur_man_euro * rate_gbp
     return f"약 {krw_eok:,.1f}억원 | £{gbp_man:,.1f}만"
 
-# 🌟 키워드 기반 유연한 값 추출 함수
 def find_val(row_dict, keywords, default=0):
     for k, v in row_dict.items():
         k_str = str(k).lower().strip()
