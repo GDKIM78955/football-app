@@ -203,6 +203,12 @@ def fetch_sheet_history():
 
 history_df = fetch_sheet_history()
 
+# 🔍 [디버깅용 강제 출력] 시트에서 데이터가 넘어오는지 확인
+with st.expander("🛠️ [디버깅] 구글 시트 데이터 로드 상태 확인", expanded=True):
+    st.write("불러온 데이터프레임 크기:", history_df.shape)
+    st.write("발견된 컬럼 목록:", list(history_df.columns))
+    st.dataframe(history_df)
+
 def find_val(row_dict, candidates, default=0):
     for c in candidates:
         c_clean = str(c).lower().replace(" ", "").replace("_", "").replace("(", "").replace(")", "")
