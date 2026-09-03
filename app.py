@@ -28,7 +28,6 @@ if "stat_key_id" not in st.session_state:
 if "last_saved_msg" not in st.session_state:
     st.session_state["last_saved_msg"] = None
 
-# 🌟 예상 출전 시간 고정값 해제 (기본값을 0 또는 유연한 입력 가능 상태로 세팅)
 if "custom_proj_mins" not in st.session_state:
     st.session_state["custom_proj_mins"] = 0
 
@@ -939,7 +938,7 @@ with tab2:
     with f_c3: f_to_l = st.selectbox("이적할 리그", list(LEAGUE_WEIGHTS.keys()), index=list(LEAGUE_WEIGHTS.keys()).index(in_to_league_choice) if in_to_league_choice in LEAGUE_WEIGHTS else 0, key=f"f_tab_to_l_{k_id}")
     
     st.markdown("##### ⏱️ 이적 팀 예상 출전 시간(분) 세분화 조건 선택")
-    st.caption("아래 프리셋을 선택하시면 아래 입력창의 숫자가 지우지 않아도 곧바로 자동 연동됩니다.")
+    st.caption("아래 프리셋을 선택하시면 아래 입력창의 숫자가 곧바로 자동 연동됩니다.")
     
     time_preset_options = [
         "직접 수동 입력 (아래 입력창 사용)",
@@ -960,8 +959,12 @@ with tab2:
     
     sel_time_preset = st.selectbox("출전 시간 세분화 프리셋 선택", time_preset_options, index=0, key=f"time_preset_box_{k_id}_{s_id}")
     
+    # 🌟 프리셋을 선택하면 세션에 즉시 값을 반영하고 화면을 갱신하여 입력창에 즉시 꽂히도록 처리
     if sel_time_preset != "직접 수동 입력 (아래 입력창 사용)":
-        st.session_state["custom_proj_mins"] = preset_mapping[sel_time_preset]
+        new_mins = preset_mapping[sel_time_preset]
+        if st.session_state["custom_proj_mins"] != new_mins:
+            st.session_state["custom_proj_mins"] = new_mins
+            st.rerun()
 
     f_target_mins = st.number_input(
         "최종 적용될 예상 출전 시간(분)", 
