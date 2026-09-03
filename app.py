@@ -947,6 +947,13 @@ with tab1:
 with tab2:
     st.subheader("📱 FotMob 스타일 시즌 스탯 입력 & 이적 첫 시즌 성적 프로젝션")
     
+    st.info("""
+    💡 **FotMob 과거 기록 입력 가이드**:
+    * **여름 이적 (Summer)**: 직전 풀 시즌(1년 전체, 약 2,500~3,200분) 실제 기록을 입력합니다.
+    * **겨울 이적 (Winter - 원칙)**: 이번 시즌 **전반기(8월~1월, 약 1,200~1,600분)** 기록을 입력합니다.
+    * **겨울 이적 (Winter - 예외)**: 전반기에 장기 부상이나 결장으로 **출전 시간이 300~400분 미만**인 경우 표본 왜곡 방지를 위해 **'직전 풀 시즌'** 기록을 입력해 주세요.
+    """)
+
     winter_data_source = st.radio(
         "📋 데이터 입력 기준 모드 선택",
         [
@@ -965,6 +972,9 @@ with tab2:
     with f_c1: f_pos = st.selectbox("선수 포지션 분류", ["⚽ 필드 플레이어 (공격수/미드필더/수비수)", "🧤 골키퍼 (Goalkeeper)"], index=1 if "GK" in main_position else 0, key=f"f_tab_pos_{k_id}")
     with f_c2: f_from_l = st.selectbox("원소속 리그 (기록 기준)", list(LEAGUE_WEIGHTS.keys()), index=list(LEAGUE_WEIGHTS.keys()).index(selling_league) if selling_league in LEAGUE_WEIGHTS else 0, key=f"f_tab_from_l_{k_id}")
     with f_c3: f_to_l = st.selectbox("이적할 리그", list(LEAGUE_WEIGHTS.keys()), index=list(LEAGUE_WEIGHTS.keys()).index(in_to_league_choice) if in_to_league_choice in LEAGUE_WEIGHTS else 0, key=f"f_tab_to_l_{k_id}")
+    
+    st.markdown("##### ⏱️ 이적 팀 예상 출전 시간(분) 세분화 조건 선택")
+    st.caption("아래 프리셋을 선택하시면 아래 입력창의 숫자가 곧바로 자동 연동됩니다.")
     
     time_preset_options = [
         "직접 수동 입력 (아래 입력창 사용)",
