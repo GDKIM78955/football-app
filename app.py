@@ -23,13 +23,14 @@ VAL_SHEET_CSV_URL = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/ex
 
 if "form_key_id" not in st.session_state:
     st.session_state["form_key_id"] = 0
-# 🌟 2번 탭 위젯 캐시 찌꺼기 방지를 위한 리셋 전용 카운터 추가
 if "stat_key_id" not in st.session_state:
     st.session_state["stat_key_id"] = 0
 if "last_saved_msg" not in st.session_state:
     st.session_state["last_saved_msg"] = None
+
+# 🌟 3036분 강제 고정을 풀고, 기본 예상 출전 시간을 1500분(또는 유연한 값)으로 변경
 if "custom_proj_mins" not in st.session_state:
-    st.session_state["custom_proj_mins"] = 3036
+    st.session_state["custom_proj_mins"] = 1500
 
 default_stats = {
     "f_mins": 90, "f_goals": 0, "f_xg": 0.0, "f_assists": 0, "f_xa": 0.0,
@@ -384,7 +385,7 @@ with tab1:
                         st.rerun()
 
     k_id = st.session_state["form_key_id"]
-    s_id = st.session_state["stat_key_id"] # 🌟 위젯 캐시 강제 갱신용 식별자
+    s_id = st.session_state["stat_key_id"]
     cf = st.session_state["current_form"]
 
     st.markdown("---")
@@ -887,7 +888,6 @@ with tab1:
                         st.session_state["last_saved_msg"] = f"✅ '{player_name}' 선수의 데이터가 성공적으로 {'수정(업데이트)' if edit_toggle else '저장'}되었습니다!"
                         st.cache_data.clear()
                         
-                        # 폼 및 2번 탭 스탯 전체 초기화 & 위젯 캐시 강제 갱신 트리거
                         st.session_state["current_form"] = default_form_template.copy()
                         reset_stats = {
                             "f_mins": 90, "f_goals": 0, "f_xg": 0.0, "f_assists": 0, "f_xa": 0.0,
@@ -895,13 +895,13 @@ with tab1:
                             "f_chances": 0, "f_dribbles": 0, "f_touches_box": 0, "f_tackles": 0,
                             "f_gk_saves": 0, "f_gk_conceded": 0, "f_gk_prevented": 0.0,
                             "f_gk_cs": 0, "f_gk_errors": 0, "f_gk_claims": 0,
-                            "custom_proj_mins": 3036
+                            "custom_proj_mins": 1500
                         }
                         for r_k, r_v in reset_stats.items():
                             st.session_state[r_k] = r_v
 
                         st.session_state["form_key_id"] += 1
-                        st.session_state["stat_key_id"] += 1 # 🌟 위젯 키 새로고침하여 캐시 잔재 박멸
+                        st.session_state["stat_key_id"] += 1
                         st.rerun()
                     else:
                         st.error(f"⚠️ 저장/수정 실패: {res_json.get('message', '통신 오류')}")
@@ -958,7 +958,7 @@ with tab2:
         "❄️ 겨울 이적생 후반기 잔여 소화 (1,440분 / 후반기 풀타임)": 1440
     }
     
-    sel_time_preset = st.selectbox("출전 시간 세분화 프리셋 선택", time_preset_options, index=0, key=f"time_preset_box_{k_id}")
+    sel_time_preset = st.selectbox("출전 시간 세분화 프리셋 선택", time_preset_options, index=0, key=f"time_preset_box_{k_id}_{s_id}")
     
     if sel_time_preset != "직접 수동 입력 (아래 입력창 사용)":
         st.session_state["custom_proj_mins"] = preset_mapping[sel_time_preset]
@@ -969,7 +969,7 @@ with tab2:
         max_value=4500, 
         value=int(st.session_state["custom_proj_mins"]), 
         step=90, 
-        key=f"f_tab_target_mins_{k_id}"
+        key=f"f_tab_target_mins_{k_id}_{s_id}"
     )
     st.session_state["custom_proj_mins"] = f_target_mins
     
@@ -987,7 +987,6 @@ with tab2:
     st.divider()
     st.markdown(f"### 📥 FotMob 시즌 실제 기록 입력 (`{winter_data_source.split(' (')[0]}` 기준)")
 
-    # 🌟 2번 탭 모든 입력 위젯에 s_id(stat_key_id)를 붙여 저장/리셋 시 캐시 찌꺼기 완벽 박멸
     b1, b2, b3, b4 = st.columns(4)
     with b1: in_matches = st.number_input("출전 경기 (Matches)", 1, 60, value=min(int(st.session_state["f_matches"]), 60), key=f"in_matches_box_{k_id}_{s_id}")
     with b2: in_starts = st.number_input("선발 출전 (Starts)", 0, 60, value=min(int(st.session_state["f_starts"]), 60), key=f"in_starts_box_{k_id}_{s_id}")
@@ -1303,13 +1302,13 @@ with tab2:
                             "f_chances": 0, "f_dribbles": 0, "f_touches_box": 0, "f_tackles": 0,
                             "f_gk_saves": 0, "f_gk_conceded": 0, "f_gk_prevented": 0.0,
                             "f_gk_cs": 0, "f_gk_errors": 0, "f_gk_claims": 0,
-                            "custom_proj_mins": 3036
+                            "custom_proj_mins": 1500
                         }
                         for r_k, r_v in reset_stats.items():
                             st.session_state[r_k] = r_v
 
                         st.session_state["form_key_id"] += 1
-                        st.session_state["stat_key_id"] += 1 # 🌟 위젯 키 갱신 트리거
+                        st.session_state["stat_key_id"] += 1
                         st.rerun()
                     else:
                         st.error(f"⚠️ 저장 실패 (응답 코드: {res.status_code})")
