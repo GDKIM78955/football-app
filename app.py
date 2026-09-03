@@ -14,13 +14,39 @@ st.set_page_config(
 )
 
 # 🌟 최신 구글 Apps Script 웹 앱 URL 및 스프레드시트 ID 적용
-GOOGLE_SHEET_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbyb8mGBd2xluSID0qb5Sb8G-MyLMEF_H-mI9A6buVwnX2JkL8cxu3gDWqqeo7yU94Sq/exec"
+GOOGLE_SHEET_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwUX4diDBw2jD8WufrSa_0PejibYm7tIfyf1ia7O-QTfj1Ae6SQb3bZZ9pmNvDUAT6C/exec"
 SPREADSHEET_ID = "16CeAQp1-xqc-mhtvlP0vLlQu5k1pg8DW5A-m29WCFdw"
-SHEET_CSV_URL = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=메인기록부"
 
-# 🌟 [수정 완료] 검증데이터 탭(2번째 탭)을 정확히 타겟팅하도록 GID 설정 (필요시 시트 하단 탭 순서에 맞게 gid 번호 수정 가능)
-VAL_SHEET_GID = "0" # 첫 번째 시트가 메인기록부라면 검증데이터 탭의 실제 GID 숫자로 확인 후 변경 가능
-VAL_SHEET_CSV_URL = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=검증데이터"
+# 🌟 CSV 방식 대신 Apps Script 웹 앱(GET)을 통해 데이터를 100% 안전하게 로드
+@st.cache_data(ttl=2)
+def fetch_sheet_history():
+    try:
+        res = requests.get(GOOGLE_SHEET_WEBAPP_URL, timeout=15, allow_redirects=True)
+        res_json = res.json()
+        if res_json.get("status") == "success":
+            rows = res_json.get("data", [])
+            if len(rows) > 1:
+                headers = rows[0]
+                data_rows = rows[1:]
+                df = pd.DataFrame(data_rows, columns=headers)
+                return df
+    except Exception:
+        pass
+    return pd.DataFrame()
+
+history_df = fetch_sheet_history()
+
+# 2번 탭(검증데이터) 데이터 로드용 함수
+@st.cache_data(ttl=2)
+def fetch_validation_data():
+    try:
+        val_url = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=검증데이터"
+        df = pd.read_csv(val_url)
+        if not df.empty and "선수명" in df.columns:
+            return df
+    except Exception:
+        pass
+    return pd.DataFrame()
 
 if "form_key_id" not in st.session_state:
     st.session_state["form_key_id"] = 0
@@ -193,19 +219,6 @@ def format_currency_desc(eur_man_euro):
     gbp_man = eur_man_euro * rate_gbp
     return f"약 {krw_eok:,.1f}억원 | £{gbp_man:,.1f}만"
 
-@st.cache_data(ttl=2)
-def fetch_sheet_history():
-    try:
-        df = pd.read_csv(SHEET_CSV_URL)
-        return df
-    except Exception:
-        return pd.DataFrame()
-
-history_df = fetch_sheet_history()
-
-# 🔍 [디버깅용 강제 출력] 시트에서 데이터가 넘어오는지 확인
-
-
 def find_val(row_dict, candidates, default=0):
     for c in candidates:
         c_clean = str(c).lower().replace(" ", "").replace("_", "").replace("(", "").replace(")", "")
@@ -289,10 +302,9 @@ with tab1:
                         row_raw = matched_rows.iloc[-1]
                         rd = row_raw.to_dict()
                         
-                        # 🌟 수정 시 행 인덱스 저장 (Apps Script에서 정확한 행 덮어쓰기 보장)
                         match_idx_list = e_season_df.index[e_season_df["선수명"] == sel_e_player].tolist()
                         if match_idx_list:
-                            st.session_state["edit_row_index"] = match_idx_list[-1] + 2 # 헤더(1행) + 0-based index 보정
+                            st.session_state["edit_row_index"] = match_idx_list[-1] + 2
 
                         pos_saved = str(rd.get("포지션", ""))
                         pos_match = list(POSITION_WEIGHTS.keys())[4]
@@ -381,7 +393,7 @@ with tab1:
                         st.session_state["f_goals"] = int(find_val(rd, ["이전_골", "골", "goals", "prev_goals"], 0))
                         st.session_state["f_xg"] = float(find_val(rd, ["이전_xG", "xg", "prev_xg"], 0.0))
                         st.session_state["f_assists"] = int(find_val(rd, ["이전_도움", "도움", "assists", "prev_assists"], 0))
-                        st.session_state["f_xa"] = float(find_val(rd, ["이전_xA", "xa", "prev_xA"], 0.0))
+                        st.session_state["f_xa"] = float(find_val(rd, ["이전_xA", "xa", "prev_xa"], 0.0))
                         st.session_state["f_shots"] = int(find_val(rd, ["이전_총슈팅", "총슈팅수", "슈팅", "shots", "prev_shots"], 0))
                         st.session_state["f_sot"] = int(find_val(rd, ["이전_유효슈팅", "유효슈팅", "sot", "prev_sot"], 0))
                         st.session_state["f_chances"] = int(find_val(rd, ["이전_찬스메이킹", "기회창출", "chances", "prev_chances"], 0))
@@ -924,7 +936,6 @@ with tab1:
                         st.session_state["last_saved_msg"] = f"✅ '{player_name}' 선수의 데이터가 성공적으로 {'수정(업데이트)' if edit_toggle else '저장'}되었습니다!"
                         st.cache_data.clear()
                         
-                        # 🌟 저장 후 폼 완벽 초기화 및 키 변경으로 잔류값 제거
                         st.session_state["current_form"] = default_form_template.copy()
                         st.session_state["edit_row_index"] = None
                         reset_stats = {
@@ -1213,23 +1224,6 @@ with tab2:
                     if res.status_code in [200, 302]:
                         st.session_state["last_saved_msg"] = f"✅ '{player_name}' 선수의 데이터가 성공적으로 저장되었습니다!"
                         st.cache_data.clear()
-                        
-                        st.session_state["current_form"] = default_form_template.copy()
-                        st.session_state["edit_row_index"] = None
-                        reset_stats = {
-                            "f_mins": 90, "f_goals": 0, "f_xg": 0.0, "f_assists": 0, "f_xa": 0.0,
-                            "f_rating": 6.50, "f_matches": 1, "f_starts": 0, "f_shots": 0, "f_sot": 0,
-                            "f_chances": 0, "f_dribbles": 0, "f_touches_box": 0, "f_tackles": 0,
-                            "f_gk_saves": 0, "f_gk_conceded": 0, "f_gk_prevented": 0.0,
-                            "f_gk_cs": 0, "f_gk_errors": 0, "f_gk_claims": 0,
-                            "f_big_chances": 0, "f_pk_goals": 0, "f_pass_pct": 0.0, "f_duels_pct": 0.0, "f_aerial_pct": 0.0,
-                            "custom_proj_mins": 3000
-                        }
-                        for r_k, r_v in reset_stats.items():
-                            st.session_state[r_k] = r_v
-
-                        st.session_state["form_key_id"] += 1
-                        st.session_state["stat_key_id"] += 1
                         st.rerun()
                     else:
                         st.error("⚠️ 저장 실패")
@@ -1353,22 +1347,10 @@ with tab4:
     st.subheader("🎯 이적 첫 시즌 실제 성적 입력 & 모델 예측 정확도 사후 검증")
     st.caption("시즌 종료 후 선수가 실제로 기록한 최종 스탯(xG, xA 포함)을 입력하여 모델 예측치와의 오차율 및 적중률을 산출하고 [검증데이터] 시트에 업데이트합니다.")
 
-    @st.cache_data(ttl=2)
-    def fetch_validation_data():
-        try:
-            # 🌟 '검증데이터' 탭 데이터를 올바르게 읽어오도록 수정
-            val_url = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=검증데이터"
-            df = pd.read_csv(val_url)
-            if not df.empty and "선수명" in df.columns:
-                return df
-        except Exception:
-            pass
-        return pd.DataFrame()
-
     val_df = fetch_validation_data()
 
     if val_df.empty or len(val_df) == 0 or "이적시즌" not in val_df.columns:
-        st.info("💡 **아직 [검증데이터] 탭에 저장된 데이터가 없거나 탭 이름을 읽지 못했습니다.**\n\n- 2번 탭에서 10대 핵심 리그 이적 선수를 저장하시면 이곳에 자동으로 나타납니다.")
+        st.info("💡 **아직 [검증데이터] 탭에 저장된 데이터가 없습니다.**\n\n- 2번 탭에서 10대 핵심 리그 이적 선수를 저장하시면 이곳에 자동으로 나타납니다.")
     else:
         def check_status(row):
             act_r = str(row.get("실제_평점", "")).strip()
