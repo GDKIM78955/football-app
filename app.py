@@ -959,7 +959,6 @@ with tab2:
     
     sel_time_preset = st.selectbox("출전 시간 세분화 프리셋 선택", time_preset_options, index=0, key=f"time_preset_box_{k_id}_{s_id}")
     
-    # 🌟 프리셋을 선택하면 세션에 즉시 값을 반영하고 화면을 갱신하여 입력창에 즉시 꽂히도록 처리
     if sel_time_preset != "직접 수동 입력 (아래 입력창 사용)":
         new_mins = preset_mapping[sel_time_preset]
         if st.session_state["custom_proj_mins"] != new_mins:
