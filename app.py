@@ -963,6 +963,7 @@ with tab2:
         new_mins = preset_mapping[sel_time_preset]
         if st.session_state["custom_proj_mins"] != new_mins:
             st.session_state["custom_proj_mins"] = new_mins
+            st.session_state["stat_key_id"] += 1
             st.rerun()
 
     f_target_mins = st.number_input(
