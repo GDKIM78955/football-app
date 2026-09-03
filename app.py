@@ -27,6 +27,8 @@ if "stat_key_id" not in st.session_state:
     st.session_state["stat_key_id"] = 0
 if "last_saved_msg" not in st.session_state:
     st.session_state["last_saved_msg"] = None
+if "edit_row_index" not in st.session_state:
+    st.session_state["edit_row_index"] = None
 
 if "custom_proj_mins" not in st.session_state:
     st.session_state["custom_proj_mins"] = 3000
@@ -279,7 +281,12 @@ with tab1:
                 st.write("")
                 if st.button("📥 데이터 불러오기", type="primary", use_container_width=True):
                     if sel_e_player:
-                        row_raw = e_season_df[e_season_df["선수명"] == sel_e_player].iloc[-1]
+                        matched_rows = e_season_df[e_season_df["선수명"] == sel_e_player]
+                        if not matched_rows.empty:
+                            raw_idx_in_csv = matched_rows.index[-1]
+                            st.session_state["edit_row_index"] = int(raw_idx_in_csv) + 2
+                        
+                        row_raw = matched_rows.iloc[-1]
                         rd = row_raw.to_dict()
                         
                         pos_saved = str(rd.get("포지션", ""))
@@ -303,7 +310,6 @@ with tab1:
                                 to_l_match = l_k
                                 break
 
-                        # 🌟 메모 불러올 때 기존 중복 파이프 문자열 정리
                         raw_notes_val = str(rd.get("스카우팅메모", ""))
                         clean_notes_val = raw_notes_val.split(" | [영입")[0].split(" | [방출")[0].strip()
 
@@ -392,13 +398,14 @@ with tab1:
                         st.session_state["f_gk_errors"] = int(find_val(rd, ["gk_실수", "실수", "errors", "gk_errors"], 0))
                         st.session_state["f_gk_claims"] = int(find_val(rd, ["gk_공중볼", "공중볼", "claims", "gk_claims"], 0))
 
-                        # 🌟 불러온 선수의 예측 출전 시간도 시트 값으로 연동
                         saved_proj_mins = int(find_val(rd, ["예측_출전시간", "예측출전시간", "proj_mins"], 3000))
                         st.session_state["custom_proj_mins"] = saved_proj_mins
 
                         st.session_state["form_key_id"] += 1
                         st.session_state["stat_key_id"] += 1
                         st.rerun()
+    else:
+        st.session_state["edit_row_index"] = None
 
     k_id = st.session_state["form_key_id"]
     s_id = st.session_state["stat_key_id"]
@@ -796,6 +803,8 @@ with tab1:
     display_pname_t1 = player_name.strip() if player_name.strip() else "선수명 미입력"
     tag_btn_name_t1 = "🔴 방출(OUT) 데이터" if is_out_trade else "🔵 영입(IN) 데이터"
     
+    # 🌟 수정 모드일 때와 신규 저장일 때 action을 명확히 구분하여 row_index와 함께 전송
+    action_type = "update" if edit_toggle else "save_all"
     btn_label_t1 = f"🔄 '{display_pname_t1}' 수정된 데이터 구글 시트에 업데이트(덮어쓰기)" if edit_toggle else f"💾 {tag_btn_name_t1} 구글 시트에 바로 저장하기 (총 54개 항목 동기화)"
     
     if st.button(btn_label_t1, type="primary", use_container_width=True, key="save_btn_tab1"):
@@ -817,7 +826,6 @@ with tab1:
                 if is_gk:
                     detailed_notes += f" | GK[선방:{st.session_state.get('f_gk_saves', 0)}|실점:{st.session_state.get('f_gk_conceded', 0)}]"
 
-                # 🌟 2번 탭에서 지정한 예상 출전 시간(`st.session_state["custom_proj_mins"]`)을 그대로 반영
                 f_target_mins_t1 = st.session_state.get("custom_proj_mins", 3000)
                 if f_target_mins_t1 <= 0:
                     f_target_mins_t1 = 1440 if is_winter else 3036
@@ -843,7 +851,8 @@ with tab1:
                 pj_rating_t1 = round(max(6.0, cur_rating - (1.0 - final_lf_t1) * 0.9), 2)
 
                 payload = {
-                    "action": "save_all",
+                    "action": action_type,
+                    "row_index": st.session_state.get("edit_row_index") if edit_toggle else None,
                     "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
                     "season": season_val,
                     "name": player_name,
@@ -914,6 +923,7 @@ with tab1:
                         st.cache_data.clear()
                         
                         st.session_state["current_form"] = default_form_template.copy()
+                        st.session_state["edit_row_index"] = None
                         reset_stats = {
                             "f_mins": 90, "f_goals": 0, "f_xg": 0.0, "f_assists": 0, "f_xa": 0.0,
                             "f_rating": 6.50, "f_matches": 1, "f_starts": 0, "f_shots": 0, "f_sot": 0,
@@ -1267,13 +1277,13 @@ with tab2:
                 if player_notes.strip():
                     detailed_notes += f" | {player_notes.strip()}"
                     
-                # 🌟 2번 탭의 출전 시간 반영
                 f_target_mins_t2 = st.session_state.get("custom_proj_mins", 3000)
                 if f_target_mins_t2 <= 0:
                     f_target_mins_t2 = 1440 if is_winter else 3036
 
                 payload = {
                     "action": "save_all",
+                    "row_index": None,
                     "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
                     "season": season_val,
                     "name": player_name,
