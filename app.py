@@ -13,7 +13,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# 🌟 새로 발급받으신 최신 구글 Apps Script 웹 앱 URL 적용 완료
+# 🌟 최신 구글 Apps Script 웹 앱 URL 적용 완료
 GOOGLE_SHEET_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzqPJSPkTebJj6QPOmWP9Tf2167szqagnZGQvgFY_a5dTLEn0J94CEvcL7fIu5CUp-UYQ/exec"
 SPREADSHEET_ID = "1oUDZ96SJ7aklJdrq_rK5K1ti2RRUAGO3PqqLvPM9E2A"
 SHEET_CSV_URL = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/gviz/tq?tqx=out:csv"
@@ -352,7 +352,7 @@ with tab1:
                             "big_stage": list(BIG_STAGE_WEIGHTS.keys())[0],
                             "injury": list(INJURY_WEIGHTS.keys())[1],
                             "urgency": urg_match,
-                            "option_exercised": "옵션발동" in notes_val
+                            "option_exercised": "임대후옵션발동완료" in notes_val
                         }
 
                         st.session_state["f_mins"] = int(find_val(rd, ["이전_출전시간", "출전시간", "mins"], 2206))
@@ -818,7 +818,6 @@ with tab1:
 
                 pj_rating_t1 = round(max(6.0, cur_rating - (1.0 - final_lf_t1) * 0.9), 2)
 
-                # 🌟 구글 시트 1행 헤더 순서(48개)와 100% 완벽하게 일치하는 payload 배열 구조
                 payload = {
                     "action": action_type,
                     "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
@@ -915,7 +914,6 @@ with tab2:
     )
 
     is_winter_mode = "겨울" in winter_data_source
-    default_proj_mins = 1440 if is_winter_mode else 3036
     
     f_c1, f_c2, f_c3 = st.columns(3)
     with f_c1: f_pos = st.selectbox("선수 포지션 분류", ["⚽ 필드 플레이어 (공격수/미드필더/수비수)", "🧤 골키퍼 (Goalkeeper)"], index=1 if "GK" in main_position else 0, key=f"f_tab_pos_{k_id}")
@@ -923,7 +921,7 @@ with tab2:
     with f_c3: f_to_l = st.selectbox("이적할 리그", list(LEAGUE_WEIGHTS.keys()), index=list(LEAGUE_WEIGHTS.keys()).index(in_to_league_choice) if in_to_league_choice in LEAGUE_WEIGHTS else 0, key=f"f_tab_to_l_{k_id}")
     
     st.markdown("##### ⏱️ 이적 팀 예상 출전 시간(분) 세분화 조건 선택")
-    st.caption("아래 6가지 상황 중 선수의 실제 팀 내 입지와 체급에 가장 알맞은 조건을 선택하시면, 예상 출전 시간이 즉시 정밀 세팅됩니다.")
+    st.caption("아래 프리셋을 선택하시면 아래 입력창의 숫자가 지우지 않아도 곧바로 자동 연동됩니다.")
     
     time_preset_options = [
         "직접 수동 입력 (아래 입력창 사용)",
@@ -934,8 +932,6 @@ with tab2:
         "❄️ 겨울 이적생 후반기 잔여 소화 (1,440분 / 후반기 풀타임)"
     ]
     
-    sel_time_preset = st.selectbox("출전 시간 세분화 프리셋 선택", time_preset_options, index=0, key=f"time_preset_box_{k_id}")
-    
     preset_mapping = {
         "🔥 메인 핵심 주전 (3,000분 / 34~38경기 풀타임)": 3000,
         "⭐ 준주전 / 주력 로테이션 (2,200분 / 22~25경기 선발급)": 2200,
@@ -943,6 +939,8 @@ with tab2:
         "🌱 유망주 / 로테이션 벤치 자원 (900분 / 8~10경기 선발급)": 900,
         "❄️ 겨울 이적생 후반기 잔여 소화 (1,440분 / 후반기 풀타임)": 1440
     }
+    
+    sel_time_preset = st.selectbox("출전 시간 세분화 프리셋 선택", time_preset_options, index=0, key=f"time_preset_box_{k_id}")
     
     if sel_time_preset != "직접 수동 입력 (아래 입력창 사용)":
         st.session_state["custom_proj_mins"] = preset_mapping[sel_time_preset]
@@ -1013,7 +1011,7 @@ with tab2:
         st.session_state["f_xa"] = in_xa
         st.session_state["f_chances"] = in_chances
 
-        st.markdown("#### 3️⃣ 경합 및 수비 기여 (Duels & Defending - 공격/수비 전원 기록)")
+        st.markdown("#### 3️⃣ 경합 및 수비 기여 (Duels & Defending)")
         d1, d2, d3, d4, d5 = st.columns(5)
         with d1: in_dribbles = st.number_input("성공한 드리블", 0, 100, value=min(int(st.session_state["f_dribbles"]), 100), key=f"in_dribbles_box_{k_id}")
         with d2: in_touches_box = st.number_input("박스 안 터치 (Box Touches)", 0, 300, value=min(int(st.session_state["f_touches_box"]), 300), key=f"in_touches_box_{k_id}")
