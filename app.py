@@ -24,6 +24,8 @@ if "form_key_id" not in st.session_state:
     st.session_state["form_key_id"] = 0
 if "last_saved_msg" not in st.session_state:
     st.session_state["last_saved_msg"] = None
+if "custom_proj_mins" not in st.session_state:
+    st.session_state["custom_proj_mins"] = 3036
 
 default_stats = {
     "f_mins": 2206, "f_goals": 16, "f_xg": 17.44, "f_assists": 4, "f_xa": 3.33,
@@ -772,7 +774,6 @@ with tab1:
     display_pname_t1 = player_name.strip() if player_name.strip() else "선수명 미입력"
     tag_btn_name_t1 = "🔴 방출(OUT) 데이터" if is_out_trade else "🔵 영입(IN) 데이터"
     
-    # 🌟 [핵심 수정] 수정 모드일 때는 action_type을 'update_existing'으로 정확히 분기
     action_type = "update_existing" if edit_toggle else "save_all"
     btn_label_t1 = f"🔄 '{display_pname_t1}' 수정된 데이터 구글 시트에 업데이트(덮어쓰기)" if edit_toggle else f"💾 {tag_btn_name_t1} 구글 시트에 바로 저장하기 (총 48개 항목 동기화)"
     
@@ -920,10 +921,10 @@ with tab2:
     with f_c3: f_to_l = st.selectbox("이적할 리그", list(LEAGUE_WEIGHTS.keys()), index=list(LEAGUE_WEIGHTS.keys()).index(in_to_league_choice) if in_to_league_choice in LEAGUE_WEIGHTS else 0, key=f"f_tab_to_l_{k_id}")
     
     st.markdown("##### ⏱️ 이적 팀 예상 출전 시간(분) 세분화 조건 선택")
-    st.caption("아래 6가지 상황 중 선수의 실제 팀 내 입지와 체급에 가장 알맞은 조건을 선택하시면, 예상 출전 시간이 자동으로 정밀 세팅됩니다.")
+    st.caption("아래 6가지 상황 중 선수의 실제 팀 내 입지와 체급에 가장 알맞은 조건을 선택하시면, 예상 출전 시간이 즉시 정밀 세팅됩니다.")
     
     time_preset_options = [
-        "직접 수동 입력 (아래 슬라이더/입력창 사용)",
+        "직접 수동 입력 (아래 입력창 사용)",
         "🔥 메인 핵심 주전 (3,000분 / 34~38경기 풀타임)",
         "⭐ 준주전 / 주력 로테이션 (2,200분 / 22~25경기 선발급)",
         "⚖️ 로테이션 뎁스 자원 (1,500분 / 15~18경기 선발급)",
@@ -941,12 +942,18 @@ with tab2:
         "❄️ 겨울 이적생 후반기 잔여 소화 (1,440분 / 후반기 풀타임)": 1440
     }
     
-    if sel_time_preset != "직접 수동 입력 (아래 슬라이더/입력창 사용)":
-        default_target_mins_val = preset_mapping[sel_time_preset]
-    else:
-        default_target_mins_val = min(int(default_proj_mins), 4500)
+    if sel_time_preset != "직접 수동 입력 (아래 입력창 사용)":
+        st.session_state["custom_proj_mins"] = preset_mapping[sel_time_preset]
 
-    f_target_mins = st.number_input("최종 적용될 예상 출전 시간(분)", min_value=90, max_value=4500, value=default_target_mins_val, step=90, key=f"f_tab_target_mins_{k_id}")
+    f_target_mins = st.number_input(
+        "최종 적용될 예상 출전 시간(분)", 
+        min_value=90, 
+        max_value=4500, 
+        value=int(st.session_state["custom_proj_mins"]), 
+        step=90, 
+        key=f"f_tab_target_mins_{k_id}"
+    )
+    st.session_state["custom_proj_mins"] = f_target_mins
     
     raw_l_factor = LEAGUE_WEIGHTS[f_from_l] / LEAGUE_WEIGHTS[f_to_l]
     if LEAGUE_WEIGHTS[f_to_l] > LEAGUE_WEIGHTS[f_from_l]:
