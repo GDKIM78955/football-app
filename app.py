@@ -16,7 +16,7 @@ st.set_page_config(
 # 🌟 최신 구글 Apps Script 웹 앱 URL 및 스프레드시트 ID 적용
 GOOGLE_SHEET_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbyb8mGBd2xluSID0qb5Sb8G-MyLMEF_H-mI9A6buVwnX2JkL8cxu3gDWqqeo7yU94Sq/exec"
 SPREADSHEET_ID = "16CeAQp1-xqc-mhtvlP0vLlQu5k1pg8DW5A-m29WCFdw"
-SHEET_CSV_URL = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/gviz/tq?tqx=out:csv"
+SHEET_CSV_URL = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=메인기록부"
 
 # 🌟 [수정 완료] 검증데이터 탭(2번째 탭)을 정확히 타겟팅하도록 GID 설정 (필요시 시트 하단 탭 순서에 맞게 gid 번호 수정 가능)
 VAL_SHEET_GID = "0" # 첫 번째 시트가 메인기록부라면 검증데이터 탭의 실제 GID 숫자로 확인 후 변경 가능
