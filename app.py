@@ -28,10 +28,10 @@ if "last_saved_msg" not in st.session_state:
 if "custom_proj_mins" not in st.session_state:
     st.session_state["custom_proj_mins"] = 3036
 
-# 🌟 2번 탭 기본 스탯을 깔끔한 초기값(0 및 기준값)으로 설정
+# 🌟 2번 탭 기본 스탯을 전부 0 또는 최소값으로 완전히 비워둠
 default_stats = {
-    "f_mins": 1500, "f_goals": 0, "f_xg": 0.0, "f_assists": 0, "f_xa": 0.0,
-    "f_rating": 7.00, "f_matches": 20, "f_starts": 15, "f_shots": 0, "f_sot": 0,
+    "f_mins": 90, "f_goals": 0, "f_xg": 0.0, "f_assists": 0, "f_xa": 0.0,
+    "f_rating": 6.50, "f_matches": 1, "f_starts": 0, "f_shots": 0, "f_sot": 0,
     "f_chances": 0, "f_dribbles": 0, "f_touches_box": 0, "f_tackles": 0,
     "f_gk_saves": 0, "f_gk_conceded": 0, "f_gk_prevented": 0.0,
     "f_gk_cs": 0, "f_gk_errors": 0, "f_gk_claims": 0
@@ -356,14 +356,14 @@ with tab1:
                             "option_exercised": "임대후옵션발동완료" in notes_val
                         }
 
-                        st.session_state["f_mins"] = int(find_val(rd, ["이전_출전시간", "출전시간", "mins"], 2206))
+                        st.session_state["f_mins"] = int(find_val(rd, ["이전_출전시간", "출전시간", "mins"], 1500))
                         st.session_state["f_goals"] = int(find_val(rd, ["이전_골", "골", "goals"], 0))
                         st.session_state["f_xg"] = float(find_val(rd, ["이전_xG", "xg"], 0.0))
                         st.session_state["f_assists"] = int(find_val(rd, ["이전_도움", "도움", "assists"], 0))
                         st.session_state["f_xa"] = float(find_val(rd, ["이전_xA", "xa"], 0.0))
                         st.session_state["f_rating"] = float(find_val(rd, ["이전_FotMob평점", "평점", "rating"], 7.0))
-                        st.session_state["f_matches"] = int(find_val(rd, ["이전_출전경기", "경기수", "matches"], 28))
-                        st.session_state["f_starts"] = int(find_val(rd, ["이전_선발", "선발", "starts"], 25))
+                        st.session_state["f_matches"] = int(find_val(rd, ["이전_출전경기", "경기수", "matches"], 20))
+                        st.session_state["f_starts"] = int(find_val(rd, ["이전_선발", "선발", "starts"], 15))
                         st.session_state["f_shots"] = int(find_val(rd, ["이전_총슈팅", "슈팅", "shots"], 0))
                         st.session_state["f_sot"] = int(find_val(rd, ["이전_유효슈팅", "유효슈팅", "sot"], 0))
                         st.session_state["f_chances"] = int(find_val(rd, ["이전_찬스메이킹", "기회창출", "chances"], 0))
@@ -884,11 +884,11 @@ with tab1:
                         st.session_state["last_saved_msg"] = f"✅ '{player_name}' 선수의 데이터가 성공적으로 {'수정(업데이트)' if edit_toggle else '저장'}되었습니다!"
                         st.cache_data.clear()
                         
-                        # 폼 및 2번 탭 스탯 전체 초기화 (0 및 표준값)
+                        # 폼 및 2번 탭 스탯 전체 초기화 (0으로 완전 비움)
                         st.session_state["current_form"] = default_form_template.copy()
                         reset_stats = {
-                            "f_mins": 1500, "f_goals": 0, "f_xg": 0.0, "f_assists": 0, "f_xa": 0.0,
-                            "f_rating": 7.00, "f_matches": 20, "f_starts": 15, "f_shots": 0, "f_sot": 0,
+                            "f_mins": 90, "f_goals": 0, "f_xg": 0.0, "f_assists": 0, "f_xa": 0.0,
+                            "f_rating": 6.50, "f_matches": 1, "f_starts": 0, "f_shots": 0, "f_sot": 0,
                             "f_chances": 0, "f_dribbles": 0, "f_touches_box": 0, "f_tackles": 0,
                             "f_gk_saves": 0, "f_gk_conceded": 0, "f_gk_prevented": 0.0,
                             "f_gk_cs": 0, "f_gk_errors": 0, "f_gk_claims": 0,
@@ -1019,7 +1019,7 @@ with tab2:
         with p2: in_xa = st.number_input("기대 도움 (xA)", 0.0, 50.0, value=min(float(st.session_state["f_xa"]), 50.0), step=0.01, key=f"in_xa_box_{k_id}")
         with p3: in_chances = st.number_input("기회 창출 (Chances)", 0, 150, value=min(int(st.session_state["f_chances"]), 150), key=f"in_chances_box_{k_id}")
         with p4: in_big_chances = st.number_input("빅 찬스 메이킹", 0, 50, 0, key=f"in_bc_box_{k_id}")
-        with p5: in_pass_pct = st.number_input("패스 성공률 (%)", 30.0, 100.0, 85.0, 0.1, key=f"in_pass_pct_box_{k_id}")
+        with p5: in_pass_pct = st.number_input("패스 성공률 (%)", 30.0, 100.0, 0.0, 0.1, key=f"in_pass_pct_box_{k_id}")
 
         st.session_state["f_assists"] = in_assists
         st.session_state["f_xa"] = in_xa
@@ -1029,8 +1029,8 @@ with tab2:
         d1, d2, d3, d4, d5 = st.columns(5)
         with d1: in_dribbles = st.number_input("성공한 드리블", 0, 100, value=min(int(st.session_state["f_dribbles"]), 100), key=f"in_dribbles_box_{k_id}")
         with d2: in_touches_box = st.number_input("박스 안 터치 (Box Touches)", 0, 300, value=min(int(st.session_state["f_touches_box"]), 300), key=f"in_touches_box_{k_id}")
-        with d3: in_duels_pct = st.number_input("지상 경합 승률 (%)", 20.0, 100.0, 50.0, 0.1, key=f"in_duels_box_{k_id}")
-        with d4: in_aerial_pct = st.number_input("공중볼 승률 (%)", 20.0, 100.0, 50.0, 0.1, key=f"in_aerial_box_{k_id}")
+        with d3: in_duels_pct = st.number_input("지상 경합 승률 (%)", 0.0, 100.0, 0.0, 0.1, key=f"in_duels_box_{k_id}")
+        with d4: in_aerial_pct = st.number_input("공중볼 승률 (%)", 0.0, 100.0, 0.0, 0.1, key=f"in_aerial_box_{k_id}")
         with d5: in_tackles = st.number_input("태클 성공 (Tackles)", 0, 150, value=min(int(st.session_state["f_tackles"]), 150), key=f"in_tackles_box_{k_id}")
 
         st.session_state["f_dribbles"] = in_dribbles
@@ -1291,11 +1291,11 @@ with tab2:
                         st.session_state["last_saved_msg"] = f"✅ '{player_name}' 선수의 {tag_btn_name}가 성공적으로 저장되었습니다!"
                         st.cache_data.clear()
                         
-                        # 폼 및 2번 탭 스탯 전체 초기화 (0 및 표준값)
+                        # 폼 및 2번 탭 스탯 전체 초기화 (0으로 완전 비움)
                         st.session_state["current_form"] = default_form_template.copy()
                         reset_stats = {
-                            "f_mins": 1500, "f_goals": 0, "f_xg": 0.0, "f_assists": 0, "f_xa": 0.0,
-                            "f_rating": 7.00, "f_matches": 20, "f_starts": 15, "f_shots": 0, "f_sot": 0,
+                            "f_mins": 90, "f_goals": 0, "f_xg": 0.0, "f_assists": 0, "f_xa": 0.0,
+                            "f_rating": 6.50, "f_matches": 1, "f_starts": 0, "f_shots": 0, "f_sot": 0,
                             "f_chances": 0, "f_dribbles": 0, "f_touches_box": 0, "f_tackles": 0,
                             "f_gk_saves": 0, "f_gk_conceded": 0, "f_gk_prevented": 0.0,
                             "f_gk_cs": 0, "f_gk_errors": 0, "f_gk_claims": 0,
