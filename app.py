@@ -13,12 +13,12 @@ st.set_page_config(
     layout="wide"
 )
 
-# 🌟 새로 발급받으신 최신 구글 Apps Script 웹 앱 URL 및 스프레드시트 ID 적용 완료
+# 🌟 최신 구글 Apps Script 웹 앱 URL 및 스프레드시트 ID 적용
 GOOGLE_SHEET_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbyb8mGBd2xluSID0qb5Sb8G-MyLMEF_H-mI9A6buVwnX2JkL8cxu3gDWqqeo7yU94Sq/exec"
 SPREADSHEET_ID = "16CeAQp1-xqc-mhtvlP0vLlQu5k1pg8DW5A-m29WCFdw"
 SHEET_CSV_URL = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/gviz/tq?tqx=out:csv"
 
-# 2번 탭(검증데이터) CSV 내보내기 URL (시트 GID 0번 기준, 필요시 변경 가능)
+# 2번 탭(검증데이터) CSV 내보내기 URL (시트 GID 0번 기준)
 VAL_SHEET_GID = "0"
 VAL_SHEET_CSV_URL = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/export?format=csv&gid={VAL_SHEET_GID}"
 
@@ -568,7 +568,7 @@ with tab1:
     ttype_w = TRANSFER_TYPE_WEIGHTS[transfer_type]
     stage_w = BIG_STAGE_WEIGHTS[big_stage]
     inj_w = INJURY_WEIGHTS[injury_status]
-    urg_w = URGENCY_WEIGHTS[urgency]
+    urg_w = URGENCY_WEIGHTS[urgency_status] # 👈 에러 수정 완료
 
     is_winter = "겨울" in season_val
     season_factor = 1.10 if is_winter else 1.00
