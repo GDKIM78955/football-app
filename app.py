@@ -36,7 +36,8 @@ default_stats = {
     "f_rating": 6.50, "f_matches": 1, "f_starts": 0, "f_shots": 0, "f_sot": 0,
     "f_chances": 0, "f_dribbles": 0, "f_touches_box": 0, "f_tackles": 0,
     "f_gk_saves": 0, "f_gk_conceded": 0, "f_gk_prevented": 0.0,
-    "f_gk_cs": 0, "f_gk_errors": 0, "f_gk_claims": 0
+    "f_gk_cs": 0, "f_gk_errors": 0, "f_gk_claims": 0,
+    "f_big_chances": 0, "f_pk_goals": 0, "f_pass_pct": 0.0, "f_duels_pct": 0.0, "f_aerial_pct": 0.0
 }
 for k, v in default_stats.items():
     if k not in st.session_state:
@@ -199,7 +200,6 @@ def fetch_sheet_history():
 
 history_df = fetch_sheet_history()
 
-# 🌟 모든 시트 컬럼 형태를 완벽하게 역추적하는 스마트 밸류 파서 함수
 def find_val(row_dict, candidates, default=0):
     for c in candidates:
         c_clean = str(c).lower().replace(" ", "").replace("_", "").replace("(", "").replace(")", "")
@@ -361,9 +361,9 @@ with tab1:
                             "option_exercised": "임대후옵션발동완료" in notes_val
                         }
 
-                        # 🌟 2번 탭의 모든 13대 풀 스탯을 시트의 어떤 컬럼명 변형으로 저장되었든 완벽하게 복원
+                        # 🌟 불러오기 시 모든 13대 스탯 및 6대 추가 세부 지표 완벽 복원
                         st.session_state["f_matches"] = int(find_val(rd, ["이전_출전경기", "출전경기", "경기수", "matches", "prev_matches"], 1))
-                        st.session_state["f_starts"] = int(find_val(rd, ["이전_선발", "선발", "starts", "prev_starts"], 0))
+                        st.session_state["f_starts"] = int(find_val(rd, ["선발출전", "이전_선발", "선발", "starts", "prev_starts"], 0))
                         st.session_state["f_mins"] = int(find_val(rd, ["이전_출전시간", "출전시간", "mins", "prev_mins"], 90))
                         st.session_state["f_goals"] = int(find_val(rd, ["이전_골", "골", "goals", "prev_goals"], 0))
                         st.session_state["f_xg"] = float(find_val(rd, ["이전_xG", "xg", "prev_xg"], 0.0))
@@ -376,6 +376,12 @@ with tab1:
                         st.session_state["f_touches_box"] = int(find_val(rd, ["이전_박스터치", "박스터치", "touches", "prev_touches_box"], 0))
                         st.session_state["f_tackles"] = int(find_val(rd, ["이전_태클성공", "태클성공", "태클", "tackles", "prev_tackles"], 0))
                         st.session_state["f_rating"] = float(find_val(rd, ["이전_FotMob평점", "fotmob평점", "평점", "rating", "prev_rating"], 6.5))
+
+                        st.session_state["f_big_chances"] = int(find_val(rd, ["빅찬스메이킹", "빅찬스", "big_chances"], 0))
+                        st.session_state["f_pk_goals"] = int(find_val(rd, ["pk득점", "pk", "pk_goals"], 0))
+                        st.session_state["f_pass_pct"] = float(find_val(rd, ["패스성공률", "패스성공률%", "pass_pct"], 0.0))
+                        st.session_state["f_duels_pct"] = float(find_val(rd, ["지상경합승률", "지상경합승률%", "duels_pct"], 0.0))
+                        st.session_state["f_aerial_pct"] = float(find_val(rd, ["공중볼승률", "공중볼승률%", "aerial_pct"], 0.0))
 
                         st.session_state["f_gk_saves"] = int(find_val(rd, ["gk_선방", "선방", "saves", "gk_saves"], 0))
                         st.session_state["f_gk_conceded"] = int(find_val(rd, ["gk_실점", "실점", "conceded", "gk_conceded"], 0))
@@ -827,6 +833,7 @@ with tab1:
 
                 pj_rating_t1 = round(max(6.0, cur_rating - (1.0 - final_lf_t1) * 0.9), 2)
 
+                # 🌟 저장 시 6대 추가 세부 지표까지 페이로드에 포함하여 구글 시트 전송
                 payload = {
                     "action": action_type,
                     "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
@@ -845,6 +852,7 @@ with tab1:
                     "status": status_label,
                     "deal_score": float(final_deal_score),
                     "prev_matches": int(st.session_state["f_matches"]),
+                    "prev_starts": int(st.session_state.get("f_starts", 0)),
                     "prev_mins": int(st.session_state["f_mins"]),
                     "prev_goals": int(st.session_state["f_goals"]),
                     "prev_xg": float(st.session_state["f_xg"]),
@@ -857,6 +865,11 @@ with tab1:
                     "prev_touches_box": int(st.session_state["f_touches_box"]),
                     "prev_tackles": int(st.session_state["f_tackles"]),
                     "prev_rating": float(cur_rating),
+                    "big_chances": int(st.session_state.get("f_big_chances", 0)),
+                    "pk_goals": int(st.session_state.get("f_pk_goals", 0)),
+                    "pass_pct": float(st.session_state.get("f_pass_pct", 0.0)),
+                    "duels_pct": float(st.session_state.get("f_duels_pct", 0.0)),
+                    "aerial_pct": float(st.session_state.get("f_aerial_pct", 0.0)),
                     "to_league": in_to_league_choice.split(" (")[0],
                     "proj_mins": int(f_target_mins_t1),
                     "proj_goals": float(pj_goals_t1),
@@ -899,6 +912,7 @@ with tab1:
                             "f_chances": 0, "f_dribbles": 0, "f_touches_box": 0, "f_tackles": 0,
                             "f_gk_saves": 0, "f_gk_conceded": 0, "f_gk_prevented": 0.0,
                             "f_gk_cs": 0, "f_gk_errors": 0, "f_gk_claims": 0,
+                            "f_big_chances": 0, "f_pk_goals": 0, "f_pass_pct": 0.0, "f_duels_pct": 0.0, "f_aerial_pct": 0.0,
                             "custom_proj_mins": 0
                         }
                         for r_k, r_v in reset_stats.items():
@@ -1018,36 +1032,41 @@ with tab2:
         with s2: in_xg = st.number_input("기대 득점 (xG)", 0.0, 50.0, value=min(float(st.session_state["f_xg"]), 50.0), step=0.01, key=f"in_xg_box_{k_id}_{s_id}")
         with s3: in_shots = st.number_input("총 슈팅 (Shots)", 0, 200, value=min(int(st.session_state["f_shots"]), 200), key=f"in_shots_box_{k_id}_{s_id}")
         with s4: in_sot = st.number_input("유효 슈팅 (On Target)", 0, 100, value=min(int(st.session_state["f_sot"]), 100), key=f"in_sot_box_{k_id}_{s_id}")
-        with s5: in_pk_goals = st.number_input("PK 득점 (Penalty)", 0, 20, 0, key=f"in_pk_box_{k_id}_{s_id}")
+        with s5: in_pk_goals = st.number_input("PK 득점 (Penalty)", 0, 20, value=min(int(st.session_state["f_pk_goals"]), 20), key=f"in_pk_box_{k_id}_{s_id}")
 
         st.session_state["f_goals"] = in_goals
         st.session_state["f_xg"] = in_xg
         st.session_state["f_shots"] = in_shots
         st.session_state["f_sot"] = in_sot
+        st.session_state["f_pk_goals"] = in_pk_goals
 
         st.markdown("#### 2️⃣ 패스 및 기회 창출 (Passing & Creativity)")
         p1, p2, p3, p4, p5 = st.columns(5)
         with p1: in_assists = st.number_input("도움 (Assists)", 0, 50, value=min(int(st.session_state["f_assists"]), 50), key=f"in_assists_box_{k_id}_{s_id}")
         with p2: in_xa = st.number_input("기대 도움 (xA)", 0.0, 50.0, value=min(float(st.session_state["f_xa"]), 50.0), step=0.01, key=f"in_xa_box_{k_id}_{s_id}")
         with p3: in_chances = st.number_input("기회 창출 (Chances)", 0, 150, value=min(int(st.session_state["f_chances"]), 150), key=f"in_chances_box_{k_id}_{s_id}")
-        with p4: in_big_chances = st.number_input("빅 찬스 메이킹", 0, 50, 0, key=f"in_bc_box_{k_id}_{s_id}")
-        with p5: in_pass_pct = st.number_input("패스 성공률 (%)", 0.0, 100.0, 0.0, 0.1, key=f"in_pass_pct_box_{k_id}_{s_id}")
+        with p4: in_big_chances = st.number_input("빅 찬스 메이킹", 0, 50, value=min(int(st.session_state["f_big_chances"]), 50), key=f"in_bc_box_{k_id}_{s_id}")
+        with p5: in_pass_pct = st.number_input("패스 성공률 (%)", 0.0, 100.0, value=float(st.session_state["f_pass_pct"]), step=0.1, key=f"in_pass_pct_box_{k_id}_{s_id}")
 
         st.session_state["f_assists"] = in_assists
         st.session_state["f_xa"] = in_xa
         st.session_state["f_chances"] = in_chances
+        st.session_state["f_big_chances"] = in_big_chances
+        st.session_state["f_pass_pct"] = in_pass_pct
 
         st.markdown("#### 3️⃣ 경합 및 수비 기여 (Duels & Defending)")
         d1, d2, d3, d4, d5 = st.columns(5)
         with d1: in_dribbles = st.number_input("성공한 드리블", 0, 100, value=min(int(st.session_state["f_dribbles"]), 100), key=f"in_dribbles_box_{k_id}_{s_id}")
         with d2: in_touches_box = st.number_input("박스 안 터치 (Box Touches)", 0, 300, value=min(int(st.session_state["f_touches_box"]), 300), key=f"in_touches_box_{k_id}_{s_id}")
-        with d3: in_duels_pct = st.number_input("지상 경합 승률 (%)", 0.0, 100.0, 0.0, 0.1, key=f"in_duels_box_{k_id}_{s_id}")
-        with d4: in_aerial_pct = st.number_input("공중볼 승률 (%)", 0.0, 100.0, 0.0, 0.1, key=f"in_aerial_box_{k_id}_{s_id}")
+        with d3: in_duels_pct = st.number_input("지상 경합 승률 (%)", 0.0, 100.0, value=float(st.session_state["f_duels_pct"]), step=0.1, key=f"in_duels_box_{k_id}_{s_id}")
+        with d4: in_aerial_pct = st.number_input("공중볼 승률 (%)", 0.0, 100.0, value=float(st.session_state["f_aerial_pct"]), step=0.1, key=f"in_aerial_box_{k_id}_{s_id}")
         with d5: in_tackles = st.number_input("태클 성공 (Tackles)", 0, 150, value=min(int(st.session_state["f_tackles"]), 150), key=f"in_tackles_box_{k_id}_{s_id}")
 
         st.session_state["f_dribbles"] = in_dribbles
         st.session_state["f_touches_box"] = in_touches_box
         st.session_state["f_tackles"] = in_tackles
+        st.session_state["f_duels_pct"] = in_duels_pct
+        st.session_state["f_aerial_pct"] = in_aerial_pct
 
     else:
         st.markdown("#### 🧤 FotMob 실제 골키퍼 지표 입력 (Goalkeeping)")
@@ -1070,6 +1089,7 @@ with tab2:
 
         in_goals = 0; in_xg = 0.0; in_shots = 0; in_sot = 0; in_assists = 0; in_xa = 0.0
         in_chances = 0; in_dribbles = 0; in_touches_box = 0; in_tackles = 0
+        in_big_chances = 0; in_pk_goals = 0; in_pass_pct = 0.0; in_duels_pct = 0.0; in_aerial_pct = 0.0
 
     st.divider()
 
@@ -1257,6 +1277,7 @@ with tab2:
                     "status": status_label,
                     "deal_score": float(final_deal_score),
                     "prev_matches": int(st.session_state["f_matches"]),
+                    "prev_starts": int(st.session_state.get("f_starts", 0)),
                     "prev_mins": int(st.session_state["f_mins"]),
                     "prev_goals": int(in_goals),
                     "prev_xg": float(in_xg),
@@ -1269,6 +1290,11 @@ with tab2:
                     "prev_touches_box": int(in_touches_box),
                     "prev_tackles": int(in_tackles),
                     "prev_rating": float(st.session_state["f_rating"]),
+                    "big_chances": int(st.session_state.get("f_big_chances", 0)),
+                    "pk_goals": int(st.session_state.get("f_pk_goals", 0)),
+                    "pass_pct": float(st.session_state.get("f_pass_pct", 0.0)),
+                    "duels_pct": float(st.session_state.get("f_duels_pct", 0.0)),
+                    "aerial_pct": float(st.session_state.get("f_aerial_pct", 0.0)),
                     "to_league": f_to_l.split(" (")[0],
                     "proj_mins": int(f_target_mins),
                     "proj_goals": float(proj_goals),
@@ -1310,6 +1336,7 @@ with tab2:
                             "f_chances": 0, "f_dribbles": 0, "f_touches_box": 0, "f_tackles": 0,
                             "f_gk_saves": 0, "f_gk_conceded": 0, "f_gk_prevented": 0.0,
                             "f_gk_cs": 0, "f_gk_errors": 0, "f_gk_claims": 0,
+                            "f_big_chances": 0, "f_pk_goals": 0, "f_pass_pct": 0.0, "f_duels_pct": 0.0, "f_aerial_pct": 0.0,
                             "custom_proj_mins": 0
                         }
                         for r_k, r_v in reset_stats.items():
