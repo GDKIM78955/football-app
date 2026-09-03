@@ -214,30 +214,26 @@ def format_currency_desc(eur_man_euro):
     gbp_man = eur_man_euro * rate_gbp
     return f"약 {krw_eok:,.1f}억원 | £{gbp_man:,.1f}만"
 
-# 🌟 데이터 로드 시 컬럼명을 유연하게 찾아내는 강화된 매칭 함수
-def find_val(row_dict, candidates, default=0):
-    for c in candidates:
-        c_clean = str(c).lower().replace(" ", "").replace("_", "").replace("(", "").replace(")", "")
-        for k in row_dict.keys():
-            k_clean = str(k).lower().replace(" ", "").replace("_", "").replace("(", "").replace(")", "")
-            if c_clean in k_clean or k_clean in c_clean:
-                val = row_dict[k]
-                if pd.notnull(val) and str(val).strip() not in ["", "nan", "None"]:
+# 🌟 [초강력 키워드 부분 일치 매칭 함수] 어떤 컬럼명이든 키워드가 포함되어 있으면 무조건 값을 찾아냄
+def find_val(row_dict, keywords, default=0):
+    for k, v in row_dict.items():
+        k_str = str(k).lower().strip()
+        for kw in keywords:
+            if kw.lower() in k_str:
+                if pd.notnull(v) and str(v).strip() not in ["", "nan", "None"]:
                     try:
-                        return float(val) if isinstance(default, float) else int(float(val))
+                        return float(v) if isinstance(default, float) else int(float(v))
                     except:
                         pass
     return default
 
-def find_str_val(row_dict, candidates, default=""):
-    for c in candidates:
-        c_clean = str(c).lower().replace(" ", "").replace("_", "").replace("(", "").replace(")", "")
-        for k in row_dict.keys():
-            k_clean = str(k).lower().replace(" ", "").replace("_", "").replace("(", "").replace(")", "")
-            if c_clean in k_clean or k_clean in c_clean:
-                val = row_dict[k]
-                if pd.notnull(val) and str(val).strip() not in ["", "nan", "None"]:
-                    return str(val).strip()
+def find_str_val(row_dict, keywords, default=""):
+    for k, v in row_dict.items():
+        k_str = str(k).lower().strip()
+        for kw in keywords:
+            if kw.lower() in k_str:
+                if pd.notnull(v) and str(v).strip() not in ["", "nan", "None"]:
+                    return str(v).strip()
     return default
 
 # 3. 메인 6개 탭 구성
@@ -313,32 +309,32 @@ with tab1:
                         if match_idx_list:
                             st.session_state["edit_row_index"] = match_idx_list[-1] + 2
 
-                        pos_saved = find_str_val(rd, ["포지션", "position", "pos"])
+                        pos_saved = find_str_val(rd, ["포지션", "pos"])
                         pos_match = list(POSITION_WEIGHTS.keys())[4]
                         for p_k in POSITION_WEIGHTS.keys():
                             if pos_saved and pos_saved in p_k:
                                 pos_match = p_k
                                 break
                                 
-                        fl_saved = find_str_val(rd, ["원소속리그", "from_league", "보내는리그", "원소속"])
+                        fl_saved = find_str_val(rd, ["원소속", "from_league", "보내는"])
                         from_l_match = list(LEAGUE_WEIGHTS.keys())[0]
                         for l_k in LEAGUE_WEIGHTS.keys():
                             if fl_saved and fl_saved in l_k:
                                 from_l_match = l_k
                                 break
 
-                        tl_saved = find_str_val(rd, ["이적팀리그", "to_league", "to_league_name"])
+                        tl_saved = find_str_val(rd, ["이적팀리그", "to_league", "이적리그"])
                         to_l_match = list(LEAGUE_WEIGHTS.keys())[0]
                         for l_k in LEAGUE_WEIGHTS.keys():
                             if tl_saved and tl_saved in l_k:
                                 to_l_match = l_k
                                 break
 
-                        raw_notes_val = find_str_val(rd, ["스카우팅메모", "notes", "메모"])
+                        raw_notes_val = find_str_val(rd, ["메모", "notes"])
                         clean_notes_val = raw_notes_val.split(" | [영입")[0].split(" | [방출")[0].strip()
 
                         tier_match = list(CLUB_TIERS.keys())[1]
-                        tier_saved = find_str_val(rd, ["영입구단티어", "buying_tier", "tier"])
+                        tier_saved = find_str_val(rd, ["티어", "tier", "buying"])
                         for t_k in CLUB_TIERS.keys():
                             if tier_saved and tier_saved in t_k:
                                 tier_match = t_k
@@ -351,7 +347,7 @@ with tab1:
                                 break
 
                         ttype_match = list(TRANSFER_TYPE_WEIGHTS.keys())[0]
-                        tt_saved = find_str_val(rd, ["이적형태", "transfer_type"])
+                        tt_saved = find_str_val(rd, ["형태", "transfer_type"])
                         for tt_k in TRANSFER_TYPE_WEIGHTS.keys():
                             if tt_saved and tt_saved in tt_k:
                                 ttype_match = tt_k
@@ -369,16 +365,16 @@ with tab1:
                                 urg_match = u_k
                                 break
 
-                        # 🌟 국적, 팀명, 이적료, 주급 등을 완벽하게 매칭하여 복원
+                        # 🌟 모든 필드를 키워드 기반으로 누락 없이 완벽 복원
                         st.session_state["current_form"] = {
                             "name": find_str_val(rd, ["선수명", "name"]),
-                            "nat": find_str_val(rd, ["국적", "nat", "nationality"]),
-                            "age": int(find_val(rd, ["만나이", "나이", "age"], 28)),
-                            "from_team": find_str_val(rd, ["원소속팀명", "from_team", "원소속팀"]),
-                            "to_team": find_str_val(rd, ["이적팀명", "to_team", "이적팀"]),
-                            "tm": int(find_val(rd, ["TM시장가치", "시장가치", "tm", "tm_val", "tm시장가치(만€)"], 4500)),
-                            "fee": int(find_val(rd, ["실제이적료", "이적료", "fee", "실제이적료(만€)"], 0)),
-                            "wage": float(find_val(rd, ["주급", "wage", "주급(만€)", "weekly_wage"], 0.0)),
+                            "nat": find_str_val(rd, ["국적", "nat", "country"]),
+                            "age": int(find_val(rd, ["나이", "age", "만나이"], 28)),
+                            "from_team": find_str_val(rd, ["원소속팀", "from_team", "보내는팀"]),
+                            "to_team": find_str_val(rd, ["이적팀", "to_team", "영입팀"]),
+                            "tm": int(find_val(rd, ["시장가치", "tm", "market"], 4500)),
+                            "fee": int(find_val(rd, ["이적료", "fee"], 0)),
+                            "wage": float(find_val(rd, ["주급", "wage"], 0.0)),
                             "notes": clean_notes_val,
                             "season": sel_e_season,
                             "pos": pos_match,
@@ -387,7 +383,7 @@ with tab1:
                             "buying_tier": tier_match,
                             "contract": contract_match,
                             "transfer_type": ttype_match,
-                            "trade_type": "🔴 방출 / 판매 (OUT)" if "OUT" in find_str_val(rd, ["거래구분", "trade_type"]) else "🔵 영입 (IN)",
+                            "trade_type": "🔴 방출 / 판매 (OUT)" if "OUT" in find_str_val(rd, ["거래", "trade"]) else "🔵 영입 (IN)",
                             "reg_status": reg_match,
                             "big_stage": list(BIG_STAGE_WEIGHTS.keys())[0],
                             "injury": list(INJURY_WEIGHTS.keys())[1],
@@ -395,35 +391,35 @@ with tab1:
                             "option_exercised": "임대후옵션발동완료" in raw_notes_val
                         }
 
-                        st.session_state["f_matches"] = int(find_val(rd, ["이전_출전경기", "출전경기", "경기수", "matches", "prev_matches"], 1))
-                        st.session_state["f_starts"] = int(find_val(rd, ["선발출전", "이전_선발", "선발", "starts", "prev_starts"], 0))
-                        st.session_state["f_mins"] = int(find_val(rd, ["이전_출전시간", "출전시간", "mins", "prev_mins"], 90))
-                        st.session_state["f_goals"] = int(find_val(rd, ["이전_골", "골", "goals", "prev_goals"], 0))
-                        st.session_state["f_xg"] = float(find_val(rd, ["이전_xG", "xg", "prev_xg"], 0.0))
-                        st.session_state["f_assists"] = int(find_val(rd, ["이전_도움", "도움", "assists", "prev_assists"], 0))
-                        st.session_state["f_xa"] = float(find_val(rd, ["이전_xA", "xa", "prev_xa"], 0.0))
-                        st.session_state["f_shots"] = int(find_val(rd, ["이전_총슈팅", "총슈팅수", "슈팅", "shots", "prev_shots"], 0))
-                        st.session_state["f_sot"] = int(find_val(rd, ["이전_유효슈팅", "유효슈팅", "sot", "prev_sot"], 0))
-                        st.session_state["f_chances"] = int(find_val(rd, ["이전_찬스메이킹", "기회창출", "chances", "prev_chances"], 0))
-                        st.session_state["f_dribbles"] = int(find_val(rd, ["이전_성공드리블", "성공드리블", "드리블", "dribbles", "prev_dribbles"], 0))
-                        st.session_state["f_touches_box"] = int(find_val(rd, ["이전_박스터치", "박스터치", "touches", "prev_touches_box"], 0))
-                        st.session_state["f_tackles"] = int(find_val(rd, ["이전_태클성공", "태클성공", "태클", "tackles", "prev_tackles"], 0))
-                        st.session_state["f_rating"] = float(find_val(rd, ["이전_FotMob평점", "fotmob평점", "평점", "rating", "prev_rating"], 6.5))
+                        st.session_state["f_matches"] = int(find_val(rd, ["경기", "match"], 1))
+                        st.session_state["f_starts"] = int(find_val(rd, ["선발", "start"], 0))
+                        st.session_state["f_mins"] = int(find_val(rd, ["출전시간", "min"], 90))
+                        st.session_state["f_goals"] = int(find_val(rd, ["골", "goal"], 0))
+                        st.session_state["f_xg"] = float(find_val(rd, ["xg"], 0.0))
+                        st.session_state["f_assists"] = int(find_val(rd, ["도움", "assist"], 0))
+                        st.session_state["f_xa"] = float(find_val(rd, ["xa"], 0.0))
+                        st.session_state["f_shots"] = int(find_val(rd, ["슈팅", "shot"], 0))
+                        st.session_state["f_sot"] = int(find_val(rd, ["유효", "sot"], 0))
+                        st.session_state["f_chances"] = int(find_val(rd, ["찬스", "chance"], 0))
+                        st.session_state["f_dribbles"] = int(find_val(rd, ["드리블", "dribble"], 0))
+                        st.session_state["f_touches_box"] = int(find_val(rd, ["터치", "touch"], 0))
+                        st.session_state["f_tackles"] = int(find_val(rd, ["태클", "tackle"], 0))
+                        st.session_state["f_rating"] = float(find_val(rd, ["평점", "rating"], 6.5))
 
-                        st.session_state["f_big_chances"] = int(find_val(rd, ["빅찬스메이킹", "빅찬스", "big_chances"], 0))
-                        st.session_state["f_pk_goals"] = int(find_val(rd, ["pk득점", "pk", "pk_goals"], 0))
-                        st.session_state["f_pass_pct"] = float(find_val(rd, ["패스성공률", "패스성공률%", "pass_pct"], 0.0))
-                        st.session_state["f_duels_pct"] = float(find_val(rd, ["지상경합승률", "지상경합승률%", "duels_pct"], 0.0))
-                        st.session_state["f_aerial_pct"] = float(find_val(rd, ["공중볼승률", "공중볼승률%", "aerial_pct"], 0.0))
+                        st.session_state["f_big_chances"] = int(find_val(rd, ["빅찬스", "big"], 0))
+                        st.session_state["f_pk_goals"] = int(find_val(rd, ["pk"], 0))
+                        st.session_state["f_pass_pct"] = float(find_val(rd, ["패스", "pass"], 0.0))
+                        st.session_state["f_duels_pct"] = float(find_val(rd, ["경합", "duel"], 0.0))
+                        st.session_state["f_aerial_pct"] = float(find_val(rd, ["공중볼", "aerial"], 0.0))
 
-                        st.session_state["f_gk_saves"] = int(find_val(rd, ["gk_선방", "선방", "saves", "gk_saves"], 0))
-                        st.session_state["f_gk_conceded"] = int(find_val(rd, ["gk_실점", "실점", "conceded", "gk_conceded"], 0))
-                        st.session_state["f_gk_prevented"] = float(find_val(rd, ["gk_득점차단", "득점차단", "prevented", "gk_prevented"], 0.0))
-                        st.session_state["f_gk_cs"] = int(find_val(rd, ["gk_클린시트", "클린시트", "cs", "gk_cs"], 0))
-                        st.session_state["f_gk_errors"] = int(find_val(rd, ["gk_실수", "실수", "errors", "gk_errors"], 0))
-                        st.session_state["f_gk_claims"] = int(find_val(rd, ["gk_공중볼", "공중볼", "claims", "gk_claims"], 0))
+                        st.session_state["f_gk_saves"] = int(find_val(rd, ["선방", "save"], 0))
+                        st.session_state["f_gk_conceded"] = int(find_val(rd, ["실점", "concede"], 0))
+                        st.session_state["f_gk_prevented"] = float(find_val(rd, ["득점차단", "prevent"], 0.0))
+                        st.session_state["f_gk_cs"] = int(find_val(rd, ["클린", "cs"], 0))
+                        st.session_state["f_gk_errors"] = int(find_val(rd, ["실수", "error"], 0))
+                        st.session_state["f_gk_claims"] = int(find_val(rd, ["공중", "claim"], 0))
 
-                        saved_proj_mins = int(find_val(rd, ["예측_출전시간", "예측출전시간", "proj_mins"], 3000))
+                        saved_proj_mins = int(find_val(rd, ["예측_출전", "proj_min"], 3000))
                         st.session_state["custom_proj_mins"] = saved_proj_mins
 
                         st.session_state["form_key_id"] += 1
