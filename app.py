@@ -29,7 +29,7 @@ if "last_saved_msg" not in st.session_state:
     st.session_state["last_saved_msg"] = None
 
 if "custom_proj_mins" not in st.session_state:
-    st.session_state["custom_proj_mins"] = 0
+    st.session_state["custom_proj_mins"] = 3000
 
 default_stats = {
     "f_mins": 90, "f_goals": 0, "f_xg": 0.0, "f_assists": 0, "f_xa": 0.0,
@@ -303,7 +303,10 @@ with tab1:
                                 to_l_match = l_k
                                 break
 
-                        notes_val = str(rd.get("스카우팅메모", ""))
+                        # 🌟 메모 불러올 때 기존 중복 파이프 문자열 정리
+                        raw_notes_val = str(rd.get("스카우팅메모", ""))
+                        clean_notes_val = raw_notes_val.split(" | [영입")[0].split(" | [방출")[0].strip()
+
                         tier_match = list(CLUB_TIERS.keys())[1]
                         tier_saved = str(rd.get("영입구단티어", ""))
                         for t_k in CLUB_TIERS.keys():
@@ -313,7 +316,7 @@ with tab1:
 
                         contract_match = list(CONTRACT_WEIGHTS.keys())[2]
                         for c_k in CONTRACT_WEIGHTS.keys():
-                            if c_k.split(" (")[0] in notes_val:
+                            if c_k.split(" (")[0] in raw_notes_val:
                                 contract_match = c_k
                                 break
 
@@ -326,13 +329,13 @@ with tab1:
 
                         reg_match = list(REGISTRATION_WEIGHTS.keys())[1]
                         for r_k in REGISTRATION_WEIGHTS.keys():
-                            if r_k.split(" (")[0] in notes_val:
+                            if r_k.split(" (")[0] in raw_notes_val:
                                 reg_match = r_k
                                 break
 
                         urg_match = list(URGENCY_WEIGHTS.keys())[0]
                         for u_k in URGENCY_WEIGHTS.keys():
-                            if u_k.split(" (")[0] in notes_val:
+                            if u_k.split(" (")[0] in raw_notes_val:
                                 urg_match = u_k
                                 break
 
@@ -345,7 +348,7 @@ with tab1:
                             "tm": int(find_val(rd, ["TM시장가치", "시장가치", "tm", "tm_val"], 4500)),
                             "fee": int(find_val(rd, ["실제이적료", "이적료", "fee", "실제이적료(만€)"], 0)),
                             "wage": float(find_val(rd, ["주급", "wage", "주급(만€)"], 0.0)),
-                            "notes": notes_val,
+                            "notes": clean_notes_val,
                             "season": sel_e_season,
                             "pos": pos_match,
                             "from_league": from_l_match,
@@ -358,7 +361,7 @@ with tab1:
                             "big_stage": list(BIG_STAGE_WEIGHTS.keys())[0],
                             "injury": list(INJURY_WEIGHTS.keys())[1],
                             "urgency": urg_match,
-                            "option_exercised": "임대후옵션발동완료" in notes_val
+                            "option_exercised": "임대후옵션발동완료" in raw_notes_val
                         }
 
                         st.session_state["f_matches"] = int(find_val(rd, ["이전_출전경기", "출전경기", "경기수", "matches", "prev_matches"], 1))
@@ -388,6 +391,10 @@ with tab1:
                         st.session_state["f_gk_cs"] = int(find_val(rd, ["gk_클린시트", "클린시트", "cs", "gk_cs"], 0))
                         st.session_state["f_gk_errors"] = int(find_val(rd, ["gk_실수", "실수", "errors", "gk_errors"], 0))
                         st.session_state["f_gk_claims"] = int(find_val(rd, ["gk_공중볼", "공중볼", "claims", "gk_claims"], 0))
+
+                        # 🌟 불러온 선수의 예측 출전 시간도 시트 값으로 연동
+                        saved_proj_mins = int(find_val(rd, ["예측_출전시간", "예측출전시간", "proj_mins"], 3000))
+                        st.session_state["custom_proj_mins"] = saved_proj_mins
 
                         st.session_state["form_key_id"] += 1
                         st.session_state["stat_key_id"] += 1
@@ -810,7 +817,11 @@ with tab1:
                 if is_gk:
                     detailed_notes += f" | GK[선방:{st.session_state.get('f_gk_saves', 0)}|실점:{st.session_state.get('f_gk_conceded', 0)}]"
 
-                f_target_mins_t1 = 1440 if is_winter else 3036
+                # 🌟 2번 탭에서 지정한 예상 출전 시간(`st.session_state["custom_proj_mins"]`)을 그대로 반영
+                f_target_mins_t1 = st.session_state.get("custom_proj_mins", 3000)
+                if f_target_mins_t1 <= 0:
+                    f_target_mins_t1 = 1440 if is_winter else 3036
+
                 raw_lf_t1 = LEAGUE_WEIGHTS[selling_league] / (LEAGUE_WEIGHTS.get(in_to_league_choice, 1.0))
                 adapt_p_t1 = max(0.80, 1.0 - (max(0.0, LEAGUE_WEIGHTS.get(in_to_league_choice, 1.0) - LEAGUE_WEIGHTS[selling_league]) * 0.45))
                 final_lf_t1 = raw_lf_t1 * adapt_p_t1
@@ -910,7 +921,7 @@ with tab1:
                             "f_gk_saves": 0, "f_gk_conceded": 0, "f_gk_prevented": 0.0,
                             "f_gk_cs": 0, "f_gk_errors": 0, "f_gk_claims": 0,
                             "f_big_chances": 0, "f_pk_goals": 0, "f_pass_pct": 0.0, "f_duels_pct": 0.0, "f_aerial_pct": 0.0,
-                            "custom_proj_mins": 0
+                            "custom_proj_mins": 3000
                         }
                         for r_k, r_v in reset_stats.items():
                             st.session_state[r_k] = r_v
@@ -1256,6 +1267,11 @@ with tab2:
                 if player_notes.strip():
                     detailed_notes += f" | {player_notes.strip()}"
                     
+                # 🌟 2번 탭의 출전 시간 반영
+                f_target_mins_t2 = st.session_state.get("custom_proj_mins", 3000)
+                if f_target_mins_t2 <= 0:
+                    f_target_mins_t2 = 1440 if is_winter else 3036
+
                 payload = {
                     "action": "save_all",
                     "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
@@ -1293,7 +1309,7 @@ with tab2:
                     "duels_pct": float(st.session_state.get("f_duels_pct", 0.0)),
                     "aerial_pct": float(st.session_state.get("f_aerial_pct", 0.0)),
                     "to_league": f_to_l.split(" (")[0],
-                    "proj_mins": int(f_target_mins),
+                    "proj_mins": int(f_target_mins_t2),
                     "proj_goals": float(proj_goals),
                     "proj_xg": float(proj_xg),
                     "proj_assists": float(proj_assists),
@@ -1334,7 +1350,7 @@ with tab2:
                             "f_gk_saves": 0, "f_gk_conceded": 0, "f_gk_prevented": 0.0,
                             "f_gk_cs": 0, "f_gk_errors": 0, "f_gk_claims": 0,
                             "f_big_chances": 0, "f_pk_goals": 0, "f_pass_pct": 0.0, "f_duels_pct": 0.0, "f_aerial_pct": 0.0,
-                            "custom_proj_mins": 0
+                            "custom_proj_mins": 3000
                         }
                         for r_k, r_v in reset_stats.items():
                             st.session_state[r_k] = r_v
@@ -1991,7 +2007,7 @@ with tab6:
 
             if sel_del_player:
                 target_del_row = del_season_df[del_season_df["선수명"] == sel_del_player].iloc[-1]
-                st.warning(f"⚠️ 삭제 대상: **'{sel_del_player}'** (시즌: `{sel_del_season}` | 이적료: `€{target_del_row.get('실제이적료(만€)', 0):,.0f}만` | 평점: `★{target_del_row.get('이적평점', 0):.2f}`)")
+                st.warning(f"⚠️ 삭제 대상: **'{sel_del_player}'** (시즌: `{sel_del_season}` | 이적료: `€{target_del_row.get('실제이적료(만€)', 0):,.0f}만` | 평점: `★{target_del_row.get('이적평점', 0):,.0f}`)")
                 
                 if st.button(f"🗑️ '{sel_del_player}' 데이터 구글 시트에서 영구 삭제하기", type="primary", use_container_width=True, key="del_exec_btn"):
                     with st.spinner("구글 시트에서 데이터를 삭제 중입니다..."):
