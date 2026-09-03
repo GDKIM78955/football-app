@@ -28,9 +28,9 @@ if "stat_key_id" not in st.session_state:
 if "last_saved_msg" not in st.session_state:
     st.session_state["last_saved_msg"] = None
 
-# 🌟 3036분 강제 고정을 풀고, 기본 예상 출전 시간을 1500분(또는 유연한 값)으로 변경
+# 🌟 예상 출전 시간 고정값 해제 (기본값을 0 또는 유연한 입력 가능 상태로 세팅)
 if "custom_proj_mins" not in st.session_state:
-    st.session_state["custom_proj_mins"] = 1500
+    st.session_state["custom_proj_mins"] = 0
 
 default_stats = {
     "f_mins": 90, "f_goals": 0, "f_xg": 0.0, "f_assists": 0, "f_xa": 0.0,
@@ -895,7 +895,7 @@ with tab1:
                             "f_chances": 0, "f_dribbles": 0, "f_touches_box": 0, "f_tackles": 0,
                             "f_gk_saves": 0, "f_gk_conceded": 0, "f_gk_prevented": 0.0,
                             "f_gk_cs": 0, "f_gk_errors": 0, "f_gk_claims": 0,
-                            "custom_proj_mins": 1500
+                            "custom_proj_mins": 0
                         }
                         for r_k, r_v in reset_stats.items():
                             st.session_state[r_k] = r_v
@@ -965,7 +965,7 @@ with tab2:
 
     f_target_mins = st.number_input(
         "최종 적용될 예상 출전 시간(분)", 
-        min_value=90, 
+        min_value=0, 
         max_value=4500, 
         value=int(st.session_state["custom_proj_mins"]), 
         step=90, 
@@ -988,12 +988,12 @@ with tab2:
     st.markdown(f"### 📥 FotMob 시즌 실제 기록 입력 (`{winter_data_source.split(' (')[0]}` 기준)")
 
     b1, b2, b3, b4 = st.columns(4)
-    with b1: in_matches = st.number_input("출전 경기 (Matches)", 1, 60, value=min(int(st.session_state["f_matches"]), 60), key=f"in_matches_box_{k_id}_{s_id}")
+    with b1: in_matches = st.number_input("출전 경기 (Matches)", 0, 60, value=min(int(st.session_state["f_matches"]), 60), key=f"in_matches_box_{k_id}_{s_id}")
     with b2: in_starts = st.number_input("선발 출전 (Starts)", 0, 60, value=min(int(st.session_state["f_starts"]), 60), key=f"in_starts_box_{k_id}_{s_id}")
-    with b3: in_mins = st.number_input("출전 시간 (Minutes)", 90, 4500, value=min(int(st.session_state["f_mins"]), 4500), key=f"in_mins_box_{k_id}_{s_id}")
+    with b3: in_mins = st.number_input("출전 시간 (Minutes)", 0, 4500, value=min(int(st.session_state["f_mins"]), 4500), key=f"in_mins_box_{k_id}_{s_id}")
     
-    safe_rating_val = max(1.0, min(10.0, float(st.session_state["f_rating"])))
-    with b4: in_rating = st.number_input("FotMob 평균 평점", 1.0, 10.0, value=safe_rating_val, step=0.01, key=f"in_rating_box_{k_id}_{s_id}")
+    safe_rating_val = max(0.0, min(10.0, float(st.session_state["f_rating"])))
+    with b4: in_rating = st.number_input("FotMob 평균 평점", 0.0, 10.0, value=safe_rating_val, step=0.01, key=f"in_rating_box_{k_id}_{s_id}")
     
     st.session_state["f_mins"] = in_mins
     st.session_state["f_rating"] = in_rating
@@ -1302,7 +1302,7 @@ with tab2:
                             "f_chances": 0, "f_dribbles": 0, "f_touches_box": 0, "f_tackles": 0,
                             "f_gk_saves": 0, "f_gk_conceded": 0, "f_gk_prevented": 0.0,
                             "f_gk_cs": 0, "f_gk_errors": 0, "f_gk_claims": 0,
-                            "custom_proj_mins": 1500
+                            "custom_proj_mins": 0
                         }
                         for r_k, r_v in reset_stats.items():
                             st.session_state[r_k] = r_v
