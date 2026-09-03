@@ -16,7 +16,7 @@ st.set_page_config(
 GOOGLE_SHEET_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwUX4diDBw2jD8WufrSa_0PejibYm7tIfyf1ia7O-QTfj1Ae6SQb3bZZ9pmNvDUAT6C/exec"
 SPREADSHEET_ID = "16CeAQp1-xqc-mhtvlP0vLlQu5k1pg8DW5A-m29WCFdw"
 
-# 🌟 [초안정성 보장] 구글 시트 CSV Export 다이렉트 로드 (Apps Script 의존성 완전 제거)
+# 🌟 구글 시트 CSV Export 다이렉트 로드
 @st.cache_data(ttl=2)
 def fetch_sheet_history():
     try:
@@ -213,26 +213,15 @@ def format_currency_desc(eur_man_euro):
     gbp_man = eur_man_euro * rate_gbp
     return f"약 {krw_eok:,.1f}억원 | £{gbp_man:,.1f}만"
 
-def find_val(row_dict, keywords, default=0):
-    for k, v in row_dict.items():
-        k_str = str(k).lower().strip()
-        for kw in keywords:
-            if kw.lower() in k_str:
-                if pd.notnull(v) and str(v).strip() not in ["", "nan", "None"]:
-                    try:
-                        return float(v) if isinstance(default, float) else int(float(v))
-                    except:
-                        pass
-    return default
-
-def find_str_val(row_dict, keywords, default=""):
-    for k, v in row_dict.items():
-        k_str = str(k).lower().strip()
-        for kw in keywords:
-            if kw.lower() in k_str:
-                if pd.notnull(v) and str(v).strip() not in ["", "nan", "None"]:
-                    return str(v).strip()
-    return default
+def get_col_val(row_s, col_idx, default_val=""):
+    try:
+        if col_idx < len(row_s):
+            val = row_s.iloc[col_idx]
+            if pd.notnull(val) and str(val).strip() not in ["", "nan", "None"]:
+                return type(default_val)(val)
+    except:
+        pass
+    return default_val
 
 # 3. 메인 6개 탭 구성
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
@@ -280,16 +269,18 @@ with tab1:
 
     if edit_toggle:
         st.markdown("##### 🔍 불러올 선수 선택")
-        if history_df.empty or "선수명" not in history_df.columns:
+        if history_df.empty or len(history_df.columns) < 3:
             st.warning("⚠️ 시트에 저장된 기존 데이터가 없습니다.")
         else:
             c_ld1, c_ld2, c_ld3 = st.columns([1, 2, 1])
             with c_ld1:
-                e_seasons = list(history_df["이적시즌"].dropna().unique())
+                season_col_idx = 1 if len(history_df.columns) > 1 else 0
+                e_seasons = list(history_df.iloc[:, season_col_idx].dropna().unique())
                 sel_e_season = st.selectbox("시즌 선택", e_seasons, key="edit_season_box")
             
-            e_season_df = history_df[history_df["이적시즌"] == sel_e_season]
-            e_players = list(e_season_df["선수명"].dropna().unique())
+            e_season_df = history_df[history_df.iloc[:, season_col_idx] == sel_e_season]
+            name_col_idx = 2 if len(history_df.columns) > 2 else 0
+            e_players = list(e_season_df.iloc[:, name_col_idx].dropna().unique())
             
             with c_ld2:
                 sel_e_player = st.selectbox("선수 선택", e_players, key="edit_player_box") if e_players else None
@@ -299,124 +290,116 @@ with tab1:
                 st.write("")
                 if st.button("📥 데이터 불러오기", type="primary", use_container_width=True):
                     if sel_e_player:
-                        matched_rows = e_season_df[e_season_df["선수명"] == sel_e_player]
+                        matched_rows = e_season_df[e_season_df.iloc[:, name_col_idx] == sel_e_player]
                         row_raw = matched_rows.iloc[-1]
-                        rd = row_raw.to_dict()
                         
-                        match_idx_list = e_season_df.index[e_season_df["선수명"] == sel_e_player].tolist()
+                        match_idx_list = e_season_df.index[e_season_df.iloc[:, name_col_idx] == sel_e_player].tolist()
                         if match_idx_list:
                             st.session_state["edit_row_index"] = match_idx_list[-1] + 2
 
-                        pos_saved = find_str_val(rd, ["포지션", "pos"])
+                        p_name = get_col_val(row_raw, 2, "")
+                        p_nat = get_col_val(row_raw, 3, "")
+                        p_age = int(get_col_val(row_raw, 4, 28))
+                        p_pos_str = get_col_val(row_raw, 5, "")
+                        p_from_league = get_col_val(row_raw, 6, "")
+                        p_tier = get_col_val(row_raw, 7, "")
+                        p_ttype = get_col_val(row_raw, 8, "")
+                        p_tm = int(get_col_val(row_raw, 9, 4500))
+                        p_fee = int(get_col_val(row_raw, 10, 0))
+                        p_to_league = get_col_val(row_raw, 28, "")
+                        p_notes = get_col_val(row_raw, 36, "")
+                        p_from_team = get_col_val(row_raw, 37, "")
+                        p_to_team = get_col_val(row_raw, 38, "")
+                        p_to_league_name = get_col_val(row_raw, 39, "")
+                        p_trade_type = get_col_val(row_raw, 40, "IN")
+                        p_wage = float(get_col_val(row_raw, 41, 0.0))
+
                         pos_match = list(POSITION_WEIGHTS.keys())[4]
                         for p_k in POSITION_WEIGHTS.keys():
-                            if pos_saved and pos_saved in p_k:
+                            if p_pos_str and p_pos_str in p_k:
                                 pos_match = p_k
                                 break
-                                
-                        fl_saved = find_str_val(rd, ["원소속", "from_league", "보내는"])
+
                         from_l_match = list(LEAGUE_WEIGHTS.keys())[0]
                         for l_k in LEAGUE_WEIGHTS.keys():
-                            if fl_saved and fl_saved in l_k:
+                            if p_from_league and p_from_league in l_k:
                                 from_l_match = l_k
                                 break
 
-                        tl_saved = find_str_val(rd, ["이적팀리그", "to_league", "이적리그"])
                         to_l_match = list(LEAGUE_WEIGHTS.keys())[0]
                         for l_k in LEAGUE_WEIGHTS.keys():
-                            if tl_saved and tl_saved in l_k:
+                            if p_to_league_name and p_to_league_name in l_k:
                                 to_l_match = l_k
                                 break
 
-                        raw_notes_val = find_str_val(rd, ["메모", "notes"])
-                        clean_notes_val = raw_notes_val.split(" | [영입")[0].split(" | [방출")[0].strip()
-
                         tier_match = list(CLUB_TIERS.keys())[1]
-                        tier_saved = find_str_val(rd, ["티어", "tier", "buying"])
                         for t_k in CLUB_TIERS.keys():
-                            if tier_saved and tier_saved in t_k:
+                            if p_tier and p_tier in t_k:
                                 tier_match = t_k
                                 break
 
-                        contract_match = list(CONTRACT_WEIGHTS.keys())[2]
-                        for c_k in CONTRACT_WEIGHTS.keys():
-                            if c_k.split(" (")[0] in raw_notes_val:
-                                contract_match = c_k
-                                break
-
                         ttype_match = list(TRANSFER_TYPE_WEIGHTS.keys())[0]
-                        tt_saved = find_str_val(rd, ["형태", "transfer_type"])
                         for tt_k in TRANSFER_TYPE_WEIGHTS.keys():
-                            if tt_saved and tt_saved in tt_k:
+                            if p_ttype and p_ttype in tt_k:
                                 ttype_match = tt_k
                                 break
 
-                        reg_match = list(REGISTRATION_WEIGHTS.keys())[1]
-                        for r_k in REGISTRATION_WEIGHTS.keys():
-                            if r_k.split(" (")[0] in raw_notes_val:
-                                reg_match = r_k
-                                break
-
-                        urg_match = list(URGENCY_WEIGHTS.keys())[0]
-                        for u_k in URGENCY_WEIGHTS.keys():
-                            if u_k.split(" (")[0] in raw_notes_val:
-                                urg_match = u_k
-                                break
+                        clean_notes_val = p_notes.split(" | [영입")[0].split(" | [방출")[0].strip()
 
                         st.session_state["current_form"] = {
-                            "name": find_str_val(rd, ["선수명", "name"]),
-                            "nat": find_str_val(rd, ["국적", "nat", "country"]),
-                            "age": int(find_val(rd, ["나이", "age", "만나이"], 28)),
-                            "from_team": find_str_val(rd, ["원소속팀명", "from_team", "원소속팀", "보내는팀"]),
-                            "to_team": find_str_val(rd, ["이적팀명", "to_team", "이적팀", "영입팀"]),
-                            "tm": int(find_val(rd, ["tm시장가치", "시장가치", "tm", "market"], 4500)),
-                            "fee": int(find_val(rd, ["실제이적료", "이적료", "fee"], 0)),
-                            "wage": float(find_val(rd, ["주급", "wage", "weekly_wage"], 0.0)),
+                            "name": p_name,
+                            "nat": p_nat,
+                            "age": p_age,
+                            "from_team": p_from_team,
+                            "to_team": p_to_team,
+                            "tm": p_tm,
+                            "fee": p_fee,
+                            "wage": p_wage,
                             "notes": clean_notes_val,
                             "season": sel_e_season,
                             "pos": pos_match,
                             "from_league": from_l_match,
                             "to_league": to_l_match,
                             "buying_tier": tier_match,
-                            "contract": contract_match,
+                            "contract": list(CONTRACT_WEIGHTS.keys())[2],
                             "transfer_type": ttype_match,
-                            "trade_type": "🔴 방출 / 판매 (OUT)" if "OUT" in find_str_val(rd, ["거래구분", "trade_type"]) else "🔵 영입 (IN)",
-                            "reg_status": reg_match,
+                            "trade_type": "🔴 방출 / 판매 (OUT)" if "OUT" in p_trade_type else "🔵 영입 (IN)",
+                            "reg_status": list(REGISTRATION_WEIGHTS.keys())[1],
                             "big_stage": list(BIG_STAGE_WEIGHTS.keys())[0],
                             "injury": list(INJURY_WEIGHTS.keys())[1],
-                            "urgency": urg_match,
-                            "option_exercised": "임대후옵션발동완료" in raw_notes_val
+                            "urgency": list(URGENCY_WEIGHTS.keys())[0],
+                            "option_exercised": "임대후옵션발동완료" in p_notes
                         }
 
-                        st.session_state["f_matches"] = int(find_val(rd, ["이전_출전경기", "경기", "match"], 1))
-                        st.session_state["f_starts"] = int(find_val(rd, ["선발", "start"], 0))
-                        st.session_state["f_mins"] = int(find_val(rd, ["이전_출전시간", "출전시간", "min"], 90))
-                        st.session_state["f_goals"] = int(find_val(rd, ["이전_골", "골", "goal"], 0))
-                        st.session_state["f_xg"] = float(find_val(rd, ["이전_xG", "xg"], 0.0))
-                        st.session_state["f_assists"] = int(find_val(rd, ["이전_도움", "도움", "assist"], 0))
-                        st.session_state["f_xa"] = float(find_val(rd, ["이전_xA", "xa"], 0.0))
-                        st.session_state["f_shots"] = int(find_val(rd, ["이전_총슈팅", "슈팅", "shot"], 0))
-                        st.session_state["f_sot"] = int(find_val(rd, ["이전_유효슈팅", "유효", "sot"], 0))
-                        st.session_state["f_chances"] = int(find_val(rd, ["이전_찬스메이킹", "찬스", "chance"], 0))
-                        st.session_state["f_dribbles"] = int(find_val(rd, ["이전_성공드리블", "드리블", "dribble"], 0))
-                        st.session_state["f_touches_box"] = int(find_val(rd, ["이전_박스터치", "터치", "touch"], 0))
-                        st.session_state["f_tackles"] = int(find_val(rd, ["이전_태클성공", "태클", "tackle"], 0))
-                        st.session_state["f_rating"] = float(find_val(rd, ["이전_FotMob평점", "평점", "rating"], 6.5))
+                        st.session_state["f_matches"] = int(get_col_val(row_raw, 15, 1))
+                        st.session_state["f_starts"] = int(get_col_val(row_raw, 47, 0))
+                        st.session_state["f_mins"] = int(get_col_val(row_raw, 16, 90))
+                        st.session_state["f_goals"] = int(get_col_val(row_raw, 17, 0))
+                        st.session_state["f_xg"] = float(get_col_val(row_raw, 18, 0.0))
+                        st.session_state["f_assists"] = int(get_col_val(row_raw, 19, 0))
+                        st.session_state["f_xa"] = float(get_col_val(row_raw, 20, 0.0))
+                        st.session_state["f_shots"] = int(get_col_val(row_raw, 21, 0))
+                        st.session_state["f_sot"] = int(get_col_val(row_raw, 22, 0))
+                        st.session_state["f_chances"] = int(get_col_val(row_raw, 23, 0))
+                        st.session_state["f_dribbles"] = int(get_col_val(row_raw, 24, 0))
+                        st.session_state["f_touches_box"] = int(get_col_val(row_raw, 25, 0))
+                        st.session_state["f_tackles"] = int(get_col_val(row_raw, 26, 0))
+                        st.session_state["f_rating"] = float(get_col_val(row_raw, 27, 6.5))
 
-                        st.session_state["f_big_chances"] = int(find_val(rd, ["빅찬스", "big"], 0))
-                        st.session_state["f_pk_goals"] = int(find_val(rd, ["pk"], 0))
-                        st.session_state["f_pass_pct"] = float(find_val(rd, ["패스성공률", "패스", "pass"], 0.0))
-                        st.session_state["f_duels_pct"] = float(find_val(rd, ["지상경합승률", "경합", "duel"], 0.0))
-                        st.session_state["f_aerial_pct"] = float(find_val(rd, ["공중볼승률", "공중볼", "aerial"], 0.0))
+                        st.session_state["f_big_chances"] = int(get_col_val(row_raw, 48, 0))
+                        st.session_state["f_pk_goals"] = int(get_col_val(row_raw, 49, 0))
+                        st.session_state["f_pass_pct"] = float(get_col_val(row_raw, 50, 0.0))
+                        st.session_state["f_duels_pct"] = float(get_col_val(row_raw, 51, 0.0))
+                        st.session_state["f_aerial_pct"] = float(get_col_val(row_raw, 52, 0.0))
 
-                        st.session_state["f_gk_saves"] = int(find_val(rd, ["gk_선방", "선방", "save"], 0))
-                        st.session_state["f_gk_conceded"] = int(find_val(rd, ["gk_실점", "실점", "concede"], 0))
-                        st.session_state["f_gk_prevented"] = float(find_val(rd, ["gk_득점차단", "득점차단", "prevent"], 0.0))
-                        st.session_state["f_gk_cs"] = int(find_val(rd, ["gk_클린시트", "클린", "cs"], 0))
-                        st.session_state["f_gk_errors"] = int(find_val(rd, ["gk_실수", "실수", "error"], 0))
-                        st.session_state["f_gk_claims"] = int(find_val(rd, ["gk_공중볼", "공중", "claim"], 0))
+                        st.session_state["f_gk_saves"] = int(get_col_val(row_raw, 42, 0))
+                        st.session_state["f_gk_conceded"] = int(get_col_val(row_raw, 43, 0))
+                        st.session_state["f_gk_prevented"] = float(get_col_val(row_raw, 44, 0.0))
+                        st.session_state["f_gk_cs"] = int(get_col_val(row_raw, 45, 0))
+                        st.session_state["f_gk_errors"] = int(get_col_val(row_raw, 46, 0))
+                        st.session_state["f_gk_claims"] = int(get_col_val(row_raw, 53, 0))
 
-                        saved_proj_mins = int(find_val(rd, ["예측_출전시간", "proj_mins"], 3000))
+                        saved_proj_mins = int(get_col_val(row_raw, 29, 3000))
                         st.session_state["custom_proj_mins"] = saved_proj_mins
 
                         st.session_state["form_key_id"] += 1
@@ -453,16 +436,16 @@ with tab1:
         with c_n2: player_nat = st.text_input("국적", value=cf.get("nat", ""), placeholder="예: 잉글랜드", key=f"nat_{k_id}")
         with c_n3: player_age = st.number_input("만 나이", min_value=15, max_value=45, value=cf.get("age", 28), key=f"age_{k_id}")
 
-        if not edit_toggle and player_name.strip() and not history_df.empty and "선수명" in history_df.columns:
+        if not edit_toggle and player_name.strip() and not history_df.empty and len(history_df.columns) > 2:
             dup_matches = history_df[
-                (history_df["선수명"].astype(str).str.strip().str.lower() == player_name.strip().lower()) & 
-                (history_df["이적시즌"].astype(str).str.strip() == season_val.strip())
+                (history_df.iloc[:, 2].astype(str).str.strip().str.lower() == player_name.strip().lower()) & 
+                (history_df.iloc[:, 1].astype(str).str.strip() == season_val.strip())
             ]
             if not dup_matches.empty:
                 last_dup = dup_matches.iloc[-1]
-                dup_from = str(last_dup.get("원소속팀명", "미상"))
-                dup_to = str(last_dup.get("이적팀명", "미상"))
-                dup_fee = float(last_dup.get("실제이적료(만€)", 0))
+                dup_from = str(last_dup.iloc[37] if len(last_dup) > 37 else "미상")
+                dup_to = str(last_dup.iloc[38] if len(last_dup) > 38 else "미상")
+                dup_fee = float(last_dup.iloc[10] if len(last_dup) > 10 else 0)
                 st.warning(f"⚠️ **중복 등록 알림**: **'{player_name.strip()}'** 선수는 이미 이번 `{season_val}` 시즌에 등록된 내역이 있습니다! (`[{dup_from} ➔ {dup_to}] | €{dup_fee:,.0f}만`)")
 
         c_t1, c_t2, c_t3 = st.columns(3)
@@ -1250,23 +1233,23 @@ with tab3:
 
     st.markdown("---")
 
-    if history_df.empty or len(history_df) == 0 or "선수명" not in history_df.columns:
+    if history_df.empty or len(history_df) == 0 or len(history_df.columns) < 3:
         st.info("💡 **아직 구글 시트에 누적된 과거 이적 데이터가 없습니다.**\n\n1번 및 2번 탭에서 선수 데이터를 저장해 나가시면, 자동으로 이곳에 가장 유사한 과거 이적 사례 TOP 5 상세 카드 및 TOP 10 전체 목록이 나타나게 됩니다.")
     else:
         try:
             valid_rows = []
             for idx, row in history_df.iterrows():
                 try:
-                    p_name = str(row.get("선수명", f"선수 {idx+1}"))
-                    p_fee = float(row.get("실제이적료(만€)", 0))
-                    p_fair = float(row.get("산출적정가(만€)", 0))
-                    p_pos = str(row.get("포지션", "기타"))
-                    p_league = str(row.get("원소속리그", "기타"))
-                    p_season = str(row.get("이적시즌", "26/27"))
+                    p_name = str(row.iloc[2] if len(row) > 2 else f"선수 {idx+1}")
+                    p_fee = float(row.iloc[10] if len(row) > 10 else 0)
+                    p_fair = float(row.iloc[11] if len(row) > 11 else 0)
+                    p_pos = str(row.iloc[5] if len(row) > 5 else "기타")
+                    p_league = str(row.iloc[6] if len(row) > 6 else "기타")
+                    p_season = str(row.iloc[1] if len(row) > 1 else "26/27")
                     
-                    p_score = float(row.get("이적평점", 7.50))
+                    p_score = float(row.iloc[14] if len(row) > 14 else 7.50)
                     p_overpay = ((p_fee - p_fair) / p_fair * 100) if p_fair > 0 else 0.0
-                    notes_str = str(row.get("스카우팅메모", ""))
+                    notes_str = str(row.iloc[36] if len(row) > 36 else "")
                     
                     if pos_filter != "전체 포지션":
                         f_pos_key = pos_filter.split(" (")[0]
@@ -1514,7 +1497,7 @@ with tab5:
     st.subheader("👥 신규 이적생 vs 과거 유사 이적 선수 다각도 벤치마크 (Multi-Comps)")
     st.caption("새로운 시즌 영입 선수의 프로필(나이, 포지션, 이적료 규모, 생산력)을 과거 시트에 누적된 다른 선수들의 실제 사례와 1:1 및 다차원으로 정밀 비교합니다.")
 
-    if history_df.empty or len(history_df) == 0 or "선수명" not in history_df.columns:
+    if history_df.empty or len(history_df) == 0 or len(history_df.columns) < 3:
         st.info("💡 **아직 과거 누적 데이터가 없습니다.**\n\n1번 및 2번 탭에서 선수 데이터를 2명 이상 저장하시면 과거 선수들과의 1:1 교차 비교 및 벤치마크 매칭이 활성화됩니다.")
     else:
         st.markdown("#### 1️⃣ 신규 분석 대상 선수 프로필 설정 (1번 탭 데이터 자동 연동)")
@@ -1536,7 +1519,7 @@ with tab5:
         st.markdown("---")
         st.markdown("#### 2️⃣ 과거 유사 프로필 선수 1:1 직접 선택 대조 (Head-to-Head)")
         
-        past_player_names = [str(n).strip() for n in history_df["선수명"].dropna().unique() if str(n).strip() not in ["", "nan"]]
+        past_player_names = [str(n).strip() for n in history_df.iloc[:, 2].dropna().unique() if str(n).strip() not in ["", "nan"]]
         
         if not past_player_names:
             st.info("💡 과거 시트에 유효한 선수 데이터가 아직 없습니다.")
@@ -1548,20 +1531,20 @@ with tab5:
                 key="bench_player_select"
             )
 
-            past_target = history_df[history_df["선수명"] == selected_past_player].iloc[-1]
+            past_target = history_df[history_df.iloc[:, 2] == selected_past_player].iloc[-1]
 
-            t_name = str(past_target.get("선수명", "선수"))
-            t_season = str(past_target.get("이적시즌", "26/27"))
-            t_age = int(past_target.get("만나이", 25)) if pd.notnull(past_target.get("만나이")) else 25
-            t_pos = str(past_target.get("포지션", "CB"))
-            t_league = str(past_target.get("원소속리그", "EPL"))
-            t_fee = float(past_target.get("실제이적료(만€)", 0))
-            t_fair = float(past_target.get("산출적정가(만€)", 0))
-            t_score = float(past_target.get("이적평점", 7.50))
-            t_xg = float(past_target.get("이전_xG", 0.0)) if pd.notnull(past_target.get("이전_xG")) else 0.0
-            t_xa = float(past_target.get("이전_xA", 0.0)) if pd.notnull(past_target.get("이전_xA")) else 0.0
-            t_mins = float(past_target.get("이전_출전시간", 2500)) if pd.notnull(past_target.get("이전_출전시간")) else 2500.0
-            t_rating = float(past_target.get("이전_FotMob평점", 7.0)) if pd.notnull(past_target.get("이전_FotMob평점")) else 7.0
+            t_name = str(past_target.iloc[2] if len(past_target) > 2 else "선수")
+            t_season = str(past_target.iloc[1] if len(past_target) > 1 else "26/27")
+            t_age = int(past_target.iloc[4]) if len(past_target) > 4 and pd.notnull(past_target.iloc[4]) else 25
+            t_pos = str(past_target.iloc[5] if len(past_target) > 5 else "CB")
+            t_league = str(past_target.iloc[6] if len(past_target) > 6 else "EPL")
+            t_fee = float(past_target.iloc[10] if len(past_target) > 10 else 0)
+            t_fair = float(past_target.iloc[11] if len(past_target) > 11 else 0)
+            t_score = float(past_target.iloc[14] if len(past_target) > 14 else 7.50)
+            t_xg = float(past_target.iloc[18] if len(past_target) > 18 else 0.0)
+            t_xa = float(past_target.iloc[20] if len(past_target) > 20 else 0.0)
+            t_mins = float(past_target.iloc[16] if len(past_target) > 16 else 2500.0)
+            t_rating = float(past_target.iloc[27] if len(past_target) > 27 else 7.0)
             t_p90 = (t_xg + t_xa) / (t_mins / 90.0) if t_mins > 0 else 0.0
 
             df_bench = pd.DataFrame({
@@ -1630,7 +1613,7 @@ with tab6:
     st.subheader("🏆 이적시장 구단별 종합 성적표 & 리그 파워 랭킹 & 데이터룸")
     st.caption("시트에 누적된 영입(IN) 및 방출(OUT) 데이터를 종합하여 순지출(Net Spend)과 '이적료 가중 평균 평점' 기반의 구단/리그별 순위를 산출하고, 오기입된 데이터를 관리 및 삭제합니다.")
 
-    if history_df.empty or len(history_df) == 0 or "이적시즌" not in history_df.columns:
+    if history_df.empty or len(history_df) == 0 or len(history_df.columns) < 2:
         st.info("💡 **아직 구글 시트에 누적된 이적 데이터가 없습니다.**\n\n1번 및 2번 탭에서 팀명을 포함하여 이적 데이터를 저장하시면 이곳에 구단별 성적표 및 리그별/전체 통합 파워 랭킹이 자동으로 집계됩니다.")
     else:
         rank_mode = st.radio("분석 모드 선택", ["🏢 구단별 이적시장 종합 성적표 (Club Report Card)", "🌍 리그별 / 10대 리그 전체 통합 파워 랭킹 (Power Rankings)", "🛠️ 저장 데이터 조회 및 삭제 관리 (Data Management)"], horizontal=True)
@@ -1641,14 +1624,14 @@ with tab6:
             st.markdown("#### 🏢 **특정 구단의 이적시장 결산 성적표 (IN/OUT & 순지출)**")
             
             c_rc1, c_rc2 = st.columns(2)
-            all_seasons = list(history_df["이적시즌"].dropna().unique())
+            all_seasons = list(history_df.iloc[:, 1].dropna().unique())
             with c_rc1:
                 sel_season_club = st.selectbox("조회할 이적 시즌", ["전체 시즌"] + all_seasons, index=0, key="report_season_sel")
 
-            club_filtered_df = history_df if sel_season_club == "전체 시즌" else history_df[history_df["이적시즌"] == sel_season_club]
+            club_filtered_df = history_df if sel_season_club == "전체 시즌" else history_df[history_df.iloc[:, 1] == sel_season_club]
             
-            to_teams = [str(t).strip() for t in club_filtered_df["이적팀명"].dropna().unique() if str(t).strip() not in ["", "nan"]] if "이적팀명" in club_filtered_df.columns else []
-            from_teams = [str(t).strip() for t in club_filtered_df["원소속팀명"].dropna().unique() if str(t).strip() not in ["", "nan"]] if "원소속팀명" in club_filtered_df.columns else []
+            to_teams = [str(t).strip() for t in club_filtered_df.iloc[:, 38].dropna().unique() if str(t).strip() not in ["", "nan"]] if len(club_filtered_df.columns) > 38 else []
+            from_teams = [str(t).strip() for t in club_filtered_df.iloc[:, 37].dropna().unique() if str(t).strip() not in ["", "nan"]] if len(club_filtered_df.columns) > 37 else []
             all_club_names = sorted(list(set(to_teams + from_teams)))
 
             if not all_club_names:
@@ -1657,30 +1640,30 @@ with tab6:
                 with c_rc2:
                     sel_team_name = st.selectbox("조회할 구단(팀) 선택", all_club_names, key="report_team_sel")
 
-                team_in_df = club_filtered_df[club_filtered_df["이적팀명"].astype(str).str.strip() == sel_team_name].copy() if "이적팀명" in club_filtered_df.columns else pd.DataFrame()
-                team_out_df = club_filtered_df[club_filtered_df["원소속팀명"].astype(str).str.strip() == sel_team_name].copy() if "원소속팀명" in club_filtered_df.columns else pd.DataFrame()
+                team_in_df = club_filtered_df[club_filtered_df.iloc[:, 38].astype(str).str.strip() == sel_team_name].copy() if len(club_filtered_df.columns) > 38 else pd.DataFrame()
+                team_out_df = club_filtered_df[club_filtered_df.iloc[:, 37].astype(str).str.strip() == sel_team_name].copy() if len(club_filtered_df.columns) > 37 else pd.DataFrame()
 
-                total_in_spent = team_in_df["실제이적료(만€)"].astype(float).sum() if not team_in_df.empty and "실제이적료(만€)" in team_in_df.columns else 0.0
-                total_out_income = team_out_df["실제이적료(만€)"].astype(float).sum() if not team_out_df.empty and "실제이적료(만€)" in team_out_df.columns else 0.0
+                total_in_spent = team_in_df.iloc[:, 10].astype(float).sum() if not team_in_df.empty and len(team_in_df.columns) > 10 else 0.0
+                total_out_income = team_out_df.iloc[:, 10].astype(float).sum() if not team_out_df.empty and len(team_out_df.columns) > 10 else 0.0
                 net_spend = total_in_spent - total_out_income
 
                 def get_adjusted_deal_score(row, is_buy_side):
-                    recorded_score = float(row.get("이적평점", 7.50))
-                    orig_trade_type = str(row.get("거래구분", "IN")).strip()
-                    if is_buy_side and orig_trade_type == "OUT":
+                    recorded_score = float(row.iloc[14]) if len(row) > 14 and pd.notnull(row.iloc[14]) else 7.50
+                    orig_trade_type = str(row.iloc[40]) if len(row) > 40 else "IN"
+                    if is_buy_side and "OUT" in orig_trade_type:
                         return round(max(1.0, min(10.0, 15.00 - recorded_score)), 2)
-                    elif not is_buy_side and orig_trade_type == "IN":
+                    elif not is_buy_side and "IN" in orig_trade_type:
                         return round(max(1.0, min(10.0, 15.00 - recorded_score)), 2)
                     return recorded_score
 
-                if not team_in_df.empty:
+                if not team_in_df.empty and len(team_in_df.columns) > 14:
                     team_in_df["이적평점"] = team_in_df.apply(lambda r: get_adjusted_deal_score(r, is_buy_side=True), axis=1)
-                if not team_out_df.empty:
+                if not team_out_df.empty and len(team_out_df.columns) > 14:
                     team_out_df["이적평점"] = team_out_df.apply(lambda r: get_adjusted_deal_score(r, is_buy_side=False), axis=1)
 
                 all_team_trades = pd.concat([team_in_df, team_out_df])
                 if not all_team_trades.empty and "이적평점" in all_team_trades.columns:
-                    fees = all_team_trades["실제이적료(만€)"].astype(float)
+                    fees = all_team_trades.iloc[:, 10].astype(float)
                     scores = all_team_trades["이적평점"].astype(float)
                     if fees.sum() > 0:
                         weights = fees.apply(lambda x: max(x, 500.0))
@@ -1709,34 +1692,30 @@ with tab6:
                 
                 sub_tab1, sub_tab2 = st.tabs([f"🔵 영입 명단 ({len(team_in_df)}명)", f"🔴 방출 명단 ({len(team_out_df)}명)"])
                 
-                display_cols = ["선수명", "포지션", "원소속팀명", "이적팀명", "실제이적료(만€)", "산출적정가(만€)", "이적평점", "스카우팅메모"]
-                
                 with sub_tab1:
                     if team_in_df.empty:
                         st.info("영입(IN) 데이터가 없습니다.")
                     else:
-                        avail_cols = [c for c in display_cols if c in team_in_df.columns]
-                        st.dataframe(team_in_df[avail_cols], use_container_width=True)
+                        st.dataframe(team_in_df, use_container_width=True)
                 
                 with sub_tab2:
                     if team_out_df.empty:
                         st.info("방출(OUT) 데이터가 없습니다.")
                     else:
-                        avail_cols = [c for c in display_cols if c in team_out_df.columns]
-                        st.dataframe(team_out_df[avail_cols], use_container_width=True)
+                        st.dataframe(team_out_df, use_container_width=True)
 
         elif "리그별" in rank_mode:
             st.markdown("#### 🌍 **리그별 & 10대 리그 전체 통합 파워 랭킹 (Power Rankings)**")
             
             c_rk1, c_rk2 = st.columns(2)
-            all_seasons_rk = list(history_df["이적시즌"].dropna().unique())
+            all_seasons_rk = list(history_df.iloc[:, 1].dropna().unique()) if len(history_df.columns) > 1 else []
             with c_rk1:
                 sel_season_rk = st.selectbox("조회할 이적 시즌", ["전체 시즌"] + all_seasons_rk, index=0, key="rk_season_sel")
 
-            league_filtered_df = history_df if sel_season_rk == "전체 시즌" else history_df[history_df["이적시즌"] == sel_season_rk]
+            league_filtered_df = history_df if sel_season_rk == "전체 시즌" else history_df[history_df.iloc[:, 1] == sel_season_rk]
 
-            if "이적팀리그" in league_filtered_df.columns:
-                auto_detected_leagues = [str(l).strip() for l in league_filtered_df["이적팀리그"].dropna().unique() if str(l).strip() not in ["", "nan"]]
+            if len(league_filtered_df.columns) > 39:
+                auto_detected_leagues = [str(l).strip() for l in league_filtered_df.iloc[:, 39].dropna().unique() if str(l).strip() not in ["", "nan"]]
             else:
                 auto_detected_leagues = []
 
@@ -1748,53 +1727,22 @@ with tab6:
                     sel_league_name = st.selectbox("조회할 리그 범위 선택 (자동 생성 필터)", league_options, key="rk_league_sel")
 
                 is_all_leagues = "전체 10개 리그" in sel_league_name
-                l_target_df = league_filtered_df if is_all_leagues else league_filtered_df[league_filtered_df["이적팀리그"] == sel_league_name]
+                l_target_df = league_filtered_df if is_all_leagues else league_filtered_df[league_filtered_df.iloc[:, 39] == sel_league_name]
 
-                if "이적팀명" in l_target_df.columns:
-                    l_target_df = l_target_df[l_target_df["이적팀명"].notnull() & (l_target_df["이적팀명"].astype(str).str.strip() != "")]
-
-                if l_target_df.empty:
-                    st.info("선택하신 조건에 해당하는 구단 데이터가 없습니다.")
-                else:
-                    unique_teams = sorted(list(l_target_df["이적팀명"].astype(str).str.strip().unique()))
+                if not l_target_df.empty:
+                    unique_teams = sorted(list(l_target_df.iloc[:, 38].astype(str).str.strip().unique()))
                     team_stat_rows = []
 
-                    def get_adj_score(r, is_buy):
-                        rec = float(r.get("이적평점", 7.50))
-                        orig = str(r.get("거래구분", "IN")).strip()
-                        if is_buy and orig == "OUT": return round(max(1.0, min(10.0, 15.00 - rec)), 2)
-                        elif not is_buy and orig == "IN": return round(max(1.0, min(10.0, 15.00 - rec)), 2)
-                        return rec
-
                     for t_name in unique_teams:
-                        in_trades = l_target_df[l_target_df["이적팀명"].astype(str).str.strip() == t_name].copy()
-                        out_trades = league_filtered_df[league_filtered_df["원소속팀명"].astype(str).str.strip() == t_name].copy() if "원소속팀명" in league_filtered_df.columns else pd.DataFrame()
+                        in_trades = l_target_df[l_target_df.iloc[:, 38].astype(str).str.strip() == t_name].copy()
+                        out_trades = league_filtered_df[league_filtered_df.iloc[:, 37].astype(str).str.strip() == t_name].copy() if len(league_filtered_df.columns) > 37 else pd.DataFrame()
 
-                        in_spent = in_trades["실제이적료(만€)"].astype(float).sum() if not in_trades.empty and "실제이적료(만€)" in in_trades.columns else 0.0
-                        out_income = out_trades["실제이적료(만€)"].astype(float).sum() if not out_trades.empty and "실제이적료(만€)" in out_trades.columns else 0.0
+                        in_spent = in_trades.iloc[:, 10].astype(float).sum() if not in_trades.empty and len(in_trades.columns) > 10 else 0.0
+                        out_income = out_trades.iloc[:, 10].astype(float).sum() if not out_trades.empty and len(out_trades.columns) > 10 else 0.0
                         net_val = in_spent - out_income
-
-                        if not in_trades.empty: in_trades["이적평점"] = in_trades.apply(lambda r: get_adj_score(r, True), axis=1)
-                        if not out_trades.empty: out_trades["이적평점"] = out_trades.apply(lambda r: get_adj_score(r, False), axis=1)
-
-                        all_trades = pd.concat([in_trades, out_trades])
-                        if not all_trades.empty and "이적평점" in all_trades.columns:
-                            fees = all_trades["실제이적료(만€)"].astype(float)
-                            scores = all_trades["이적평점"].astype(float)
-                            if fees.sum() > 0:
-                                weights = fees.apply(lambda x: max(x, 500.0))
-                                w_score = (scores * weights).sum() / weights.sum()
-                            else:
-                                w_score = scores.mean()
-                        else:
-                            w_score = 7.50
-
-                        t_league_label = str(in_trades["이적팀리그"].iloc[0]).strip() if not in_trades.empty and "이적팀리그" in in_trades.columns else ""
 
                         team_stat_rows.append({
                             "이적팀명": t_name,
-                            "소속리그": t_league_label,
-                            "가중이적평점": round(w_score, 2),
                             "영입(IN)": len(in_trades),
                             "방출(OUT)": len(out_trades),
                             "총영입액(만€)": int(in_spent),
@@ -1802,67 +1750,32 @@ with tab6:
                             "순지출(만€)": int(net_val)
                         })
 
-                    ranked_df = pd.DataFrame(team_stat_rows).sort_values(by="가중이적평점", ascending=False).reset_index(drop=True)
+                    ranked_df = pd.DataFrame(team_stat_rows).sort_values(by="총영입액(만€)", ascending=False).reset_index(drop=True)
                     ranked_df.index = ranked_df.index + 1
                     ranked_df.index.name = "순위 (Rank)"
 
                     title_prefix = "유럽 전체 10개 리그 통합" if is_all_leagues else sel_league_name
                     st.markdown(f"### 🏆 **{title_prefix}** 구단 이적시장 파워 랭킹 ({sel_season_rk})")
-                    
-                    show_cols = ["이적팀명", "소속리그", "가중이적평점", "영입(IN)", "방출(OUT)", "총영입액(만€)", "총방출액(만€)", "순지출(만€)"] if is_all_leagues else ["이적팀명", "가중이적평점", "영입(IN)", "방출(OUT)", "총영입액(만€)", "총방출액(만€)", "순지출(만€)"]
-                    st.dataframe(ranked_df[show_cols], use_container_width=True)
-
-                    if is_all_leagues and "이적팀리그" in l_target_df.columns:
-                        st.markdown("---")
-                        st.markdown("##### 📊 **리그별 평균 이적시장 평점 및 총 거래액 비교**")
-                        league_summary = l_target_df.groupby("이적팀리그").agg(
-                            참여구단수=("이적팀명", "nunique"),
-                            총거래건수=("선수명", "count"),
-                            리그총거래액=("실제이적료(만€)", "sum"),
-                            리그평균평점=("이적평점", "mean")
-                        ).reset_index().sort_values(by="리그평균평점", ascending=False).reset_index(drop=True)
-                        league_summary.index = league_summary.index + 1
-                        league_summary.index.name = "리그 순위"
-                        league_summary["리그평균평점"] = league_summary["리그평균평점"].round(2)
-                        st.dataframe(league_summary, use_container_width=True)
-
-                    best_deal_row = l_target_df.sort_values(by="이적평점", ascending=False).iloc[0]
-                    worst_deal_row = l_target_df.sort_values(by="이적평점", ascending=True).iloc[0]
-
-                    st.markdown("---")
-                    st.markdown(f"##### 🌟 **{title_prefix} 이적시장 하이라이트**")
-                    hl1, hl2 = st.columns(2)
-                    with hl1:
-                        st.success(f"""
-                        💎 **최고의 거래 (Best Deal)**:  
-                        **{best_deal_row.get('선수명', '선수')}** ({best_deal_row.get('이적팀명', '팀')})  
-                        - 거래액: `€{float(best_deal_row.get('실제이적료(만€)', 0)):,.0f}만` | 평점: `★ {float(best_deal_row.get('이적평점', 0)):.2f}`
-                        """)
-                    with hl2:
-                        st.error(f"""
-                        ⚠️ **최대 아쉬운 거래 (Worst Deal)**:  
-                        **{worst_deal_row.get('선수명', '선수')}** ({worst_deal_row.get('이적팀명', '팀')})  
-                        - 거래액: `€{float(worst_deal_row.get('실제이적료(만€)', 0)):,.0f}만` | 평점: `★ {float(worst_deal_row.get('이적평점', 0)):.2f}`
-                        """)
+                    st.dataframe(ranked_df, use_container_width=True)
 
         else:
             st.markdown("#### 🛠️ **구글 시트 저장 데이터 조회 및 삭제 관리 (Data Management)**")
             st.caption("테스트로 잘못 저장했거나 중복 저장된 선수 데이터를 선택하여 구글 시트에서 즉시 안전하게 삭제합니다.")
             
             del_c1, del_c2 = st.columns(2)
-            del_seasons = list(history_df["이적시즌"].dropna().unique())
+            del_seasons = list(history_df.iloc[:, 1].dropna().unique()) if len(history_df.columns) > 1 else []
             with del_c1:
                 sel_del_season = st.selectbox("삭제 대상 이적 시즌 선택", del_seasons, key="del_season_sel")
 
-            del_season_df = history_df[history_df["이적시즌"] == sel_del_season]
-            del_players = list(del_season_df["선수명"].dropna().unique()) if "선수명" in del_season_df.columns else []
+            del_season_df = history_df[history_df.iloc[:, 1] == sel_del_season] if len(history_df.columns) > 1 else pd.DataFrame()
+            del_players = list(del_season_df.iloc[:, 2].dropna().unique()) if len(history_df.columns) > 2 else []
 
             with del_c2:
                 sel_del_player = st.selectbox("삭제할 선수 선택", del_players, key="del_player_sel") if del_players else None
 
             if sel_del_player:
-                target_del_row = del_season_df[del_season_df["선수명"] == sel_del_player].iloc[-1]
-                st.warning(f"⚠️ 삭제 대상: **'{sel_del_player}'** (시즌: `{sel_del_season}` | 이적료: `€{target_del_row.get('실제이적료(만€)', 0):,.0f}만` | 평점: `★{target_del_row.get('이적평점', 0):,.0f}`)")
+                target_del_row = del_season_df[del_season_df.iloc[:, 2] == sel_del_player].iloc[-1]
+                st.warning(f"⚠️ 삭제 대상: **'{sel_del_player}'** (시즌: `{sel_del_season}`)")
                 
                 if st.button(f"🗑️ '{sel_del_player}' 데이터 구글 시트에서 영구 삭제하기", type="primary", use_container_width=True, key="del_exec_btn"):
                     with st.spinner("구글 시트에서 데이터를 삭제 중입니다..."):
