@@ -17,19 +17,14 @@ st.set_page_config(
 GOOGLE_SHEET_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwUX4diDBw2jD8WufrSa_0PejibYm7tIfyf1ia7O-QTfj1Ae6SQb3bZZ9pmNvDUAT6C/exec"
 SPREADSHEET_ID = "16CeAQp1-xqc-mhtvlP0vLlQu5k1pg8DW5A-m29WCFdw"
 
-# 🌟 CSV 방식 대신 Apps Script 웹 앱(GET)을 통해 데이터를 100% 안전하게 로드
+# 🌟 구글 시트 표준 CSV 링크를 통해 메인기록부 데이터를 다이렉트로 안전하게 로드 (지옥 같은 딜레이 및 권한 오류 완전 차단)
 @st.cache_data(ttl=2)
 def fetch_sheet_history():
     try:
-        res = requests.get(GOOGLE_SHEET_WEBAPP_URL, timeout=15, allow_redirects=True)
-        res_json = res.json()
-        if res_json.get("status") == "success":
-            rows = res_json.get("data", [])
-            if len(rows) > 1:
-                headers = rows[0]
-                data_rows = rows[1:]
-                df = pd.DataFrame(data_rows, columns=headers)
-                return df
+        csv_url = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/export?format=csv&gid=0"
+        df = pd.read_csv(csv_url)
+        if not df.empty:
+            return df
     except Exception:
         pass
     return pd.DataFrame()
@@ -40,7 +35,8 @@ history_df = fetch_sheet_history()
 @st.cache_data(ttl=2)
 def fetch_validation_data():
     try:
-        val_url = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=검증데이터"
+        # 검증데이터 탭 GID 확인 후 필요시 수정 가능 (일반적으로 두 번째 탭)
+        val_url = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/export?format=csv&gid=15389686"
         df = pd.read_csv(val_url)
         if not df.empty and "선수명" in df.columns:
             return df
