@@ -27,6 +27,8 @@ if "stat_key_id" not in st.session_state:
     st.session_state["stat_key_id"] = 0
 if "last_saved_msg" not in st.session_state:
     st.session_state["last_saved_msg"] = None
+if "edit_row_index" not in st.session_state:
+    st.session_state["edit_row_index"] = None
 
 if "custom_proj_mins" not in st.session_state:
     st.session_state["custom_proj_mins"] = 0
@@ -279,7 +281,13 @@ with tab1:
                 st.write("")
                 if st.button("📥 데이터 불러오기", type="primary", use_container_width=True):
                     if sel_e_player:
-                        row_raw = e_season_df[e_season_df["선수명"] == sel_e_player].iloc[-1]
+                        # 🌟 불러올 때 실제 시트의 몇 번째 행인지 정확히 계산 (엑셀은 헤더 1행 제외하고 데이터는 2행부터 시작하므로 인덱스 + 2)
+                        matched_rows = e_season_df[e_season_df["선수명"] == sel_e_player]
+                        if not matched_rows.empty:
+                            raw_idx_in_csv = matched_rows.index[-1]
+                            st.session_state["edit_row_index"] = int(raw_idx_in_csv) + 2
+                        
+                        row_raw = matched_rows.iloc[-1]
                         rd = row_raw.to_dict()
                         
                         pos_saved = str(rd.get("포지션", ""))
@@ -392,6 +400,9 @@ with tab1:
                         st.session_state["form_key_id"] += 1
                         st.session_state["stat_key_id"] += 1
                         st.rerun()
+    else:
+        # 수정 모드가 꺼지면 행 위치 초기화
+        st.session_state["edit_row_index"] = None
 
     k_id = st.session_state["form_key_id"]
     s_id = st.session_state["stat_key_id"]
@@ -789,9 +800,9 @@ with tab1:
     display_pname_t1 = player_name.strip() if player_name.strip() else "선수명 미입력"
     tag_btn_name_t1 = "🔴 방출(OUT) 데이터" if is_out_trade else "🔵 영입(IN) 데이터"
     
-    # 🌟 수정 모드일 때 action을 "update"로 확실하게 지정하여 시트 행 찾기 성공률 100% 보장
+    # 🌟 수정 모드일 때 action="update"와 함께 저장되어 있던 row_index를 명확히 전송
     action_type = "update" if edit_toggle else "save_all"
-    btn_label_t1 = f"🔄 '{display_pname_t1}' 수정된 데이터 구글 시트에 업데이트(덮어쓰기)" if edit_toggle else f"💾 {tag_btn_name_t1} 구글 시트에 바로 저장하기 (총 48개 항목 동기화)"
+    btn_label_t1 = f"🔄 '{display_pname_t1}' 수정된 데이터 구글 시트에 업데이트(덮어쓰기)" if edit_toggle else f"💾 {tag_btn_name_t1} 구글 시트에 바로 저장하기 (총 54개 항목 동기화)"
     
     if st.button(btn_label_t1, type="primary", use_container_width=True, key="save_btn_tab1"):
         if not player_name.strip():
@@ -835,6 +846,7 @@ with tab1:
 
                 payload = {
                     "action": action_type,
+                    "row_index": st.session_state.get("edit_row_index") if edit_toggle else None,
                     "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
                     "season": season_val,
                     "name": player_name,
@@ -905,6 +917,7 @@ with tab1:
                         st.cache_data.clear()
                         
                         st.session_state["current_form"] = default_form_template.copy()
+                        st.session_state["edit_row_index"] = None
                         reset_stats = {
                             "f_mins": 90, "f_goals": 0, "f_xg": 0.0, "f_assists": 0, "f_xa": 0.0,
                             "f_rating": 6.50, "f_matches": 1, "f_starts": 0, "f_shots": 0, "f_sot": 0,
@@ -1243,7 +1256,7 @@ with tab2:
     tag_btn_name = "🔴 방출(OUT) 데이터" if is_out_trade else "🔵 영입(IN) 데이터"
     st.markdown(f"#### 💾 **'{display_pname}'** 선수의 {tag_btn_name} 구글 시트 저장")
     
-    if st.button(f"💾 {tag_btn_name} 구글 시트에 저장하기 (골키퍼 6대 지표 포함 총 48개 항목 동기화)", type="primary", use_container_width=True, key="save_btn_tab2"):
+    if st.button(f"💾 {tag_btn_name} 구글 시트에 저장하기 (골키퍼 6대 지표 포함 총 54개 항목 동기화)", type="primary", use_container_width=True, key="save_btn_tab2"):
         if not player_name.strip():
             st.warning("⚠️ 선수 이름을 [💰 적정 이적료 평가] 탭에 먼저 입력해 주세요.")
         else:
