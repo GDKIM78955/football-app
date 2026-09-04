@@ -36,7 +36,6 @@ def fetch_validation_data():
 history_df = fetch_sheet_history()
 validation_df = fetch_validation_data()
 
-# 세션 상태 메시지 초기화
 if "last_saved_msg" not in st.session_state:
     st.session_state["last_saved_msg"] = None
 
@@ -58,6 +57,11 @@ LEAGUE_WEIGHTS = {
     "스페인 라리가 2 (세군다 2부)": 0.66,
     "기타 리그": 0.30
 }
+
+TRACKED_LEAGUE_NAMES = [
+    "프리미어리그", "라리가", "분데스리가", "세리에 A", "리그 1",
+    "에레디비시", "포르투갈", "벨기에", "튀르키예", "챔피언십"
+]
 
 CLUB_TIERS = {
     "Tier 1: 엘리트 메가클럽 (레알, 맨시티, 바이에른 등)": 1.05,
@@ -168,11 +172,13 @@ with tab1:
         buying_club_tier = st.selectbox("영입구단 티어", list(CLUB_TIERS.keys()), index=1, key="p_tier")
         in_from_team = st.text_input("원소속팀명 (보내는 팀)", value="토트넘 홋스퍼", key="p_from_team")
         in_to_team = st.text_input("이적팀명 (영입 구단)", value="바이에른 뮌헨", key="p_to_team")
+        to_league_choice = st.selectbox("이적팀 리그", list(LEAGUE_WEIGHTS.keys()), index=0, key="p_to_league")
 
     with col2:
         st.markdown("##### 💼 계약 및 시장 가치")
         tm_market_value = st.number_input("TM 시장가치 (만€)", min_value=0, value=5000, step=100, key="p_tm")
         actual_transfer_fee = st.number_input("실제 이적료 (만€)", min_value=0, value=5500, step=100, key="p_fee")
+        weekly_wage_in = st.number_input("주급 (만€)", min_value=0.0, value=0.0, step=0.5, key="p_wage")
         remaining_contract = st.selectbox("잔여 계약 기간", list(CONTRACT_WEIGHTS.keys()), index=2, key="p_con")
         reg_status = st.selectbox("스쿼드 쿼터 상태", list(REGISTRATION_WEIGHTS.keys()), index=0, key="p_reg")
         transfer_type = st.selectbox("이적 형태", list(TRANSFER_TYPE_WEIGHTS.keys()), index=0, key="p_ttype")
@@ -194,12 +200,15 @@ with tab1:
     inj_w = INJURY_WEIGHTS[injury_status]
     urg_w = URGENCY_WEIGHTS[urgency_status]
 
+    is_winter = "겨울" in season_val
+    season_factor = 1.10 if is_winter else 1.00
+
     # 최종 적정가 산출
-    fair_value = tm_market_value * league_w * age_w * club_w * contract_w * pos_w * vers_w * reg_w * opta_w * ttype_w * stage_w * inj_w * urg_w
+    base_calc_val = tm_market_value * league_w * age_w * club_w * contract_w * pos_w * vers_w * reg_w * opta_w * ttype_w * stage_w * inj_w * urg_w
+    fair_value = base_calc_val * season_factor
     diff = actual_transfer_fee - fair_value
     overpay_pct = (diff / fair_value) * 100 if fair_value > 0 else 0.0
 
-    # 가상 거래 평점 산출 (10점 만점 기준)
     base_deal_score = 7.50
     score_multiplier = 1.0 if is_out_trade else -1.0
     val_score_delta = max(-3.5, min(2.5, score_multiplier * (overpay_pct / 20.0)))
@@ -218,13 +227,18 @@ with tab1:
 
     st.markdown("---")
 
-    # 구글 시트 저장 버튼 로직
+    # 구글 시트 저장 버튼 로직 (54개 컬럼 완벽 매핑)
     btn_label = f"💾 '{player_name}' 데이터 구글 시트에 바로 저장하기"
     if st.button(btn_label, type="primary", use_container_width=True):
         if not player_name.strip():
             st.warning("⚠️ 선수 이름을 입력해 주세요.")
         else:
-            with st.spinner("구글 시트에 데이터를 기록 중입니다..."):
+            with st.spinner("구글 시트에 54개 항목 데이터를 기록 중입니다..."):
+                pos_short = main_position.split(" (")[0]
+                contract_desc = remaining_contract.split(" (")[0]
+                detailed_notes = f"[{'방출' if is_out_trade else '영입'}|계약:{contract_desc}]"
+
+                # 구글 앱스크립트가 기대하는 54개 컬럼 순서와 100% 일치하는 payload
                 payload = {
                     "action": "save_all",
                     "row_index": None,
@@ -233,7 +247,7 @@ with tab1:
                     "name": player_name,
                     "nat": player_nat if player_nat.strip() else "미상",
                     "age": int(player_age),
-                    "pos": main_position.split(" (")[0],
+                    "pos": pos_short,
                     "from_league": selling_league.split(" (")[0],
                     "buying_tier": buying_club_tier.split(":")[0],
                     "transfer_type": transfer_type.split(" (")[0],
@@ -243,9 +257,45 @@ with tab1:
                     "diff": round(diff, 1),
                     "status": status_label,
                     "deal_score": float(final_deal_score),
+                    "prev_matches": 1,
+                    "prev_mins": 90,
+                    "prev_goals": 0,
+                    "prev_xg": 0.0,
+                    "prev_assists": 0,
+                    "prev_xa": 0.0,
+                    "prev_shots": 0,
+                    "prev_sot": 0,
+                    "prev_chances": 0,
+                    "prev_dribbles": 0,
+                    "prev_touches_box": 0,
+                    "prev_tackles": 0,
+                    "prev_rating": 6.5,
+                    "to_league": to_league_choice.split(" (")[0],
+                    "proj_mins": 3000,
+                    "proj_goals": 0.0,
+                    "proj_xg": 0.0,
+                    "proj_assists": 0.0,
+                    "proj_xa": 0.0,
+                    "proj_shots": 0.0,
+                    "proj_rating": 7.0,
+                    "notes": detailed_notes,
                     "from_team": in_from_team.strip(),
                     "to_team": in_to_team.strip(),
-                    "trade_type": "OUT" if is_out_trade else "IN"
+                    "to_league_name": to_league_choice.split(" (")[0],
+                    "trade_type": "OUT" if is_out_trade else "IN",
+                    "weekly_wage": float(weekly_wage_in),
+                    "gk_saves": 0,
+                    "gk_conceded": 0,
+                    "gk_prevented": 0.0,
+                    "gk_cs": 0,
+                    "gk_errors": 0,
+                    "gk_claims": 0,
+                    "prev_starts": 0,
+                    "big_chances": 0,
+                    "pk_goals": 0,
+                    "pass_pct": 0.0,
+                    "duels_pct": 0.0,
+                    "aerial_pct": 0.0
                 }
                 
                 try:
@@ -258,7 +308,7 @@ with tab1:
                     )
                     res_json = res.json()
                     if res.status_code in [200, 302] and res_json.get("status") == "success":
-                        st.session_state["last_saved_msg"] = f"✅ '{player_name}' 선수의 데이터가 구글 시트에 성공적으로 저장되었습니다!"
+                        st.session_state["last_saved_msg"] = f"✅ '{player_name}' 선수의 데이터가 구글 시트(메인기록부)에 성공적으로 저장되었습니다!"
                         st.cache_data.clear()
                         st.rerun()
                     else:
