@@ -163,7 +163,6 @@ with tab1:
         trade_type_choice = st.radio("거래 유형", ["🔵 영입 (IN)", "🔴 방출 (OUT)"], horizontal=True, key="t_type")
         is_out_trade = "방출" in trade_type_choice
         
-        # 💡 [압축 레이아웃] 이적 시즌, 선수 이름, 국적을 한 행에 나란히 배치
         r1_c1, r1_c2, r1_c3 = st.columns([1.1, 1.2, 0.9])
         with r1_c1:
             season_val = st.selectbox("이적 시즌", ["26/27 여름", "26/27 겨울", "기타"], key="p_season")
@@ -172,49 +171,42 @@ with tab1:
         with r1_c3:
             player_nat = st.text_input("국적", value="대한민국", key="p_nat")
 
-        # 💡 [압축 레이아웃] 나이와 포지션을 한 행에 배치
         r2_c1, r2_c2 = st.columns([0.8, 2.2])
         with r2_c1:
             player_age = st.number_input("만 나이", min_value=15, max_value=45, value=28, key="p_age")
         with r2_c2:
             main_position = st.selectbox("주 포지션", list(POSITION_WEIGHTS.keys()), index=0, key="p_pos")
 
-        # 💡 [압축 레이아웃] 원소속 리그와 영입 구단 티어
         r3_c1, r3_c2 = st.columns(2)
         with r3_c1:
             selling_league = st.selectbox("원소속 리그", list(LEAGUE_WEIGHTS.keys()), index=0, key="p_league")
         with r3_c2:
             buying_club_tier = st.selectbox("영입구단 티어", list(CLUB_TIERS.keys()), index=1, key="p_tier")
 
-        # 💡 [압축 레이아웃] 원소속팀명과 이적팀명
         r4_c1, r4_c2 = st.columns(2)
         with r4_c1:
             in_from_team = st.text_input("원소속팀명", value="토트넘 홋스퍼", key="p_from_team")
         with r4_c2:
             in_to_team = st.text_input("이적팀명", value="바이에른 뮌헨", key="p_to_team")
 
-        # 💡 [압축 레이아웃] 이적팀 리그와 TM 시장가치
         r5_c1, r5_c2 = st.columns(2)
         with r5_c1:
             to_league_choice = st.selectbox("이적팀 리그", list(LEAGUE_WEIGHTS.keys()), index=0, key="p_to_league")
         with r5_c2:
             tm_market_value = st.number_input("TM 시장가치 (만€)", min_value=0, value=5000, step=100, key="p_tm")
 
-        # 💡 [압축 레이아웃] 실제 이적료와 주급
         r6_c1, r6_c2 = st.columns(2)
         with r6_c1:
             actual_transfer_fee = st.number_input("실제 이적료 (만€)", min_value=0, value=5500, step=100, key="p_fee")
         with r6_c2:
             weekly_wage_in = st.number_input("주급 (만€)", min_value=0.0, value=0.0, step=0.5, key="p_wage")
 
-        # 💡 [압축 레이아웃] 잔여 계약 기간과 이적 형태
         r7_c1, r7_c2 = st.columns(2)
         with r7_c1:
             remaining_contract = st.selectbox("잔여 계약 기간", list(CONTRACT_WEIGHTS.keys()), index=2, key="p_con")
         with r7_c2:
             transfer_type = st.selectbox("이적 형태", list(TRANSFER_TYPE_WEIGHTS.keys()), index=0, key="p_ttype")
 
-        # 💡 [압축 레이아웃] 쿼터, 부상, UCL 검증, 절박성 (2개씩 짝지어 배치)
         r8_c1, r8_c2 = st.columns(2)
         with r8_c1:
             reg_status = st.selectbox("스쿼드 쿼터 상태", list(REGISTRATION_WEIGHTS.keys()), index=0, key="p_reg")
@@ -222,6 +214,25 @@ with tab1:
         with r8_c2:
             big_stage = st.selectbox("UCL/빅매치 검증도", list(BIG_STAGE_WEIGHTS.keys()), index=0, key="p_stage")
             urgency_status = st.selectbox("영입 절박성", list(URGENCY_WEIGHTS.keys()), index=0, key="p_urg")
+
+        st.markdown("---")
+
+        # 💡 [추가됨] 12대 가중치 항목별 상세 가이드 (접이식)
+        with st.expander("📖 [참고] 12대 가중치 항목별 산정 기준 가이드", expanded=False):
+            st.markdown("""
+            **1. 원소속 리그 템포 난이도:** 상위 메이저 리그(EPL 1.00)를 기준으로 하위 리그로 갈수록 적정가 산정 시 할인 적용 (예: 기타 리그 0.30).  
+            **2. 포지션별 나이 (에이징 커브):** 공격수(ST/WG)는 19~23세 포텐셜 프리미엄이 높고 30세 이후 가파르게 하락. 센터백/골키퍼는 전성기 유지 기간이 길어 완만하게 적용.  
+            **3. 영입 구단 규모 (클럽 티어):** 메가클럽(레알, 맨시티 등)으로 향할 경우 재정적 지불 능력과 프리미엄 반영 (+5%).  
+            **4. 잔여 계약 기간:** FA 임박(6개월 이하) 시 -20% 대폭 할인, 4년 이상 장기 계약 시 +4% 프리미엄.  
+            **5. 포지션 희소성:** 스트라이커/공미(+2%)가 골키퍼(-3%)나 수비수(-1%)에 비해 시장 수요가 높아 우대.  
+            **6. 스쿼드 등록 / 쿼터 상태:** EPL 홈그로운(+4%)이나 구단 유스 출신(+2%) 가산, 비EU 쿼터 소모 시 -2% 페널티.  
+            **7. FotMob 실적 및 평점:** 직전 시즌 개인 평점 및 스탯 기여도 반영 (기본 1.00).  
+            **8. 이적 형태 & 계약 조항:** 일반 완전 이적(기준) 외 단순 임대(20% 환산), 바이백 조항(-5%) 등 계약 구조 보정.  
+            **9. UCL / 빅매치 검증도:** 유럽대항전 토너먼트나 국가대표 주전 활약 여부에 따른 실전 검증 프리미엄 (+1~3%).  
+            **10. 부상 내구성 (메디컬 리스크):** 철강왕(+1%) vs 장기 부상 이력 (-6% 페널티).  
+            **11. 영입 구단 절박성:** 핵심 공백 메우기 등 패닉바이 또는 대체불가 타겟일 경우 최대 +8% 할증.  
+            **12. 계절성 프리미엄:** 겨울 이적시장은 시즌 중반 긴급 보강 특수로 전체 적정가에 +10% 추가 가산.
+            """)
 
     # 12대 가중치 연산
     league_w = LEAGUE_WEIGHTS[selling_league]
@@ -255,7 +266,6 @@ with tab1:
     with col_right:
         st.markdown("#### 📊 분석 결과 및 스카우팅 시각화")
         
-        # 1. 핵심 지표 카드 4개
         res_c1, res_c2, res_c3, res_c4 = st.columns(4)
         res_c1.metric("산출 적정가", f"€{fair_value:,.1f}만", format_currency_desc(fair_value))
         res_c2.metric("실제 거래액", f"€{actual_transfer_fee:,.1f}만", delta=f"{diff:+,.1f}만 €")
@@ -264,7 +274,6 @@ with tab1:
 
         st.markdown("---")
 
-        # 2. 육각형 레이더 차트
         st.markdown("##### 📈 12대 스카우팅 육각형 레이더 차트")
         radar_categories = ['리그 템포', '나이/포텐', '구단 스케일', '계약 상태', '포지션 희소성', 'UCL/빅매치', '부상 내구성', '영입 절박성']
         radar_values = [league_w * 100, age_w * 100, club_w * 100, contract_w * 100, pos_w * 100, stage_w * 100, inj_w * 100, urg_w * 100]
@@ -286,7 +295,6 @@ with tab1:
         )
         st.plotly_chart(fig, use_container_width=True)
 
-        # 3. 12대 가중치 세부 적용 현황표 (접이식)
         with st.expander("🔍 12대 가중치 세부 적용 현황표 상세 보기", expanded=False):
             total_multiplier = league_w * age_w * club_w * contract_w * pos_w * vers_w * reg_w * opta_w * ttype_w * stage_w * inj_w * urg_w * season_factor
             df_weights_live = pd.DataFrame({
@@ -315,7 +323,6 @@ with tab1:
 
         st.markdown("---")
 
-        # 4. 구글 시트 저장 버튼
         btn_label = f"💾 '{player_name}' 데이터 구글 시트에 바로 저장하기"
         if st.button(btn_label, type="primary", use_container_width=True):
             if not player_name.strip():
