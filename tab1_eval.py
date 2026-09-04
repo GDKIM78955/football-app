@@ -89,27 +89,45 @@ def render_tab1(history_df, GOOGLE_SHEET_WEBAPP_URL, LEAGUE_WEIGHTS, CLUB_TIERS,
                             "trade_type": "🔴 방출 / 판매 (OUT)" if str(row_data.get("거래구분", "")).strip() == "OUT" else "🔵 영입 (IN)"
                         }
 
-                        st.session_state["f_mins"] = int(row_data.get("이전_출전시간", row_data.get("직전_출전시간", 2206))) if pd.notnull(row_data.get("이전_출전시간", row_data.get("직전_출전시간"))) else 2206
-                        st.session_state["f_goals"] = int(row_data.get("이전_골", row_data.get("직전_골", 0))) if pd.notnull(row_data.get("이전_골", row_data.get("직전_골"))) else 0
-                        st.session_state["f_xg"] = float(row_data.get("이전_xG", row_data.get("직전_xG", 0.0))) if pd.notnull(row_data.get("이전_xG", row_data.get("직전_xG"))) else 0.0
-                        st.session_state["f_assists"] = int(row_data.get("이전_도움", row_data.get("직전_도움", 0))) if pd.notnull(row_data.get("이전_도움", row_data.get("직전_도움"))) else 0
-                        st.session_state["f_xa"] = float(row_data.get("이전_xA", row_data.get("직전_xA", 0.0))) if pd.notnull(row_data.get("이전_xA", row_data.get("직전_xA"))) else 0.0
-                        st.session_state["f_rating"] = float(row_data.get("이전_FotMob평점", row_data.get("직전_평점", 7.0))) if pd.notnull(row_data.get("이전_FotMob평점", row_data.get("직전_평점"))) else 7.0
-                        st.session_state["f_matches"] = int(row_data.get("이전_출전경기", row_data.get("직전_경기수", 28))) if pd.notnull(row_data.get("이전_출전경기", row_data.get("직전_경기수"))) else 28
-                        st.session_state["f_starts"] = int(row_data.get("이전_선발", row_data.get("직전_선발", 25))) if pd.notnull(row_data.get("이전_선발", row_data.get("직전_선발"))) else 25
-                        st.session_state["f_shots"] = int(row_data.get("이전_총슈팅", row_data.get("직전_슈팅", 0))) if pd.notnull(row_data.get("이전_총슈팅", row_data.get("직전_슈팅"))) else 0
-                        st.session_state["f_sot"] = int(row_data.get("이전_유효슈팅", row_data.get("직전_유효슈팅", 0))) if pd.notnull(row_data.get("이전_유효슈팅", row_data.get("직전_유효슈팅"))) else 0
-                        st.session_state["f_chances"] = int(row_data.get("이전_찬스메이킹", row_data.get("직전_기회창출", 0))) if pd.notnull(row_data.get("이전_찬스메이킹", row_data.get("직전_기회창출"))) else 0
-                        st.session_state["f_dribbles"] = int(row_data.get("이전_성공드리블", row_data.get("직전_드리블", 0))) if pd.notnull(row_data.get("이전_성공드리블", row_data.get("직전_드리블"))) else 0
-                        st.session_state["f_touches_box"] = int(row_data.get("이전_박스터치", row_data.get("직전_박스터치", 0))) if pd.notnull(row_data.get("이전_박스터치", row_data.get("직전_박스터치"))) else 0
-                        st.session_state["f_tackles"] = int(row_data.get("이전_태클성공", row_data.get("직전_태클", 0))) if pd.notnull(row_data.get("이전_태클성공", row_data.get("직전_태클"))) else 0
+                        # 🌟 2번 탭 13대 풀 스탯 및 세부 지표 완벽 매칭 주입
+                        def get_val(keys, default_val):
+                            for k in keys:
+                                if k in row_data and pd.notnull(row_data[k]) and str(row_data[k]).strip() not in ["", "nan"]:
+                                    try:
+                                        return type(default_val)(row_data[k])
+                                    except:
+                                        pass
+                            return default_val
 
-                        st.session_state["f_gk_saves"] = int(row_data.get("GK_선방", 0)) if pd.notnull(row_data.get("GK_선방")) else 0
-                        st.session_state["f_gk_conceded"] = int(row_data.get("GK_실점", 0)) if pd.notnull(row_data.get("GK_실점")) else 0
-                        st.session_state["f_gk_prevented"] = float(row_data.get("GK_득점차단", 0.0)) if pd.notnull(row_data.get("GK_득점차단")) else 0.0
-                        st.session_state["f_gk_cs"] = int(row_data.get("GK_클린시트", 0)) if pd.notnull(row_data.get("GK_클린시트")) else 0
-                        st.session_state["f_gk_errors"] = int(row_data.get("GK_실수", 0)) if pd.notnull(row_data.get("GK_실수")) else 0
-                        st.session_state["f_gk_claims"] = int(row_data.get("GK_공중볼", 0)) if pd.notnull(row_data.get("GK_공중볼")) else 0
+                        st.session_state["f_matches"] = get_val(["이전_출전경기", "직전_경기수", "출전경기", "Matches"], 28)
+                        st.session_state["f_starts"] = get_val(["이전_선발", "직전_선발", "선발", "Starts"], 25)
+                        st.session_state["f_mins"] = get_val(["이전_출전시간", "직전_출전시간", "출전시간", "Minutes"], 2206)
+                        st.session_state["f_rating"] = get_val(["이전_FotMob평점", "직전_평점", "FotMob평점", "평점"], 7.32)
+
+                        st.session_state["f_goals"] = get_val(["이전_골", "직전_골", "득점", "Goals"], 16)
+                        st.session_state["f_xg"] = get_val(["이전_xG", "직전_xG", "기대득점", "xG"], 17.44)
+                        st.session_state["f_shots"] = get_val(["이전_총슈팅", "직전_슈팅", "슈팅", "Shots"], 88)
+                        st.session_state["f_sot"] = get_val(["이전_유효슈팅", "유효슈팅", "SOT"], 43)
+                        st.session_state["f_pk_goals"] = get_val(["PK득점", "PK"], 0)
+
+                        st.session_state["f_assists"] = get_val(["이전_도움", "직전_도움", "도움", "Assists"], 4)
+                        st.session_state["f_xa"] = get_val(["이전_xA", "직전_xA", "기대도움", "xA"], 3.33)
+                        st.session_state["f_chances"] = get_val(["이전_찬스메이킹", "직전_기회창출", "기회창출", "Chances"], 25)
+                        st.session_state["f_big_chances"] = get_val(["빅찬스메이킹", "빅찬스"], 0)
+                        st.session_state["f_pass_acc"] = get_val(["패스성공률", "PassAcc"], 85.0)
+
+                        st.session_state["f_dribbles"] = get_val(["이전_성공드리블", "직전_드리블", "드리블", "Dribbles"], 14)
+                        st.session_state["f_touches_box"] = get_val(["이전_박스터치", "직전_박스터치", "박스터치"], 153)
+                        st.session_state["f_ground_duels"] = get_val(["지상경합승률", "GroundDuels"], 55.0)
+                        st.session_state["f_aerial_duels"] = get_val(["공중볼승률", "AerialDuels"], 50.0)
+                        st.session_state["f_tackles"] = get_val(["이전_태클성공", "직전_태클", "태클", "Tackles"], 24)
+
+                        st.session_state["f_gk_saves"] = get_val(["GK_선방", "선방"], 78)
+                        st.session_state["f_gk_conceded"] = get_val(["GK_실점", "실점"], 28)
+                        st.session_state["f_gk_prevented"] = get_val(["GK_득점차단", "득점차단"], 2.45)
+                        st.session_state["f_gk_cs"] = get_val(["GK_클린시트", "클린시트"], 10)
+                        st.session_state["f_gk_errors"] = get_val(["GK_실수", "실수"], 0)
+                        st.session_state["f_gk_claims"] = get_val(["GK_공중볼", "공중볼"], 18)
 
                         st.session_state["form_key_id"] += 1
                         st.rerun()
@@ -213,7 +231,6 @@ def render_tab1(history_df, GOOGLE_SHEET_WEBAPP_URL, LEAGUE_WEIGHTS, CLUB_TIERS,
         with res_c3: st.metric("평가율", f"{overpay_pct:+.1f}%")
         with res_c4: st.metric("이적 평점", f"★ {final_deal_score:.2f}")
 
-        # 🌟 12대 스카우팅 육각형 레이더 차트 복구
         st.markdown("---")
         with st.expander("📊 [이미지 캡처용] 선수 12대 스카우팅 육각형 레이더 차트", expanded=True):
             radar_categories = ['리그 템포', '나이/포텐', '구단 스케일', '계약 상태', '포지션 희소성', 'UCL/빅매치', '부상 내구성', '영입 절박성']
