@@ -13,7 +13,6 @@ st.set_page_config(
     layout="wide"
 )
 
-# 🌟 새롭게 배포한 구글 시트 웹앱 URL 반영 완료!
 GOOGLE_SHEET_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzFxpJzPoGqdkn-1rrH1aiP07Yk2iKyH2mIJCGPMcvdGC9pzrHuHtHg5KzRbwdCi_Fl/exec"
 SPREADSHEET_ID = "16CeAQp1-xqc-mhtvlP0vLlQu5k1pg8DW5A-m29WCFdw"
 SHEET_CSV_URL = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/gviz/tq?tqx=out:csv"
@@ -796,14 +795,26 @@ with tab1:
                     p90_xg_t1 = (float(st.session_state["f_xg"]) / f_p90) * final_lf_t1
                     p90_xa_t1 = (float(st.session_state["f_xa"]) / f_p90) * final_lf_t1
                     p90_shots_t1 = (float(st.session_state["f_shots"]) / f_p90) * final_lf_t1
+                    p90_sot_t1 = (float(st.session_state["f_sot"]) / f_p90) * final_lf_t1
+                    p90_chances_t1 = (float(st.session_state["f_chances"]) / f_p90) * final_lf_t1
+                    p90_dribbles_t1 = (float(st.session_state["f_dribbles"]) / f_p90) * final_lf_t1
+                    p90_box_t1 = (float(st.session_state["f_touches_box"]) / f_p90) * final_lf_t1
+                    p90_tackles_t1 = (float(st.session_state["f_tackles"]) / f_p90) * (1.0 / final_lf_t1)
+
                     fin_ratio_t1 = float(st.session_state["f_goals"]) / float(st.session_state["f_xg"]) if float(st.session_state["f_xg"]) > 0 else 1.0
                     pj_goals_t1 = round(p90_xg_t1 * t_p90_t1 * fin_ratio_t1, 1)
                     pj_xg_t1 = round(p90_xg_t1 * t_p90_t1, 2)
                     pj_assists_t1 = round(p90_xa_t1 * t_p90_t1, 1)
                     pj_xa_t1 = round(p90_xa_t1 * t_p90_t1, 2)
                     pj_shots_t1 = round(p90_shots_t1 * t_p90_t1, 0)
+                    pj_sot_t1 = round(p90_sot_t1 * t_p90_t1, 0)
+                    pj_chances_t1 = round(p90_chances_t1 * t_p90_t1, 0)
+                    pj_dribbles_t1 = round(p90_dribbles_t1 * t_p90_t1, 0)
+                    pj_box_t1 = round(p90_box_t1 * t_p90_t1, 0)
+                    pj_tackles_t1 = round(p90_tackles_t1 * t_p90_t1, 0)
                 else:
                     pj_goals_t1 = 0.0; pj_xg_t1 = 0.0; pj_assists_t1 = 0.0; pj_xa_t1 = 0.0; pj_shots_t1 = 0.0
+                    pj_sot_t1 = 0.0; pj_chances_t1 = 0.0; pj_dribbles_t1 = 0.0; pj_box_t1 = 0.0; pj_tackles_t1 = 0.0
 
                 pj_rating_t1 = round(max(6.0, cur_rating - (1.0 - final_lf_t1) * 0.9), 2)
 
@@ -838,7 +849,6 @@ with tab1:
                     "prev_tackles": int(st.session_state["f_tackles"]),
                     "prev_rating": float(cur_rating),
                     
-                    # 🌟 AW~BB 열 데이터 추가
                     "prev_starts": int(st.session_state.get("f_starts", 25)),
                     "prev_big_chances": int(st.session_state.get("f_big_chances", 2)),
                     "prev_pk": int(st.session_state.get("f_pk", 0)),
@@ -853,7 +863,13 @@ with tab1:
                     "proj_assists": float(pj_assists_t1),
                     "proj_xa": float(pj_xa_t1),
                     "proj_shots": float(pj_shots_t1),
+                    "proj_sot": float(pj_sot_t1),
+                    "proj_chances": float(pj_chances_t1),
+                    "proj_dribbles": float(pj_dribbles_t1),
+                    "proj_box": float(pj_box_t1),
+                    "proj_tackles": float(pj_tackles_t1),
                     "proj_rating": float(pj_rating_t1),
+
                     "notes": detailed_notes,
                     "from_team": in_from_team.strip(),
                     "to_team": in_to_team.strip(),
@@ -880,7 +896,6 @@ with tab1:
                     if res.status_code in [200, 302] and res_json.get("status") == "success":
                         st.session_state["last_saved_msg"] = f"✅ '{player_name}' 선수의 데이터가 성공적으로 {'수정(업데이트)' if edit_toggle else '저장'}되었습니다!"
                         st.cache_data.clear()
-                        
                         st.session_state["current_form"] = default_form_template.copy()
                         st.session_state["form_key_id"] += 1
                         st.rerun()
@@ -1105,6 +1120,7 @@ with tab2:
         proj_rating = round(max(6.0, in_rating - (1.0 - final_l_factor) * 0.9), 2)
 
         proj_goals = 0.0; proj_xg = 0.0; proj_assists = 0.0; proj_xa = 0.0; proj_shots = 0.0
+        proj_sot = 0.0; proj_chances = 0.0; proj_dribbles = 0.0; proj_box_touches = 0.0; proj_tackles = 0.0
 
         season_type_desc = "후반기 잔여 시즌" if is_winter_mode else "1시즌 풀 타임"
         st.markdown(f"### 🧤 **FotMob 스타일 이적 첫 시즌 골키퍼 성적 예측 리포트 ({season_type_desc})**")
@@ -1206,7 +1222,6 @@ with tab2:
                     "prev_tackles": int(in_tackles),
                     "prev_rating": float(st.session_state["f_rating"]),
                     
-                    # 🌟 AW~BB 열 데이터 추가
                     "prev_starts": int(in_starts),
                     "prev_big_chances": int(in_big_chances) if 'in_big_chances' in locals() else 2,
                     "prev_pk": int(in_pk_goals) if 'in_pk_goals' in locals() else 0,
@@ -1221,7 +1236,13 @@ with tab2:
                     "proj_assists": float(proj_assists),
                     "proj_xa": float(proj_xa),
                     "proj_shots": float(proj_shots),
+                    "proj_sot": float(proj_sot),
+                    "proj_chances": float(proj_chances),
+                    "proj_dribbles": float(proj_dribbles),
+                    "proj_box": float(proj_box_touches),
+                    "proj_tackles": float(proj_tackles),
                     "proj_rating": float(proj_rating),
+
                     "notes": detailed_notes,
                     "from_team": in_from_team.strip(),
                     "to_team": in_to_team.strip(),
@@ -1247,7 +1268,6 @@ with tab2:
                     if res.status_code in [200, 302]:
                         st.session_state["last_saved_msg"] = f"✅ '{player_name}' 선수의 {tag_btn_name}가 성공적으로 저장되었습니다!"
                         st.cache_data.clear()
-                        
                         st.session_state["current_form"] = default_form_template.copy()
                         st.session_state["form_key_id"] += 1
                         st.rerun()
