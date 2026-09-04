@@ -231,7 +231,7 @@ tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "🏆 이적시장 구단/리그별 종합 결산 & 데이터룸"
 ])
 
-# ================= TAB 1: 적정 이적료 평가 (보내주신 원본 코드 100% 그대로 구현) =================
+# ================= TAB 1: 적정 이적료 평가 =================
 with tab1:
     if st.session_state["last_saved_msg"]:
         st.success(st.session_state["last_saved_msg"])
@@ -375,9 +375,9 @@ with tab1:
             st.info("💡 **안내**: 임대 후 옵션이 발동되어 완전 이적으로 처리되므로, 평점 평가 시 일반 완전 이적 기준(1.00)으로 자동 적용됩니다.")
 
         c_n1, c_n2, c_n3 = st.columns([2, 1, 1])
-        with c_n1: player_name = st.text_input("선수 이름", placeholder="예: Ezri Konsa", key=f"name_{k_id}")
-        with c_n2: player_nat = st.text_input("국적", placeholder="예: 잉글랜드", key=f"nat_{k_id}")
-        with c_n3: player_age = st.number_input("만 나이", min_value=15, max_value=45, value=28, key=f"age_{k_id}")
+        with c_n1: player_name = st.text_input("선수 이름", value=st.session_state.get(f"name_{k_id}", ""), placeholder="예: Ezri Konsa", key=f"name_{k_id}")
+        with c_n2: player_nat = st.text_input("국적", value=st.session_state.get(f"nat_{k_id}", ""), placeholder="예: 잉글랜드", key=f"nat_{k_id}")
+        with c_n3: player_age = st.number_input("만 나이", min_value=15, max_value=45, value=st.session_state.get(f"age_{k_id}", 28), key=f"age_{k_id}")
 
         if not edit_toggle and player_name.strip() and not history_df.empty and "선수명" in history_df.columns and "이적시즌" in history_df.columns:
             dup_matches = history_df[
@@ -392,8 +392,8 @@ with tab1:
                 st.warning(f"⚠️ **중복 등록 알림**: **'{player_name.strip()}'** 선수는 이미 이번 `{season_val}` 시즌에 등록된 내역이 있습니다! (`[{dup_from} ➔ {dup_to}] | €{dup_fee:,.0f}만`)")
 
         c_t1, c_t2, c_t3 = st.columns(3)
-        with c_t1: in_from_team = st.text_input("원소속팀명 (보내는 팀)", placeholder="예: 아스톤 빌라", key=f"from_team_{k_id}")
-        with c_t2: in_to_team = st.text_input("이적팀명 (영입 구단)", placeholder="예: 아스날", key=f"to_team_{k_id}")
+        with c_t1: in_from_team = st.text_input("원소속팀명 (보내는 팀)", value=st.session_state.get(f"from_team_{k_id}", ""), placeholder="예: 아스톤 빌라", key=f"from_team_{k_id}")
+        with c_t2: in_to_team = st.text_input("이적팀명 (영입 구단)", value=st.session_state.get(f"to_team_{k_id}", ""), placeholder="예: 아스날", key=f"to_team_{k_id}")
         with c_t3: in_to_league_choice = st.selectbox("이적팀 리그", list(LEAGUE_WEIGHTS.keys()), index=0, key=f"to_league_choice_{k_id}")
         
         is_tracked_target = any(k in in_to_league_choice for k in TRACKED_LEAGUE_NAMES)
@@ -452,7 +452,7 @@ with tab1:
                 """)
 
         st.markdown("---")
-        tm_market_value = st.number_input("TM시장가치(만€)", min_value=0, value=4500, step=50, key=f"tm_{k_id}")
+        tm_market_value = st.number_input("TM시장가치(만€)", min_value=0, value=st.session_state.get(f"tm_{k_id}", 4500), step=50, key=f"tm_{k_id}")
         if tm_market_value > 0: st.caption(f"💡 시장가치 환산: **{format_currency_desc(tm_market_value)}**")
         
         is_loan_type = "임대" in transfer_type and "의무" not in transfer_type and not option_exercised
@@ -464,7 +464,7 @@ with tab1:
         actual_transfer_fee = st.number_input(
             fee_label, 
             min_value=0, 
-            value=0 if is_undisclosed else 0, 
+            value=st.session_state.get(f"fee_{k_id}", 0), 
             step=50, 
             key=f"fee_{k_id}",
             disabled=is_undisclosed
@@ -476,7 +476,7 @@ with tab1:
             st.caption(f"💡 실제금액 환산: **{format_currency_desc(actual_transfer_fee)}**")
 
         with st.expander("💼 [선택/수정 입력] 주급(Weekly Wage) & 연간 총비용 분석", expanded=True):
-            weekly_wage_in = st.number_input("주급(만€)", min_value=0.0, value=0.0, step=0.5, key=f"wage_{k_id}")
+            weekly_wage_in = st.number_input("주급(만€)", min_value=0.0, value=st.session_state.get(f"wage_{k_id}", 0.0), step=0.5, key=f"wage_{k_id}")
             annual_wage_eur = weekly_wage_in * 52
             annual_transfer_amort = (actual_transfer_fee / 4.0) if actual_transfer_fee > 0 else 0.0
             total_annual_cost = annual_transfer_amort + annual_wage_eur
@@ -491,7 +491,7 @@ with tab1:
                 else:
                     st.caption("ℹ️ 주급이 입력되지 않았습니다. (주급 미입력 시 순수 이적료 기준으로 분석)")
 
-        player_notes = st.text_area("스카우팅메모", placeholder="예: 대인 방어 및 후방 빌드업 우수", key=f"note_{k_id}")
+        player_notes = st.text_area("스카우팅메모", value=st.session_state.get(f"note_{k_id}", ""), placeholder="예: 대인 방어 및 후방 빌드업 우수", key=f"note_{k_id}")
 
     league_w = LEAGUE_WEIGHTS[selling_league]
     age_w = get_positional_age_weight(player_age, main_position)
