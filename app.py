@@ -158,14 +158,14 @@ with tab1:
 
     st.subheader("💰 프로페셔널 적정 이적료 평가 시스템 (12대 가중치)")
 
-    trade_type_choice = st.radio("거래 유형", ["🔵 영입 (IN)", "🔴 방출 (OUT)"], horizontal=True, key="t_type")
-    is_out_trade = "방출" in trade_type_choice
-    st.markdown("---")
+    # 전체 화면을 좌우 2분할 (왼쪽: 입력폼 / 오른쪽: 분석결과 및 그래프)
+    main_col_left, main_col_right = st.columns([1.1, 1.9], gap="large")
 
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.markdown("##### 👤 선수 기본 정보")
+    with main_col_left:
+        st.markdown("#### 📝 선수 프로필 및 조건 입력")
+        trade_type_choice = st.radio("거래 유형", ["🔵 영입 (IN)", "🔴 방출 (OUT)"], horizontal=True, key="t_type")
+        is_out_trade = "방출" in trade_type_choice
+        
         season_val = st.selectbox("이적 시즌", ["26/27 여름 (Summer)", "26/27 겨울 (Winter)", "기타"], key="p_season")
         player_name = st.text_input("선수 이름", value="손흥민", key="p_name")
         player_nat = st.text_input("국적", value="대한민국", key="p_nat")
@@ -173,12 +173,11 @@ with tab1:
         main_position = st.selectbox("주 포지션", list(POSITION_WEIGHTS.keys()), index=0, key="p_pos")
         selling_league = st.selectbox("원소속 리그", list(LEAGUE_WEIGHTS.keys()), index=0, key="p_league")
         buying_club_tier = st.selectbox("영입구단 티어", list(CLUB_TIERS.keys()), index=1, key="p_tier")
-        in_from_team = st.text_input("원소속팀명 (보내는 팀)", value="토트넘 홋스퍼", key="p_from_team")
-        in_to_team = st.text_input("이적팀명 (영입 구단)", value="바이에른 뮌헨", key="p_to_team")
+        in_from_team = st.text_input("원소속팀명", value="토트넘 홋스퍼", key="p_from_team")
+        in_to_team = st.text_input("이적팀명", value="바이에른 뮌헨", key="p_to_team")
         to_league_choice = st.selectbox("이적팀 리그", list(LEAGUE_WEIGHTS.keys()), index=0, key="p_to_league")
 
-    with col2:
-        st.markdown("##### 💼 계약 및 시장 가치")
+        st.markdown("---")
         tm_market_value = st.number_input("TM 시장가치 (만€)", min_value=0, value=5000, step=100, key="p_tm")
         actual_transfer_fee = st.number_input("실제 이적료 (만€)", min_value=0, value=5500, step=100, key="p_fee")
         weekly_wage_in = st.number_input("주급 (만€)", min_value=0.0, value=0.0, step=0.5, key="p_wage")
@@ -218,159 +217,159 @@ with tab1:
 
     status_label = "⚖️ 적정가 (Fair Deal)" if abs(overpay_pct) <= 5.0 else (f"⚠️ 오버페이 (+{overpay_pct:.1f}%)" if diff > 0 else f"💎 혜자딜 ({overpay_pct:.1f}%)")
 
-    st.markdown("---")
-    st.subheader("📊 분석 결과 및 핵심 지표")
-
-    res_c1, res_c2, res_c3, res_c4 = st.columns(4)
-    res_c1.metric("산출 적정가", f"€{fair_value:,.1f}만", format_currency_desc(fair_value))
-    res_c2.metric("실제 거래액", f"€{actual_transfer_fee:,.1f}만", delta=f"{diff:+,.1f}만 €")
-    res_c3.metric("평가율 / 진단", f"{overpay_pct:+.1f}%", delta=status_label.split(" ")[0])
-    res_c4.metric("이적 거래 평점", f"★ {final_deal_score:.2f}")
-
-    st.markdown("---")
-
-    # 🌟 [가로 2단 배치] 왼쪽: 레이더 차트 / 오른쪽: 12대 가중치 적용 현황표
-    st.subheader("📋 스카우팅 시각화 및 12대 가중치 세부 현황")
-    viz_col1, viz_col2 = st.columns([1, 1])
-
-    with viz_col1:
-        st.markdown("##### 📊 선수 12대 스카우팅 육각형 레이더")
-        radar_categories = ['리그 템포', '나이/포텐', '구단 스케일', '계약 상태', '포지션 희소성', 'UCL/빅매치', '부상 내구성', '영입 절박성']
-        radar_values = [league_w * 100, age_w * 100, club_w * 100, contract_w * 100, pos_w * 100, stage_w * 100, inj_w * 100, urg_w * 100]
+    with main_col_right:
+        st.markdown("#### 📊 분석 결과 및 12대 가중치 리포트")
         
-        fig = go.Figure()
-        fig.add_trace(go.Scatterpolar(
-            r=radar_values + [radar_values[0]],
-            theta=radar_categories + [radar_categories[0]],
-            fill='toself',
-            fillcolor='rgba(31, 119, 180, 0.3)' if not is_out_trade else 'rgba(214, 39, 40, 0.3)',
-            line=dict(color='#1f77b4' if not is_out_trade else '#d62728', width=2),
-            name=player_name if player_name else "선수"
-        ))
-        fig.update_layout(
-            polar=dict(radialaxis=dict(visible=True, range=[50, 115])),
-            showlegend=False,
-            margin=dict(l=20, r=20, t=20, b=20),
-            height=340
-        )
-        st.plotly_chart(fig, use_container_width=True)
+        # 4개의 핵심 지표 카드 배치
+        res_c1, res_c2, res_c3, res_c4 = st.columns(4)
+        res_c1.metric("산출 적정가", f"€{fair_value:,.1f}만", format_currency_desc(fair_value))
+        res_c2.metric("실제 거래액", f"€{actual_transfer_fee:,.1f}만", delta=f"{diff:+,.1f}만 €")
+        res_c3.metric("평가율 / 진단", f"{overpay_pct:+.1f}%", delta=status_label.split(" ")[0])
+        res_c4.metric("이적 거래 평점", f"★ {final_deal_score:.2f}")
 
-    with viz_col2:
-        st.markdown("##### 🔍 12대 세부 가중치 적용 현황")
-        total_multiplier = league_w * age_w * club_w * contract_w * pos_w * vers_w * reg_w * opta_w * ttype_w * stage_w * inj_w * urg_w * season_factor
-        df_weights_live = pd.DataFrame({
-            "항목": [
-                "① 원소속 리그 템포", "② 포지션별 나이", "③ 영입 구단 규모",
-                "④ 잔여 계약 기간", "⑤ 포지션 희소성", "⑥ 멀티 포지션",
-                "⑦ 쿼터(HG)", "⑧ FotMob 평점", "⑨ 이적 형태",
-                "⑩ UCL/빅매치", "⑪ 부상 내구성", "⑫ 영입 절박성",
-                "❄️ 겨울 프리미엄", "🎯 [종합] 누적 배율"
-            ],
-            "조건": [
-                selling_league.split(" (")[0], f"만 {player_age}세", buying_club_tier.split(":")[0],
-                remaining_contract.split(" (")[0], main_position.split(" (")[0], "단일",
-                reg_status.split(" (")[0], "★6.50", transfer_type.split(" (")[0],
-                big_stage.split(" (")[0], injury_status.split(" (")[0], urgency_status.split(" (")[0],
-                "겨울 +10%" if is_winter else "여름 표준", "총 배율 합산"
-            ],
-            "배율": [
-                f"{league_w:.2f}x", f"{age_w:.2f}x", f"{club_w:.2f}x", f"{contract_w:.2f}x",
-                f"{pos_w:.2f}x", f"{vers_w:.2f}x", f"{reg_w:.2f}x", f"{opta_w:.2f}x",
-                f"{ttype_w:.2f}x", f"{stage_w:.2f}x", f"{inj_w:.2f}x", f"{urg_w:.2f}x",
-                f"{season_factor:.2f}x", f"✨ {total_multiplier:.3f}x"
-            ]
-        })
-        st.dataframe(df_weights_live, use_container_width=True, height=340)
+        st.markdown("---")
 
-    st.markdown("---")
+        # 오른쪽 영역 내부에서 또 좌우로 나누어 차트와 가중치 표 배치
+        sub_c1, sub_c2 = st.columns([1, 1])
 
-    # 구글 시트 저장 버튼 로직
-    btn_label = f"💾 '{player_name}' 데이터 구글 시트에 바로 저장하기"
-    if st.button(btn_label, type="primary", use_container_width=True):
-        if not player_name.strip():
-            st.warning("⚠️ 선수 이름을 입력해 주세요.")
-        else:
-            with st.spinner("구글 시트에 54개 항목 데이터를 기록 중입니다..."):
-                pos_short = main_position.split(" (")[0]
-                contract_desc = remaining_contract.split(" (")[0]
-                detailed_notes = f"[{'방출' if is_out_trade else '영입'}|계약:{contract_desc}]"
+        with sub_c1:
+            st.markdown("##### 📈 12대 스카우팅 레이더 차트")
+            radar_categories = ['리그 템포', '나이/포텐', '구단 스케일', '계약 상태', '포지션 희소성', 'UCL/빅매치', '부상 내구성', '영입 절박성']
+            radar_values = [league_w * 100, age_w * 100, club_w * 100, contract_w * 100, pos_w * 100, stage_w * 100, inj_w * 100, urg_w * 100]
+            
+            fig = go.Figure()
+            fig.add_trace(go.Scatterpolar(
+                r=radar_values + [radar_values[0]],
+                theta=radar_categories + [radar_categories[0]],
+                fill='toself',
+                fillcolor='rgba(31, 119, 180, 0.3)' if not is_out_trade else 'rgba(214, 39, 40, 0.3)',
+                line=dict(color='#1f77b4' if not is_out_trade else '#d62728', width=2),
+                name=player_name if player_name else "선수"
+            ))
+            fig.update_layout(
+                polar=dict(radialaxis=dict(visible=True, range=[50, 115])),
+                showlegend=False,
+                margin=dict(l=10, r=10, t=10, b=10),
+                height=300
+            )
+            st.plotly_chart(fig, use_container_width=True)
 
-                payload = {
-                    "action": "save_all",
-                    "row_index": None,
-                    "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                    "season": season_val,
-                    "name": player_name,
-                    "nat": player_nat if player_nat.strip() else "미상",
-                    "age": int(player_age),
-                    "pos": pos_short,
-                    "from_league": selling_league.split(" (")[0],
-                    "buying_tier": buying_club_tier.split(":")[0],
-                    "transfer_type": transfer_type.split(" (")[0],
-                    "tm_val": float(tm_market_value),
-                    "fee": float(actual_transfer_fee),
-                    "fair_val": round(fair_value, 1),
-                    "diff": round(diff, 1),
-                    "status": status_label,
-                    "deal_score": float(final_deal_score),
-                    "prev_matches": 1,
-                    "prev_mins": 90,
-                    "prev_goals": 0,
-                    "prev_xg": 0.0,
-                    "prev_assists": 0,
-                    "prev_xa": 0.0,
-                    "prev_shots": 0,
-                    "prev_sot": 0,
-                    "prev_chances": 0,
-                    "prev_dribbles": 0,
-                    "prev_touches_box": 0,
-                    "prev_tackles": 0,
-                    "prev_rating": 6.5,
-                    "to_league": to_league_choice.split(" (")[0],
-                    "proj_mins": 3000,
-                    "proj_goals": 0.0,
-                    "proj_xg": 0.0,
-                    "proj_assists": 0.0,
-                    "proj_xa": 0.0,
-                    "proj_shots": 0.0,
-                    "proj_rating": 7.0,
-                    "notes": detailed_notes,
-                    "from_team": in_from_team.strip(),
-                    "to_team": in_to_team.strip(),
-                    "to_league_name": to_league_choice.split(" (")[0],
-                    "trade_type": "OUT" if is_out_trade else "IN",
-                    "weekly_wage": float(weekly_wage_in),
-                    "gk_saves": 0,
-                    "gk_conceded": 0,
-                    "gk_prevented": 0.0,
-                    "gk_cs": 0,
-                    "gk_errors": 0,
-                    "gk_claims": 0,
-                    "prev_starts": 0,
-                    "big_chances": 0,
-                    "pk_goals": 0,
-                    "pass_pct": 0.0,
-                    "duels_pct": 0.0,
-                    "aerial_pct": 0.0
-                }
-                
-                try:
-                    res = requests.post(
-                        GOOGLE_SHEET_WEBAPP_URL, 
-                        data=json.dumps(payload), 
-                        headers={"Content-Type": "text/plain;charset=utf-8"}, 
-                        timeout=30, 
-                        allow_redirects=True
-                    )
-                    res_json = res.json()
-                    if res.status_code in [200, 302] and res_json.get("status") == "success":
-                        st.session_state["last_saved_msg"] = f"✅ '{player_name}' 선수의 데이터가 구글 시트(메인기록부)에 성공적으로 저장되었습니다!"
-                        st.cache_data.clear()
-                        st.rerun()
-                    else:
-                        st.error(f"⚠️ 저장 실패: {res_json.get('message', '통신 오류')}")
-                except Exception as e:
-                    st.error(f"⚠️ 저장 오류: {e}")
+        with sub_c2:
+            st.markdown("##### 🔍 12대 가중치 적용 현황")
+            total_multiplier = league_w * age_w * club_w * contract_w * pos_w * vers_w * reg_w * opta_w * ttype_w * stage_w * inj_w * urg_w * season_factor
+            df_weights_live = pd.DataFrame({
+                "항목": [
+                    "① 리그 템포", "② 나이커브", "③ 구단규모",
+                    "④ 계약기간", "⑤ 포지션", "⑥ 멀티능력",
+                    "⑦ 쿼터(HG)", "⑧ 평점가중", "⑨ 이적형태",
+                    "⑩ UCL검증", "⑪ 부상리스크", "⑫ 절박성",
+                    "❄️ 겨울프리미", "🎯 [종합] 배율"
+                ],
+                "조건": [
+                    selling_league.split(" (")[0], f"만 {player_age}세", buying_club_tier.split(":")[0],
+                    remaining_contract.split(" (")[0], main_position.split(" (")[0], "단일",
+                    reg_status.split(" (")[0], "★6.50", transfer_type.split(" (")[0],
+                    big_stage.split(" (")[0], injury_status.split(" (")[0], urgency_status.split(" (")[0],
+                    "겨울 +10%" if is_winter else "여름 표준", "총합"
+                ],
+                "배율": [
+                    f"{league_w:.2f}x", f"{age_w:.2f}x", f"{club_w:.2f}x", f"{contract_w:.2f}x",
+                    f"{pos_w:.2f}x", f"{vers_w:.2f}x", f"{reg_w:.2f}x", f"{opta_w:.2f}x",
+                    f"{ttype_w:.2f}x", f"{stage_w:.2f}x", f"{inj_w:.2f}x", f"{urg_w:.2f}x",
+                    f"{season_factor:.2f}x", f"✨ {total_multiplier:.3f}x"
+                ]
+            })
+            st.dataframe(df_weights_live, use_container_width=True, height=300)
+
+        st.markdown("---")
+
+        # 구글 시트 저장 버튼
+        btn_label = f"💾 '{player_name}' 데이터 구글 시트에 바로 저장하기"
+        if st.button(btn_label, type="primary", use_container_width=True):
+            if not player_name.strip():
+                st.warning("⚠️ 선수 이름을 입력해 주세요.")
+            else:
+                with st.spinner("구글 시트에 54개 항목 데이터를 기록 중입니다..."):
+                    pos_short = main_position.split(" (")[0]
+                    contract_desc = remaining_contract.split(" (")[0]
+                    detailed_notes = f"[{'방출' if is_out_trade else '영입'}|계약:{contract_desc}]"
+
+                    payload = {
+                        "action": "save_all",
+                        "row_index": None,
+                        "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                        "season": season_val,
+                        "name": player_name,
+                        "nat": player_nat if player_nat.strip() else "미상",
+                        "age": int(player_age),
+                        "pos": pos_short,
+                        "from_league": selling_league.split(" (")[0],
+                        "buying_tier": buying_club_tier.split(":")[0],
+                        "transfer_type": transfer_type.split(" (")[0],
+                        "tm_val": float(tm_market_value),
+                        "fee": float(actual_transfer_fee),
+                        "fair_val": round(fair_value, 1),
+                        "diff": round(diff, 1),
+                        "status": status_label,
+                        "deal_score": float(final_deal_score),
+                        "prev_matches": 1,
+                        "prev_mins": 90,
+                        "prev_goals": 0,
+                        "prev_xg": 0.0,
+                        "prev_assists": 0,
+                        "prev_xa": 0.0,
+                        "prev_shots": 0,
+                        "prev_sot": 0,
+                        "prev_chances": 0,
+                        "prev_dribbles": 0,
+                        "prev_touches_box": 0,
+                        "prev_tackles": 0,
+                        "prev_rating": 6.5,
+                        "to_league": to_league_choice.split(" (")[0],
+                        "proj_mins": 3000,
+                        "proj_goals": 0.0,
+                        "proj_xg": 0.0,
+                        "proj_assists": 0.0,
+                        "proj_xa": 0.0,
+                        "proj_shots": 0.0,
+                        "proj_rating": 7.0,
+                        "notes": detailed_notes,
+                        "from_team": in_from_team.strip(),
+                        "to_team": in_to_team.strip(),
+                        "to_league_name": to_league_choice.split(" (")[0],
+                        "trade_type": "OUT" if is_out_trade else "IN",
+                        "weekly_wage": float(weekly_wage_in),
+                        "gk_saves": 0,
+                        "gk_conceded": 0,
+                        "gk_prevented": 0.0,
+                        "gk_cs": 0,
+                        "gk_errors": 0,
+                        "gk_claims": 0,
+                        "prev_starts": 0,
+                        "big_chances": 0,
+                        "pk_goals": 0,
+                        "pass_pct": 0.0,
+                        "duels_pct": 0.0,
+                        "aerial_pct": 0.0
+                    }
+                    
+                    try:
+                        res = requests.post(
+                            GOOGLE_SHEET_WEBAPP_URL, 
+                            data=json.dumps(payload), 
+                            headers={"Content-Type": "text/plain;charset=utf-8"}, 
+                            timeout=30, 
+                            allow_redirects=True
+                        )
+                        res_json = res.json()
+                        if res.status_code in [200, 302] and res_json.get("status") == "success":
+                            st.session_state["last_saved_msg"] = f"✅ '{player_name}' 선수의 데이터가 구글 시트(메인기록부)에 성공적으로 저장되었습니다!"
+                            st.cache_data.clear()
+                            st.rerun()
+                        else:
+                            st.error(f"⚠️ 저장 실패: {res_json.get('message', '통신 오류')}")
+                    except Exception as e:
+                        st.error(f"⚠️ 저장 오류: {e}")
 
 # 나머지 탭 영역
 with tab2: st.subheader("📱 FotMob 시즌 성적 & 이적 예측")
