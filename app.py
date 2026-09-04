@@ -13,11 +13,12 @@ st.set_page_config(
     layout="wide"
 )
 
+# 🌟 새로운 구글 시트 정보 연동 설정
 GOOGLE_SHEET_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzlIZEZ6C8T1mpIErWoAgi28cCfeezNfqE2U9CR1P6vtB5t928n7VSJ3OvhCyTd-not8g/exec"
-SPREADSHEET_ID = "1oUDZ96SJ7aklJdrq_rK5K1ti2RRUAGO3PqqLvPM9E2A"
+SPREADSHEET_ID = "16CeAQp1-xqc-mhtvlP0vLlQu5k1pg8DW5A-m29WCFdw"
 SHEET_CSV_URL = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/gviz/tq?tqx=out:csv"
 
-VAL_SHEET_GID = "2043479646"
+VAL_SHEET_GID = "15389686"
 VAL_SHEET_CSV_URL = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/export?format=csv&gid={VAL_SHEET_GID}"
 
 if "form_key_id" not in st.session_state:
@@ -1662,7 +1663,7 @@ with tab6:
             all_club_names = sorted(list(set(to_teams + from_teams)))
 
             if not all_club_names:
-                st.warning("⚠️ 아직 시트에 구단명이 입력된 이적 데이터가 없습니다. 1번 탭에서 구단명을 입력하고 새로 저장해 보세요.")
+                st.warning("⚠️ 아직 시트에 구단명이 입력된 이적 데이터가 없습니다. 1번 탭에서 구단명이 입력되었는지 확인해 보세요.")
             else:
                 with c_rc2:
                     sel_team_name = st.selectbox("조회할 구단(팀) 선택", all_club_names, key="report_team_sel")
@@ -1751,7 +1752,7 @@ with tab6:
                 auto_detected_leagues = []
 
             if not auto_detected_leagues:
-                st.warning("⚠️ 아직 시트에 '이적팀리그'가 기록된 데이터가 없습니다. 1번 탭에서 이적팀 리그를 선택하고 새로 저장해 보세요.")
+                st.warning("⚠️ 아직 시트에 '이적팀리그'가 기록된 데이터가 없습니다.")
             else:
                 league_options = ["🌐 [전체 10개 리그 통합 순위표 (All Leagues)]"] + sorted(auto_detected_leagues)
                 with c_rk2:
@@ -1845,14 +1846,14 @@ with tab6:
                     with hl1:
                         st.success(f"""
                         💎 **최고의 거래 (Best Deal)**:  
-                        **{best_deal_row.get('선수명', '선수')}** ({best_deal_row.get('이적팀명', '팀')} 공동)  
-                        - 거래액: `€{float(best_deal_row.get('실제이적료(만€)', 0)):,.0f}만` | 평점: `★ {float(best_deal_row.get('이적평점', 0)):.2f}`
+                        **{best_deal_row.get('선수명', '선수')}** ({best_deal_row.get('이적팀명', '팀')})  
+                        - 거래액: `€{float(best_deal_row.get('실제이적료(만€)', 0)):,.0f}만` | 평점: `★ {float(best_deal_row.get('이적평점', 0)):,.2f}`
                         """)
                     with hl2:
                         st.error(f"""
                         ⚠️ **최대 아쉬운 거래 (Worst Deal)**:  
                         **{worst_deal_row.get('선수명', '선수')}** ({worst_deal_row.get('이적팀명', '팀')})  
-                        - 거래액: `€{float(worst_deal_row.get('실제이적료(만€)', 0)):,.0f}만` | 평점: `★ {float(worst_deal_row.get('이적평점', 0)):.2f}`
+                        - 거래액: `€{float(worst_deal_row.get('실제이적료(만€)', 0)):,.0f}만` | 평점: `★ {float(worst_deal_row.get('이적평점', 0)):,.2f}`
                         """)
 
         else:
@@ -1872,7 +1873,7 @@ with tab6:
 
             if sel_del_player:
                 target_del_row = del_season_df[del_season_df["선수명"] == sel_del_player].iloc[-1]
-                st.warning(f"⚠️ 삭제 대상: **'{sel_del_player}'** (시즌: `{sel_del_season}` | 이적료: `€{target_del_row.get('실제이적료(만€)', 0):,.0f}만` | 평점: `★{target_del_row.get('이적평점', 0):.2f}`)")
+                st.warning(f"⚠️ 삭제 대상: **'{sel_del_player}'** (시즌: `{sel_del_season}` | 이적료: `€{target_del_row.get('실제이적료(만€)', 0):,.0f}만` | 평점: `★{target_del_row.get('이적평점', 0):,.2f}`)")
 
                 if st.button(f"🗑️ '{sel_del_player}' 데이터 구글 시트에서 영구 삭제하기", type="primary", use_container_width=True, key="del_exec_btn"):
                     with st.spinner("구글 시트에서 데이터를 삭제 중입니다..."):
