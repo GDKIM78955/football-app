@@ -156,8 +156,8 @@ with tab1:
         st.success(st.session_state["last_saved_msg"])
         st.session_state["last_saved_msg"] = None
 
-    # 전체 화면을 좌우로 넓게 분할 (왼쪽: 입력 칸 넉넉히 / 오른쪽: 분석 결과 및 시각화)
-    col_left, col_right = st.columns([1.1, 1.7], gap="large")
+    # 좌우 비율을 균형 있게 조정 (왼쪽 입력폼이 넉넉하게 쓸 수 있도록 분할)
+    col_left, col_right = st.columns([1.1, 1.4], gap="large")
 
     with col_left:
         st.markdown("#### 📝 선수 프로필 & 계약 조건 입력")
@@ -166,9 +166,12 @@ with tab1:
         
         season_val = st.selectbox("이적 시즌", ["26/27 여름 (Summer)", "26/27 겨울 (Winter)", "기타"], key="p_season")
         
-        c_i1, c_i2 = st.columns(2)
-        with c_i1:
-            player_name = st.text_input("선수 이름", value="손흥민", key="p_name")
+        # 입력 항목을 넉넉하고 편안한 단일/세로 배치로 구성
+        player_name = st.text_input("선수 이름", value="손흥민", key="p_name")
+        player_nat = st.text_input("국적", value="대한민국", key="p_nat")
+        
+        c_l1, c_l2 = st.columns(2)
+        with c_l1:
             player_age = st.number_input("만 나이", min_value=15, max_value=45, value=28, key="p_age")
             selling_league = st.selectbox("원소속 리그", list(LEAGUE_WEIGHTS.keys()), index=0, key="p_league")
             in_from_team = st.text_input("원소속팀명", value="토트넘 홋스퍼", key="p_from_team")
@@ -176,16 +179,15 @@ with tab1:
             remaining_contract = st.selectbox("잔여 계약 기간", list(CONTRACT_WEIGHTS.keys()), index=2, key="p_con")
             transfer_type = st.selectbox("이적 형태", list(TRANSFER_TYPE_WEIGHTS.keys()), index=0, key="p_ttype")
             injury_status = st.selectbox("부상 내구성", list(INJURY_WEIGHTS.keys()), index=1, key="p_inj")
-        with c_i2:
-            player_nat = st.text_input("국적", value="대한민국", key="p_nat")
+        with c_l2:
             main_position = st.selectbox("주 포지션", list(POSITION_WEIGHTS.keys()), index=0, key="p_pos")
             buying_club_tier = st.selectbox("영입구단 티어", list(CLUB_TIERS.keys()), index=1, key="p_tier")
             to_league_choice = st.selectbox("이적팀 리그", list(LEAGUE_WEIGHTS.keys()), index=0, key="p_to_league")
             in_to_team = st.text_input("이적팀명", value="바이에른 뮌헨", key="p_to_team")
             actual_transfer_fee = st.number_input("실제 이적료 (만€)", min_value=0, value=5500, step=100, key="p_fee")
             weekly_wage_in = st.number_input("주급 (만€)", min_value=0.0, value=0.0, step=0.5, key="p_wage")
-            reg_status = st.selectbox("스쿼드 쿼터", list(REGISTRATION_WEIGHTS.keys()), index=0, key="p_reg")
-            big_stage = st.selectbox("UCL/빅매치", list(BIG_STAGE_WEIGHTS.keys()), index=0, key="p_stage")
+            reg_status = st.selectbox("스쿼드 쿼터 상태", list(REGISTRATION_WEIGHTS.keys()), index=0, key="p_reg")
+            big_stage = st.selectbox("UCL/빅매치 검증도", list(BIG_STAGE_WEIGHTS.keys()), index=0, key="p_stage")
             urgency_status = st.selectbox("영입 절박성", list(URGENCY_WEIGHTS.keys()), index=0, key="p_urg")
 
     # 12대 가중치 연산
@@ -220,7 +222,7 @@ with tab1:
     with col_right:
         st.markdown("#### 📊 분석 결과 및 스카우팅 시각화")
         
-        # 1층: 4개 핵심 지표 카드
+        # 1. 핵심 지표 카드 4개
         res_c1, res_c2, res_c3, res_c4 = st.columns(4)
         res_c1.metric("산출 적정가", f"€{fair_value:,.1f}만", format_currency_desc(fair_value))
         res_c2.metric("실제 거래액", f"€{actual_transfer_fee:,.1f}만", delta=f"{diff:+,.1f}만 €")
@@ -229,49 +231,59 @@ with tab1:
 
         st.markdown("---")
 
-        # 2층: 좌우로 나누어 차트와 가중치 표 배치
-        chart_col, table_col = st.columns([1, 1])
+        # 2. 육각형 레이더 차트 (상단에 큼직하게 배치)
+        st.markdown("##### 📈 12대 스카우팅 육각형 레이더 차트")
+        radar_categories = ['리그 템포', '나이/포텐', '구단 스케일', '계약 상태', '포지션 희소성', 'UCL/빅매치', '부상 내구성', '영입 절박성']
+        radar_values = [league_w * 100, age_w * 100, club_w * 100, contract_w * 100, pos_w * 100, stage_w * 100, inj_w * 100, urg_w * 100]
+        
+        fig = go.Figure()
+        fig.add_trace(go.Scatterpolar(
+            r=radar_values + [radar_values[0]],
+            theta=radar_categories + [radar_categories[0]],
+            fill='toself',
+            fillcolor='rgba(31, 119, 180, 0.3)' if not is_out_trade else 'rgba(214, 39, 40, 0.3)',
+            line=dict(color='#1f77b4' if not is_out_trade else '#d62728', width=2),
+            name=player_name if player_name else "선수"
+        ))
+        fig.update_layout(
+            polar=dict(radialaxis=dict(visible=True, range=[50, 115])),
+            showlegend=False,
+            margin=dict(l=20, r=20, t=10, b=10),
+            height=280
+        )
+        st.plotly_chart(fig, use_container_width=True)
 
-        with chart_col:
-            st.markdown("##### 📈 12대 스카우팅 레이더 차트")
-            radar_categories = ['리그 템포', '나이/포텐', '구단 스케일', '계약 상태', '포지션 희소성', 'UCL/빅매치', '부상 내구성', '영입 절박성']
-            radar_values = [league_w * 100, age_w * 100, club_w * 100, contract_w * 100, pos_w * 100, stage_w * 100, inj_w * 100, urg_w * 100]
-            
-            fig = go.Figure()
-            fig.add_trace(go.Scatterpolar(
-                r=radar_values + [radar_values[0]],
-                theta=radar_categories + [radar_categories[0]],
-                fill='toself',
-                fillcolor='rgba(31, 119, 180, 0.3)' if not is_out_trade else 'rgba(214, 39, 40, 0.3)',
-                line=dict(color='#1f77b4' if not is_out_trade else '#d62728', width=2),
-                name=player_name if player_name else "선수"
-            ))
-            fig.update_layout(
-                polar=dict(radialaxis=dict(visible=True, range=[50, 115])),
-                showlegend=False,
-                margin=dict(l=10, r=10, t=10, b=10),
-                height=260
-            )
-            st.plotly_chart(fig, use_container_width=True)
-
-        with table_col:
-            st.markdown("##### 🔍 12대 가중치 적용 현황")
+        # 3. 12대 가중치 세부 적용 현황표 (접었다 펼칠 수 있는 Expander로 배치)
+        with st.expander("🔍 12대 가중치 세부 적용 현황표 상세 보기", expanded=False):
             total_multiplier = league_w * age_w * club_w * contract_w * pos_w * vers_w * reg_w * opta_w * ttype_w * stage_w * inj_w * urg_w * season_factor
             df_weights_live = pd.DataFrame({
-                "항목": ["리그템포", "나이", "구단", "계약", "포지션", "쿼터", "평점", "이적형태", "UCL", "부상", "절박성", "겨울", "총배율"],
-                "배율": [
-                    f"{league_w:.2f}", f"{age_w:.2f}", f"{club_w:.2f}", f"{contract_w:.2f}",
-                    f"{pos_w:.2f}", f"{reg_w:.2f}", f"{opta_w:.2f}", f"{ttype_w:.2f}",
-                    f"{stage_w:.2f}", f"{inj_w:.2f}", f"{urg_w:.2f}", f"{season_factor:.2f}",
-                    f"✨ {total_multiplier:.2f}"
+                "가중치 세부 항목": [
+                    "① 원소속 리그 템포 난이도", "② 포지션별 나이(에이징 커브)", "③ 영입 구단 규모 (클럽 티어)",
+                    "④ 이적 당시 잔여 계약 기간", "⑤ 주 포지션 시장 희소성", "⑥ 멀티 포지션 소화 능력",
+                    "⑦ 스쿼드 등록 / HG 쿼터", "⑧ FotMob 실적 및 평점 가중치", "⑨ 이적 형태 & 계약 조항",
+                    "⑩ UCL / 빅매치 검증도", "⑪ 부상 내구성 & 메디컬 리스크", "⑫ 영입 구단 절박성 & 취약 포지션",
+                    "❄️ 계절성 프리미엄 (겨울 특수)", "🎯 [종합] 최종 누적 가중치 배율"
+                ],
+                "선택된 조건 / 등급": [
+                    selling_league.split(" (")[0], f"만 {player_age}세", buying_club_tier.split(":")[0],
+                    remaining_contract.split(" (")[0], main_position.split(" (")[0], "단일 포지션",
+                    reg_status.split(" (")[0], "★6.50 (기준)", transfer_type.split(" (")[0],
+                    big_stage.split(" (")[0], injury_status.split(" (")[0], urgency_status.split(" (")[0],
+                    "+10% 겨울 프리미엄" if is_winter else "여름 표준 시장", "12대 가중치 총 곱셈 합산"
+                ],
+                "실시간 배율": [
+                    f"{league_w:.2f}x", f"{age_w:.2f}x", f"{club_w:.2f}x", f"{contract_w:.2f}x",
+                    f"{pos_w:.2f}x", f"{vers_w:.2f}x", f"{reg_w:.2f}x", f"{opta_w:.2f}x",
+                    f"{ttype_w:.2f}x", f"{stage_w:.2f}x", f"{inj_w:.2f}x", f"{urg_w:.2f}x",
+                    f"{season_factor:.2f}x", f"✨ {total_multiplier:.3f}x"
                 ]
             })
-            st.dataframe(df_weights_live, use_container_width=True, height=260)
+            st.table(df_weights_live)
 
         st.markdown("---")
 
-        # 3층: 구글 시트 저장 버튼
-        btn_label = f"💾 '{player_name}' 구글 시트에 바로 저장하기"
+        # 4. 구글 시트 저장 버튼
+        btn_label = f"💾 '{player_name}' 데이터 구글 시트에 바로 저장하기"
         if st.button(btn_label, type="primary", use_container_width=True):
             if not player_name.strip():
                 st.warning("⚠️ 선수 이름을 입력해 주세요.")
