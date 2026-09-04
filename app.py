@@ -837,6 +837,15 @@ with tab1:
                     "prev_touches_box": int(st.session_state["f_touches_box"]),
                     "prev_tackles": int(st.session_state["f_tackles"]),
                     "prev_rating": float(cur_rating),
+                    
+                    # 🌟 AW~BB 열 데이터 추가
+                    "prev_starts": int(st.session_state.get("f_starts", 25)),
+                    "prev_big_chances": int(st.session_state.get("f_big_chances", 2)),
+                    "prev_pk": int(st.session_state.get("f_pk", 0)),
+                    "prev_pass_pct": float(st.session_state.get("f_pass_pct", 88.2)),
+                    "prev_duels_pct": float(st.session_state.get("f_duels_pct", 62.4)),
+                    "prev_aerial_pct": float(st.session_state.get("f_aerial_pct", 65.8)),
+
                     "to_league": in_to_league_choice.split(" (")[0],
                     "proj_mins": int(f_target_mins_t1),
                     "proj_goals": float(pj_goals_t1),
@@ -1196,6 +1205,15 @@ with tab2:
                     "prev_touches_box": int(in_touches_box),
                     "prev_tackles": int(in_tackles),
                     "prev_rating": float(st.session_state["f_rating"]),
+                    
+                    # 🌟 AW~BB 열 데이터 추가
+                    "prev_starts": int(in_starts),
+                    "prev_big_chances": int(in_big_chances) if 'in_big_chances' in locals() else 2,
+                    "prev_pk": int(in_pk_goals) if 'in_pk_goals' in locals() else 0,
+                    "prev_pass_pct": float(in_pass_pct) if 'in_pass_pct' in locals() else 88.2,
+                    "prev_duels_pct": float(in_duels_pct) if 'in_duels_pct' in locals() else 62.4,
+                    "prev_aerial_pct": float(in_aerial_pct) if 'in_aerial_pct' in locals() else 65.8,
+
                     "to_league": f_to_l.split(" (")[0],
                     "proj_mins": int(f_target_mins),
                     "proj_goals": float(proj_goals),
