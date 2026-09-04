@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import requests
 import json
+import plotly.graph_objects as go
 from datetime import datetime
 
 # 1. 페이지 기본 설정
@@ -57,11 +58,6 @@ LEAGUE_WEIGHTS = {
     "스페인 라리가 2 (세군다 2부)": 0.66,
     "기타 리그": 0.30
 }
-
-TRACKED_LEAGUE_NAMES = [
-    "프리미어리그", "라리가", "분데스리가", "세리에 A", "리그 1",
-    "에레디비시", "포르투갈", "벨기에", "튀르키예", "챔피언십"
-]
 
 CLUB_TIERS = {
     "Tier 1: 엘리트 메가클럽 (레알, 맨시티, 바이에른 등)": 1.05,
@@ -136,6 +132,13 @@ def get_positional_age_weight(age, position_name):
         elif age <= 29: return 1.00
         elif age <= 31: return 0.96
         else: return 0.80
+
+rate_krw = 1500
+def format_currency_desc(eur_man_euro):
+    if eur_man_euro <= 0: return "₩0억"
+    total_eur = eur_man_euro * 10000
+    krw_eok = (total_eur * rate_krw) / 100000000.0
+    return f"약 {krw_eok:,.1f}억원"
 
 # 6개 탭 구조 정의
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
@@ -217,17 +220,68 @@ with tab1:
     status_label = "⚖️ 적정가 (Fair Deal)" if abs(overpay_pct) <= 5.0 else (f"⚠️ 오버페이 (+{overpay_pct:.1f}%)" if diff > 0 else f"💎 혜자딜 ({overpay_pct:.1f}%)")
 
     st.markdown("---")
-    st.subheader("📊 분석 결과 및 12대 가중치 요약")
+    st.subheader("📊 분석 결과 및 핵심 지표")
 
     res_c1, res_c2, res_c3, res_c4 = st.columns(4)
-    res_c1.metric("산출 적정가", f"€{fair_value:,.1f}만")
+    res_c1.metric("산출 적정가", f"€{fair_value:,.1f}만", format_currency_desc(fair_value))
     res_c2.metric("실제 거래액", f"€{actual_transfer_fee:,.1f}만", delta=f"{diff:+,.1f}만 €")
     res_c3.metric("평가율 / 진단", f"{overpay_pct:+.1f}%", delta=status_label.split(" ")[0])
     res_c4.metric("이적 거래 평점", f"★ {final_deal_score:.2f}")
 
     st.markdown("---")
 
-    # 구글 시트 저장 버튼 로직 (54개 컬럼 완벽 매핑)
+    # 🌟 [추가됨] 선수 12대 스카우팅 육각형 레이더 차트
+    with st.expander("📊 [시각화] 선수 12대 스카우팅 육각형 레이더 차트", expanded=True):
+        radar_categories = ['리그 템포', '나이/포텐', '구단 스케일', '계약 상태', '포지션 희소성', 'UCL/빅매치', '부상 내구성', '영입 절박성']
+        radar_values = [league_w * 100, age_w * 100, club_w * 100, contract_w * 100, pos_w * 100, stage_w * 100, inj_w * 100, urg_w * 100]
+        
+        fig = go.Figure()
+        fig.add_trace(go.Scatterpolar(
+            r=radar_values + [radar_values[0]],
+            theta=radar_categories + [radar_categories[0]],
+            fill='toself',
+            fillcolor='rgba(31, 119, 180, 0.3)' if not is_out_trade else 'rgba(214, 39, 40, 0.3)',
+            line=dict(color='#1f77b4' if not is_out_trade else '#d62728', width=2),
+            name=player_name if player_name else "선수"
+        ))
+        fig.update_layout(
+            polar=dict(radialaxis=dict(visible=True, range=[50, 115])),
+            showlegend=False,
+            margin=dict(l=40, r=40, t=30, b=30),
+            height=320
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+    # 🌟 [추가됨] 실시간 12대 세부 가중치 적용 현황표
+    with st.expander("🔍 [실시간 확인] 12대 세부 가중치 적용 현황표 & 누적 배율", expanded=False):
+        total_multiplier = league_w * age_w * club_w * contract_w * pos_w * vers_w * reg_w * opta_w * ttype_w * stage_w * inj_w * urg_w * season_factor
+        df_weights_live = pd.DataFrame({
+            "가중치 세부 항목": [
+                "① 원소속 리그 템포 난이도", "② 포지션별 나이(에이징 커브)", "③ 영입 구단 규모 (클럽 티어)",
+                "④ 이적 당시 잔여 계약 기간", "⑤ 주 포지션 시장 희소성", "⑥ 멀티 포지션 소화 능력",
+                "⑦ 스쿼드 등록 / HG 쿼터", "⑧ FotMob 실적 및 평점 가중치", "⑨ 이적 형태 & 계약 조항",
+                "⑩ UCL / 빅매치 검증도", "⑪ 부상 내구성 & 메디컬 리스크", "⑫ 영입 구단 절박성 & 취약 포지션",
+                "❄️ 계절성 프리미엄 (겨울 특수)", "🎯 [종합] 최종 누적 가중치 배율"
+            ],
+            "선택된 조건 / 등급": [
+                selling_league.split(" (")[0], f"만 {player_age}세", buying_club_tier.split(":")[0],
+                remaining_contract.split(" (")[0], main_position.split(" (")[0], "단일 포지션",
+                reg_status.split(" (")[0], "★6.50 (기준)", transfer_type.split(" (")[0],
+                big_stage.split(" (")[0], injury_status.split(" (")[0], urgency_status.split(" (")[0],
+                "+10% 겨울 프리미엄" if is_winter else "여름 표준 시장", "12대 가중치 총 곱셈 합산"
+            ],
+            "실시간 배율": [
+                f"{league_w:.2f}x", f"{age_w:.2f}x", f"{club_w:.2f}x", f"{contract_w:.2f}x",
+                f"{pos_w:.2f}x", f"{vers_w:.2f}x", f"{reg_w:.2f}x", f"{opta_w:.2f}x",
+                f"{ttype_w:.2f}x", f"{stage_w:.2f}x", f"{inj_w:.2f}x", f"{urg_w:.2f}x",
+                f"{season_factor:.2f}x", f"✨ {total_multiplier:.3f}x"
+            ]
+        })
+        st.table(df_weights_live)
+
+    st.markdown("---")
+
+    # 구글 시트 저장 버튼 로직
     btn_label = f"💾 '{player_name}' 데이터 구글 시트에 바로 저장하기"
     if st.button(btn_label, type="primary", use_container_width=True):
         if not player_name.strip():
@@ -238,7 +292,6 @@ with tab1:
                 contract_desc = remaining_contract.split(" (")[0]
                 detailed_notes = f"[{'방출' if is_out_trade else '영입'}|계약:{contract_desc}]"
 
-                # 구글 앱스크립트가 기대하는 54개 컬럼 순서와 100% 일치하는 payload
                 payload = {
                     "action": "save_all",
                     "row_index": None,
