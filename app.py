@@ -13,8 +13,8 @@ st.set_page_config(
     layout="wide"
 )
 
-# 🌟 새로운 구글 시트 정보 연동 설정
-GOOGLE_SHEET_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzlIZEZ6C8T1mpIErWoAgi28cCfeezNfqE2U9CR1P6vtB5t928n7VSJ3OvhCyTd-not8g/exec"
+# 🌟 새롭게 배포한 구글 시트 웹앱 URL 반영 완료!
+GOOGLE_SHEET_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzFxpJzPoGqdkn-1rrH1aiP07Yk2iKyH2mIJCGPMcvdGC9pzrHuHtHg5KzRbwdCi_Fl/exec"
 SPREADSHEET_ID = "16CeAQp1-xqc-mhtvlP0vLlQu5k1pg8DW5A-m29WCFdw"
 SHEET_CSV_URL = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/gviz/tq?tqx=out:csv"
 
