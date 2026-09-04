@@ -8,7 +8,7 @@ from datetime import datetime
 def render_tab2(history_df, GOOGLE_SHEET_WEBAPP_URL, LEAGUE_WEIGHTS, TRACKED_LEAGUE_NAMES, format_currency_desc, rate_krw, rate_gbp, tab1_data):
     st.subheader("📱 FotMob 스타일 시즌 성적 및 이적 예측룸 (13대 풀 스탯)")
 
-    # 1번 탭에서 전달받은 데이터 추출 (안전한 기본값 처리)
+    # 1번 탭에서 전달받은 데이터 안전하게 추출
     player_name = tab1_data.get("player_name", "선수")
     is_out_trade = tab1_data.get("is_out_trade", False)
     selling_league = tab1_data.get("selling_league", list(LEAGUE_WEIGHTS.keys())[0])
@@ -92,3 +92,19 @@ def render_tab2(history_df, GOOGLE_SHEET_WEBAPP_URL, LEAGUE_WEIGHTS, TRACKED_LEA
         with gk4: st.number_input("클린시트", min_value=0, value=10, key="t2_gk_cs")
         with gk5: st.number_input("실점 실수", min_value=0, value=0, key="t2_gk_errors")
         with gk6: st.number_input("공중볼 캐칭", min_value=0, value=18, key="t2_gk_claims")
+
+    # 선택된 값들을 세션 상태나 추후 활용을 위해 동기화
+    st.session_state["f_matches"] = f_matches
+    st.session_state["f_starts"] = f_starts
+    st.session_state["f_mins"] = f_mins
+    st.session_state["f_rating"] = f_rating
+    st.session_state["f_goals"] = f_goals
+    st.session_state["f_xg"] = f_xg
+    st.session_state["f_shots"] = f_shots
+    st.session_state["f_sot"] = f_sot
+    st.session_state["f_assists"] = f_assists
+    st.session_state["f_xa"] = f_xa
+    st.session_state["f_chances"] = f_chances
+    st.session_state["f_dribbles"] = f_dribbles
+    st.session_state["f_touches_box"] = f_touches_box
+    st.session_state["f_tackles"] = f_tackles
