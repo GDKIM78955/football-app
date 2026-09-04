@@ -19,7 +19,6 @@ def render_tab2(history_df, GOOGLE_SHEET_WEBAPP_URL, LEAGUE_WEIGHTS, TRACKED_LEA
         
         sel_player = st.selectbox("DB 선수 불러오기 (선택 시 자동 매핑)", ["직접 입력 / 커스텀"] + p_list, key="tab2_player_select")
 
-    # 기본값 설정
     def_mins = 2206; def_goals = 16; def_xg = 17.44; def_assists = 4; def_xa = 3.33
     def_rating = 7.32; def_matches = 28; def_starts = 25; def_shots = 88; def_sot = 43
     def_chances = 25; def_dribbles = 14; def_touches = 153; def_tackles = 24
