@@ -6,7 +6,7 @@ import json
 import plotly.graph_objects as go
 from datetime import datetime
 
-# 6개 탭 모듈 전체 임포트
+# 탭 모듈 임포트 (app.py와 같은 최상위 폴더에 나란히 위치해야 합니다)
 from tab1_eval import render_tab1
 from tab2_fotmob import render_tab2
 from tab3_comps import render_tab3
@@ -151,7 +151,7 @@ tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "🏆 이적시장 구단/리그별 종합 결산 & 데이터룸"
 ])
 
-# 각 탭별 모듈 호출 및 연동 데이터(tab1_data) 전달
+# 각 탭 모듈 렌더링 호출
 with tab1:
     tab1_data = render_tab1(
         history_df, GOOGLE_SHEET_WEBAPP_URL, LEAGUE_WEIGHTS, CLUB_TIERS, 
