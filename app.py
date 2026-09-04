@@ -1,14 +1,6 @@
 import streamlit as st
 import pandas as pd
 
-# 각 탭 모듈 임포트
-import tab1_eval
-import tab2_fotmob
-import tab3_comps
-import tab4_validation
-import tab5_benchmark
-import tab6_analytics
-
 # 1. 페이지 기본 설정
 st.set_page_config(
     page_title="축구 이적시장 12대 가중치 분석 & FotMob 프로젝션 Pro",
@@ -60,21 +52,32 @@ tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "🏆 이적시장 구단/리그별 종합 결산 & 데이터룸"
 ])
 
-# 각 탭별 모듈 렌더링 호출
+# ----------------- 탭 1: 적정 이적료 평가 -----------------
 with tab1:
-    tab1_eval.render(history_df, GOOGLE_SHEET_WEBAPP_URL)
+    st.subheader("💰 적정 이적료 평가")
+    st.write("이곳에 첫 번째 기능을 차근차근 구축할 예정입니다.")
 
+# ----------------- 탭 2: FotMob 시즌 성적 -----------------
 with tab2:
-    tab2_fotmob.render()
+    st.subheader("📱 FotMob 시즌 성적 & 이적 예측 (13대 풀 스탯)")
+    st.write("이곳에 두 번째 기능을 구축할 예정입니다.")
 
+# ----------------- 탭 3: 과거 유사 이적 사례 비교 -----------------
 with tab3:
-    tab3_comps.render(history_df)
+    st.subheader("🔍 과거 유사 이적 사례 비교 (Comps TOP 5 & 10)")
+    st.write("이곳에 세 번째 기능을 구축할 예정입니다.")
 
+# ----------------- 탭 4: 이적 첫 시즌 실제 성적 검증 -----------------
 with tab4:
-    tab4_validation.render(validation_df, GOOGLE_SHEET_WEBAPP_URL)
+    st.subheader("🎯 이적 첫 시즌 실제 성적 입력 & 모델 검증")
+    st.write("이곳에 네 번째 기능을 구축할 예정입니다.")
 
+# ----------------- 탭 5: 신규 vs 과거 벤치마크 -----------------
 with tab5:
-    tab5_benchmark.render(history_df)
+    st.subheader("👥 신규 이적생 vs 과거 유사 선수 다각도 벤치마크")
+    st.write("이곳에 다섯 번째 기능을 구축할 예정입니다.")
 
+# ----------------- 탭 6: 구단/리그별 종합 결산 -----------------
 with tab6:
-    tab6_analytics.render(history_df, GOOGLE_SHEET_WEBAPP_URL)
+    st.subheader("🏆 이적시장 구단/리그별 종합 결산 & 데이터룸")
+    st.write("이곳에 여섯 번째 기능을 구축할 예정입니다.")
