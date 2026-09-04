@@ -38,7 +38,7 @@ def render_tab2(history_df, GOOGLE_SHEET_WEBAPP_URL, LEAGUE_WEIGHTS, TRACKED_LEA
             def_starts = int(r.get("이전_선발", 25)) if pd.notnull(r.get("이전_선발")) else 25
             def_shots = int(r.get("이전_총슈팅", 88)) if pd.notnull(r.get("이전_총슈팅")) else 88
             def_sot = int(r.get("이전_유효슈팅", 43)) if pd.notnull(r.get("이전_유효슈팅")) else 43
-            def_chances = int(r.get("이전_찬스메이킹", 25)) if pd.notnull(r.get("이전_찬스메ing")) else 25
+            def_chances = int(r.get("이전_찬스메이킹", 25)) if pd.notnull(r.get("이전_찬스메이킹")) else 25
             def_dribbles = int(r.get("이전_성공드리블", 14)) if pd.notnull(r.get("이전_성공드리블")) else 14
             def_touches = int(r.get("이전_박스터치", 153)) if pd.notnull(r.get("이전_박스터치")) else 153
             def_tackles = int(r.get("이전_태클성공", 24)) if pd.notnull(r.get("이전_태클성공")) else 24
@@ -83,5 +83,5 @@ def render_tab2(history_df, GOOGLE_SHEET_WEBAPP_URL, LEAGUE_WEIGHTS, TRACKED_LEA
         with gk2: st.number_input("실점", min_value=0, value=28, key="t2_gk_conceded")
         with gk3: st.number_input("득점 차단 (Prevented)", value=2.45, step=0.1, key="t2_gk_prevented")
         with gk4: st.number_input("클린시트", min_value=0, value=10, key="t2_gk_cs")
-        with gk5: st.number_input("실점 빌어먹을 실수", min_value=0, value=0, key="t2_gk_errors")
+        with gk5: st.number_input("실점 실수", min_value=0, value=0, key="t2_gk_errors")
         with gk6: st.number_input("공중볼 캐칭", min_value=0, value=18, key="t2_gk_claims")
