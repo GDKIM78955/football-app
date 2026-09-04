@@ -16,15 +16,13 @@ st.set_page_config(
 GOOGLE_SHEET_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwUX4diDBw2jD8WufrSa_0PejibYm7tIfyf1ia7O-QTfj1Ae6SQb3bZZ9pmNvDUAT6C/exec"
 SPREADSHEET_ID = "16CeAQp1-xqc-mhtvlP0vLlQu5k1pg8DW5A-m29WCFdw"
 
-# 🌟 1번 탭 데이터 로드 (메인기록부) - 첫 번째 행을 명확한 헤더로 고정
-@st.cache_data(ttl=2)
+# 🌟 구글 시트 CSV Export 다이렉트 로드 (캐시 0초로 즉시 반영)
+@st.cache_data(ttl=0)
 def fetch_sheet_history():
     try:
         csv_url = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/export?format=csv&gid=0"
-        df = pd.read_csv(csv_url, header=0)
+        df = pd.read_csv(csv_url)
         if not df.empty:
-            # 공백 및 특수문자 컬럼명 정리
-            df.columns = [str(c).strip() for c in df.columns]
             return df
     except Exception:
         pass
@@ -33,13 +31,12 @@ def fetch_sheet_history():
 history_df = fetch_sheet_history()
 
 # 2번 탭(검증데이터) 데이터 로드용 함수
-@st.cache_data(ttl=2)
+@st.cache_data(ttl=0)
 def fetch_validation_data():
     try:
-        val_url = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/export?format=csv&gid=15389686&header=1"
-        df = pd.read_csv(val_url, header=0)
-        if not df.empty:
-            df.columns = [str(c).strip() for c in df.columns]
+        val_url = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/export?format=csv&gid=15389686"
+        df = pd.read_csv(val_url)
+        if not df.empty and "선수명" in df.columns:
             return df
     except Exception:
         pass
@@ -216,22 +213,12 @@ def format_currency_desc(eur_man_euro):
     gbp_man = eur_man_euro * rate_gbp
     return f"약 {krw_eok:,.1f}억원 | £{gbp_man:,.1f}만"
 
-# 🌟 [컬럼 이름 정확 매칭 안전 함수] (밀림 현상 원천 차단)
-def get_cell(row, col_name, default_val=""):
-    try:
-        # 정확히 일치하는 컬럼명이 있으면 그것을 반환
-        if col_name in row and pd.notnull(row[col_name]) and str(row[col_name]).strip() not in ["", "nan", "None"]:
-            return type(default_val)(row[col_name])
-        
-        # 유연하게 유사한 이름 찾기
-        for c in row.index:
-            if col_name.replace(" ", "") in str(c).replace(" ", ""):
-                val = row[c]
-                if pd.notnull(val) and str(val).strip() not in ["", "nan", "None"]:
-                    return type(default_val)(val)
-    except:
-        pass
-    return default_val
+# 🌟 [안전 파싱 함수] 시트 데이터를 에러 없이 안전하게 가져오기
+def parse_col(r, keys, default):
+    for k in keys:
+        if k in r and pd.notnull(r[k]) and str(r[k]).strip() not in ["", "nan", "None"]:
+            return type(default)(r[k])
+    return default
 
 # 3. 메인 6개 탭 구성
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
@@ -279,24 +266,19 @@ with tab1:
 
     if edit_toggle:
         st.markdown("##### 🔍 불러올 선수 선택")
-        
-        # 실제 시트에 존재하는 컬럼 이름 탐색
-        season_col_candidates = [c for c in history_df.columns if "시즌" in str(c)]
-        name_col_candidates = [c for c in history_df.columns if "선수명" in str(c) or "이름" in str(c)]
+        has_season_col = "이적시즌" in history_df.columns
+        has_name_col = "선수명" in history_df.columns
 
-        if history_df.empty or not season_col_candidates or not name_col_candidates:
-            st.warning("⚠️ 시트에 저장된 기존 데이터가 없거나 올바른 컬럼 헤더(`이적시즌`, `선수명`)를 찾을 수 없습니다.")
+        if history_df.empty or not has_season_col or not has_name_col:
+            st.warning("⚠️ 시트에 저장된 기존 데이터가 없거나 컬럼명(`이적시즌`, `선수명`)을 찾을 수 없습니다.")
         else:
-            s_col = season_col_candidates[0]
-            n_col = name_col_candidates[0]
-
             c_ld1, c_ld2, c_ld3 = st.columns([1, 2, 1])
             with c_ld1:
-                e_seasons = list(history_df[s_col].dropna().unique())
+                e_seasons = list(history_df["이적시즌"].dropna().unique())
                 sel_e_season = st.selectbox("시즌 선택", e_seasons, key="edit_season_box")
             
-            e_season_df = history_df[history_df[s_col] == sel_e_season]
-            e_players = list(e_season_df[n_col].dropna().unique())
+            e_season_df = history_df[history_df["이적시즌"] == sel_e_season]
+            e_players = list(e_season_df["선수명"].dropna().unique())
             
             with c_ld2:
                 sel_e_player = st.selectbox("선수 선택", e_players, key="edit_player_box") if e_players else None
@@ -306,29 +288,29 @@ with tab1:
                 st.write("")
                 if st.button("📥 데이터 불러오기", type="primary", use_container_width=True):
                     if sel_e_player:
-                        matched_rows = e_season_df[e_season_df[n_col] == sel_e_player]
+                        matched_rows = e_season_df[e_season_df["선수명"] == sel_e_player]
                         row_raw = matched_rows.iloc[-1]
                         
-                        match_idx_list = e_season_df.index[e_season_df[n_col] == sel_e_player].tolist()
+                        match_idx_list = e_season_df.index[e_season_df["선수명"] == sel_e_player].tolist()
                         if match_idx_list:
                             st.session_state["edit_row_index"] = match_idx_list[-1] + 2
 
-                        # 🌟 컬럼 이름을 정확하게 지정하여 값 추출 (절대 밀리지 않음)
-                        p_name = get_cell(row_raw, "선수명", "")
-                        p_nat = get_cell(row_raw, "국적", "")
-                        p_age = int(get_cell(row_raw, "만나이", 28))
-                        p_pos_str = get_cell(row_raw, "포지션", "")
-                        p_from_league = get_cell(row_raw, "원소속리그", "")
-                        p_tier = get_cell(row_raw, "영입구단티어", "")
-                        p_ttype = get_cell(row_raw, "이적형태", "")
-                        p_tm = int(get_cell(row_raw, "TM시장가치(만€)", 4500))
-                        p_fee = int(get_cell(row_raw, "실제이적료(만€)", 0))
-                        p_to_league_name = get_cell(row_raw, "이적팀리그", "")
-                        p_notes = get_cell(row_raw, "스카우팅메모", "")
-                        p_from_team = get_cell(row_raw, "원소속팀명", "")
-                        p_to_team = get_cell(row_raw, "이적팀명", "")
-                        p_trade_type = get_cell(row_raw, "거래구분", "IN")
-                        p_wage = float(get_cell(row_raw, "주급(만€)", 0.0))
+                        # 🌟 [데이터 누락 방지] 안전 파서 적용
+                        p_name = str(parse_col(row_raw, ["선수명", "name"], ""))
+                        p_nat = str(parse_col(row_raw, ["국적", "nat"], ""))
+                        p_age = int(parse_col(row_raw, ["만나이", "age"], 28))
+                        p_pos_str = str(parse_col(row_raw, ["포지션", "pos"], ""))
+                        p_from_league = str(parse_col(row_raw, ["원소속리그", "from_league"], ""))
+                        p_tier = str(parse_col(row_raw, ["영입구단티어", "buying_tier"], ""))
+                        p_ttype = str(parse_col(row_raw, ["이적형태", "transfer_type"], ""))
+                        p_tm = int(parse_col(row_raw, ["TM시장가치(만€)", "tm_val", "tm"], 4500))
+                        p_fee = int(parse_col(row_raw, ["실제이적료(만€)", "fee"], 0))
+                        p_to_league_name = str(parse_col(row_raw, ["이적팀리그", "to_league_name", "to_league"], ""))
+                        p_notes = str(parse_col(row_raw, ["스카우팅메모", "notes"], ""))
+                        p_from_team = str(parse_col(row_raw, ["원소속팀명", "from_team"], ""))
+                        p_to_team = str(parse_col(row_raw, ["이적팀명", "to_team"], ""))
+                        p_trade_type = str(parse_col(row_raw, ["거래구분", "trade_type"], "IN"))
+                        p_wage = float(parse_col(row_raw, ["주급(만€)", "weekly_wage"], 0.0))
 
                         pos_match = list(POSITION_WEIGHTS.keys())[4]
                         for p_k in POSITION_WEIGHTS.keys():
@@ -387,36 +369,36 @@ with tab1:
                             "option_exercised": "임대후옵션발동완료" in p_notes
                         }
 
-                        # 🌟 2번 탭 FotMob 스탯 정확한 컬럼명으로 연동 복원
-                        st.session_state["f_matches"] = int(get_cell(row_raw, "이전_출전경기", 1))
-                        st.session_state["f_starts"] = int(get_cell(row_raw, "선발출전", 0))
-                        st.session_state["f_mins"] = int(get_cell(row_raw, "이전_출전시간", 90))
-                        st.session_state["f_goals"] = int(get_cell(row_raw, "이전_골", 0))
-                        st.session_state["f_xg"] = float(get_cell(row_raw, "이전_xG", 0.0))
-                        st.session_state["f_assists"] = int(get_cell(row_raw, "이전_도움", 0))
-                        st.session_state["f_xa"] = float(get_cell(row_raw, "이전_xA", 0.0))
-                        st.session_state["f_shots"] = int(get_cell(row_raw, "이전_총슈팅", 0))
-                        st.session_state["f_sot"] = int(get_cell(row_raw, "이전_유효슈팅", 0))
-                        st.session_state["f_chances"] = int(get_cell(row_raw, "이전_찬스메이킹", 0))
-                        st.session_state["f_dribbles"] = int(get_cell(row_raw, "이전_성공드리블", 0))
-                        st.session_state["f_touches_box"] = int(get_cell(row_raw, "이전_박스터치", 0))
-                        st.session_state["f_tackles"] = int(get_cell(row_raw, "이전_태클성공", 0))
-                        st.session_state["f_rating"] = float(get_cell(row_raw, "이전_FotMob평점", 6.5))
+                        # 🌟 [스탯 누락 방지] 2번 탭 및 모든 세부 스탯 안전 복원
+                        st.session_state["f_matches"] = int(parse_col(row_raw, ["이전_출전경기", "prev_matches"], 1))
+                        st.session_state["f_starts"] = int(parse_col(row_raw, ["이전_선발", "prev_starts"], 0))
+                        st.session_state["f_mins"] = int(parse_col(row_raw, ["이전_출전시간", "prev_mins"], 90))
+                        st.session_state["f_goals"] = int(parse_col(row_raw, ["이전_골", "prev_goals"], 0))
+                        st.session_state["f_xg"] = float(parse_col(row_raw, ["이전_xG", "prev_xg"], 0.0))
+                        st.session_state["f_assists"] = int(parse_col(row_raw, ["이전_도움", "prev_assists"], 0))
+                        st.session_state["f_xa"] = float(parse_col(row_raw, ["이전_xA", "prev_xa"], 0.0))
+                        st.session_state["f_shots"] = int(parse_col(row_raw, ["이전_총슈팅", "prev_shots"], 0))
+                        st.session_state["f_sot"] = int(parse_col(row_raw, ["이전_유효슈팅", "prev_sot"], 0))
+                        st.session_state["f_chances"] = int(parse_col(row_raw, ["이전_찬스메이킹", "prev_chances"], 0))
+                        st.session_state["f_dribbles"] = int(parse_col(row_raw, ["이전_성공드리블", "prev_dribbles"], 0))
+                        st.session_state["f_touches_box"] = int(parse_col(row_raw, ["이전_박스터치", "prev_touches_box"], 0))
+                        st.session_state["f_tackles"] = int(parse_col(row_raw, ["이전_태클성공", "prev_tackles"], 0))
+                        st.session_state["f_rating"] = float(parse_col(row_raw, ["이전_FotMob평점", "prev_rating"], 6.5))
 
-                        st.session_state["f_big_chances"] = int(get_cell(row_raw, "빅찬스메이킹", 0))
-                        st.session_state["f_pk_goals"] = int(get_cell(row_raw, "pk득점", 0))
-                        st.session_state["f_pass_pct"] = float(get_cell(row_raw, "패스성공률%", 0.0))
-                        st.session_state["f_duels_pct"] = float(get_cell(row_raw, "지상경합승률%", 0.0))
-                        st.session_state["f_aerial_pct"] = float(get_cell(row_raw, "공중볼승률%", 0.0))
+                        st.session_state["f_big_chances"] = int(parse_col(row_raw, ["빅찬스메이킹", "big_chances"], 0))
+                        st.session_state["f_pk_goals"] = int(parse_col(row_raw, ["pk득점", "pk_goals"], 0))
+                        st.session_state["f_pass_pct"] = float(parse_col(row_raw, ["패스성공률%", "pass_pct"], 0.0))
+                        st.session_state["f_duels_pct"] = float(parse_col(row_raw, ["지상경합승률%", "duels_pct"], 0.0))
+                        st.session_state["f_aerial_pct"] = float(parse_col(row_raw, ["공중볼승률%", "aerial_pct"], 0.0))
 
-                        st.session_state["f_gk_saves"] = int(get_cell(row_raw, "gk_선방", 0))
-                        st.session_state["f_gk_conceded"] = int(get_cell(row_raw, "gk_실점", 0))
-                        st.session_state["f_gk_prevented"] = float(get_cell(row_raw, "gk_득점차단", 0.0))
-                        st.session_state["f_gk_cs"] = int(get_cell(row_raw, "gk_클린시트", 0))
-                        st.session_state["f_gk_errors"] = int(get_cell(row_raw, "gk_실수", 0))
-                        st.session_state["f_gk_claims"] = int(get_cell(row_raw, "gk_공중볼", 0))
+                        st.session_state["f_gk_saves"] = int(parse_col(row_raw, ["gk_선방", "gk_saves"], 0))
+                        st.session_state["f_gk_conceded"] = int(parse_col(row_raw, ["gk_실점", "gk_conceded"], 0))
+                        st.session_state["f_gk_prevented"] = float(parse_col(row_raw, ["gk_득점차단", "gk_prevented"], 0.0))
+                        st.session_state["f_gk_cs"] = int(parse_col(row_raw, ["gk_클린시트", "gk_cs"], 0))
+                        st.session_state["f_gk_errors"] = int(parse_col(row_raw, ["gk_실수", "gk_errors"], 0))
+                        st.session_state["f_gk_claims"] = int(parse_col(row_raw, ["gk_공중볼", "gk_claims"], 0))
 
-                        saved_proj_mins = int(get_cell(row_raw, "예측_출전시간", 3000))
+                        saved_proj_mins = int(parse_col(row_raw, ["예측_출전시간", "proj_mins"], 3000))
                         st.session_state["custom_proj_mins"] = saved_proj_mins
 
                         st.session_state["form_key_id"] += 1
@@ -1515,7 +1497,7 @@ with tab5:
     st.caption("새로운 시즌 영입 선수의 프로필(나이, 포지션, 이적료 규모, 생산력)을 과거 시트에 누적된 다른 선수들의 실제 사례와 1:1 및 다차원으로 정밀 비교합니다.")
 
     if history_df.empty or len(history_df) == 0 or "선수명" not in history_df.columns:
-        st.info("💡 **아직 과거 누적 데이터가 없습니다.**\n\n1번 및 2번 탭에서 선수 데이터를 2명 이상 저장하시면 과거 선수들과의 1:1 교차 비교 및 벤치마크 매칭이 활성화됩니다.")
+        st.info("💡 **아직 구글 시트에 누적된 과거 이적 데이터가 없습니다.**\n\n1번 및 2번 탭에서 선수 데이터를 2명 이상 저장하시면 과거 선수들과의 1:1 교차 비교 및 벤치마크 매칭이 활성화됩니다.")
     else:
         st.markdown("#### 1️⃣ 신규 분석 대상 선수 프로필 설정 (1번 탭 데이터 자동 연동)")
         
