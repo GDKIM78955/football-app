@@ -865,7 +865,12 @@ with tab1:
                         timeout=30, 
                         allow_redirects=True
                     )
-                    res_json = res.json()
+                    try:
+                        res_json = res.json()
+                    except:
+                        st.error(f"⚠️ 구글 서버 응답 오류 (상태 코드: {res.status_code})\n응답 내용: {res.text[:300]}")
+                        res_json = {}
+
                     if res.status_code in [200, 302] and res_json.get("status") == "success":
                         st.session_state["last_saved_msg"] = f"✅ '{player_name}' 선수의 데이터가 성공적으로 {'수정(업데이트)' if edit_toggle else '저장'}되었습니다!"
                         st.cache_data.clear()
@@ -873,9 +878,9 @@ with tab1:
                         st.session_state["form_key_id"] += 1
                         st.rerun()
                     else:
-                        st.error(f"⚠️ 저장/수정 실패: {res_json.get('message', '통신 오류')}")
+                        st.error(f"⚠️ 저장/수정 거부됨: {res_json.get('message', res.text)}")
                 except Exception as e:
-                    st.error(f"⚠️ 저장 오류: {e}")
+                    st.error(f"⚠️ 통신 오류: {e}")
 
 # ================= TAB 2: FotMob 시즌 성적 & 이적 예측 =================
 with tab2:
@@ -1171,16 +1176,22 @@ with tab2:
                         timeout=30, 
                         allow_redirects=True
                     )
-                    if res.status_code in [200, 302]:
+                    try:
+                        res_json = res.json()
+                    except:
+                        st.error(f"⚠️ 구글 서버 응답 오류 (상태 코드: {res.status_code})\n응답 내용: {res.text[:300]}")
+                        res_json = {}
+
+                    if res.status_code in [200, 302] and res_json.get("status") == "success":
                         st.session_state["last_saved_msg"] = f"✅ '{player_name}' 선수의 {tag_btn_name}가 성공적으로 저장되었습니다!"
                         st.cache_data.clear()
                         st.session_state["current_form"] = default_form_template.copy()
                         st.session_state["form_key_id"] += 1
                         st.rerun()
                     else:
-                        st.error(f"⚠️ 저장 실패 (응답 코드: {res.status_code})")
+                        st.error(f"⚠️ 저장 거부됨: {res_json.get('message', res.text)}")
                 except Exception as e:
-                    st.error(f"⚠️ 저장 오류: {e}")
+                    st.error(f"⚠️ 통신 오류: {e}")
 
 # ================= TAB 3: 과거 유사 이적 사례 비교 =================
 with tab3:
