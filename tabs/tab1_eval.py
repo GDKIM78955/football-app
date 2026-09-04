@@ -91,7 +91,9 @@ def render(history_df, webhook_url):
     if edit_toggle:
         st.markdown("##### 🔍 불러올 선수 선택")
         if history_df.empty or "이적시즌" not in history_df.columns or "선수명" not in history_df.columns:
-            st.warning("⚠️ 시트에 저장된 기존 데이터가 없습니다.")
+            st.warning("⚠️ 시트에 저장된 기존 데이터가 없습니다. (현재 시트 컬럼 확인 필요)")
+            if not history_df.empty:
+                st.write("현재 감지된 시트 컬럼 목록:", list(history_df.columns))
         else:
             c_ld1, c_ld2, c_ld3 = st.columns([1, 2, 1])
             with c_ld1:
@@ -116,7 +118,6 @@ def render(history_df, webhook_url):
                         if match_idx_list:
                             st.session_state["edit_row_index"] = match_idx_list[-1] + 2
 
-                        # 🌟 폼 위젯들을 완전히 새로 렌더링하기 위해 form_key_id를 올려줌
                         st.session_state["form_key_id"] += 1
 
                         p_pos_str = str(get_exact_val(row_raw, "포지션", ""))
@@ -157,7 +158,6 @@ def render(history_df, webhook_url):
                         p_notes = str(get_exact_val(row_raw, "스카우팅메모", ""))
                         clean_notes = p_notes.split(" | [영입")[0].split(" | [방출")[0].strip()
 
-                        # 🌟 불러온 모든 데이터를 딕셔너리에 저장하여 위젯의 value/index로 직접 주입
                         st.session_state["loaded_row_data"] = {
                             "name": str(get_exact_val(row_raw, "선수명", "")),
                             "nat": str(get_exact_val(row_raw, "국적", "")),
@@ -318,7 +318,6 @@ def render(history_df, webhook_url):
                     res = requests.post(webhook_url, data=json.dumps(payload), headers={"Content-Type": "text/plain;charset=utf-8"}, timeout=30)
                     if res.status_code in [200, 302]:
                         st.session_state["last_saved_msg"] = f"✅ '{player_name}' 처리 완료!"
-                        st.session_state["loaded_row_data"] = {}
                         st.cache_data.clear()
                         st.rerun()
                 except Exception as e:
