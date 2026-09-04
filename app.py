@@ -1,6 +1,9 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import requests
+import json
+from datetime import datetime
 
 # 1. 페이지 기본 설정
 st.set_page_config(
@@ -32,6 +35,10 @@ def fetch_validation_data():
 
 history_df = fetch_sheet_history()
 validation_df = fetch_validation_data()
+
+# 세션 상태 메시지 초기화
+if "last_saved_msg" not in st.session_state:
+    st.session_state["last_saved_msg"] = None
 
 st.title("⚽ 프로페셔널 축구 이적시장 12대 가중치 분석 & 스카우팅 데이터룸")
 
@@ -138,6 +145,10 @@ tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
 
 # ================= TAB 1: 적정 이적료 평가 =================
 with tab1:
+    if st.session_state["last_saved_msg"]:
+        st.success(st.session_state["last_saved_msg"])
+        st.session_state["last_saved_msg"] = None
+
     st.subheader("💰 프로페셔널 적정 이적료 평가 시스템 (12대 가중치)")
 
     trade_type_choice = st.radio("거래 유형", ["🔵 영입 (IN)", "🔴 방출 (OUT)"], horizontal=True, key="t_type")
@@ -148,12 +159,15 @@ with tab1:
 
     with col1:
         st.markdown("##### 👤 선수 기본 정보")
+        season_val = st.selectbox("이적 시즌", ["26/27 여름 (Summer)", "26/27 겨울 (Winter)", "기타"], key="p_season")
         player_name = st.text_input("선수 이름", value="손흥민", key="p_name")
         player_nat = st.text_input("국적", value="대한민국", key="p_nat")
         player_age = st.number_input("만 나이", min_value=15, max_value=45, value=28, key="p_age")
         main_position = st.selectbox("주 포지션", list(POSITION_WEIGHTS.keys()), index=0, key="p_pos")
         selling_league = st.selectbox("원소속 리그", list(LEAGUE_WEIGHTS.keys()), index=0, key="p_league")
         buying_club_tier = st.selectbox("영입구단 티어", list(CLUB_TIERS.keys()), index=1, key="p_tier")
+        in_from_team = st.text_input("원소속팀명 (보내는 팀)", value="토트넘 홋스퍼", key="p_from_team")
+        in_to_team = st.text_input("이적팀명 (영입 구단)", value="바이에른 뮌헨", key="p_to_team")
 
     with col2:
         st.markdown("##### 💼 계약 및 시장 가치")
@@ -185,14 +199,72 @@ with tab1:
     diff = actual_transfer_fee - fair_value
     overpay_pct = (diff / fair_value) * 100 if fair_value > 0 else 0.0
 
+    # 가상 거래 평점 산출 (10점 만점 기준)
+    base_deal_score = 7.50
+    score_multiplier = 1.0 if is_out_trade else -1.0
+    val_score_delta = max(-3.5, min(2.5, score_multiplier * (overpay_pct / 20.0)))
+    final_deal_score = round(max(1.00, min(10.00, base_deal_score + val_score_delta)), 2)
+
+    status_label = "⚖️ 적정가 (Fair Deal)" if abs(overpay_pct) <= 5.0 else (f"⚠️ 오버페이 (+{overpay_pct:.1f}%)" if diff > 0 else f"💎 혜자딜 ({overpay_pct:.1f}%)")
+
     st.markdown("---")
     st.subheader("📊 분석 결과 및 12대 가중치 요약")
 
     res_c1, res_c2, res_c3, res_c4 = st.columns(4)
     res_c1.metric("산출 적정가", f"€{fair_value:,.1f}만")
     res_c2.metric("실제 거래액", f"€{actual_transfer_fee:,.1f}만", delta=f"{diff:+,.1f}만 €")
-    res_c3.metric("평가율", f"{overpay_pct:+.1f}%", delta="오버페이" if overpay_pct > 0 else "혜자딜")
-    res_c4.metric("종합 누적 배율", f"{(fair_value/tm_market_value if tm_market_value>0 else 1):.3f}x")
+    res_c3.metric("평가율 / 진단", f"{overpay_pct:+.1f}%", delta=status_label.split(" ")[0])
+    res_c4.metric("이적 거래 평점", f"★ {final_deal_score:.2f}")
+
+    st.markdown("---")
+
+    # 구글 시트 저장 버튼 로직
+    btn_label = f"💾 '{player_name}' 데이터 구글 시트에 바로 저장하기"
+    if st.button(btn_label, type="primary", use_container_width=True):
+        if not player_name.strip():
+            st.warning("⚠️ 선수 이름을 입력해 주세요.")
+        else:
+            with st.spinner("구글 시트에 데이터를 기록 중입니다..."):
+                payload = {
+                    "action": "save_all",
+                    "row_index": None,
+                    "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                    "season": season_val,
+                    "name": player_name,
+                    "nat": player_nat if player_nat.strip() else "미상",
+                    "age": int(player_age),
+                    "pos": main_position.split(" (")[0],
+                    "from_league": selling_league.split(" (")[0],
+                    "buying_tier": buying_club_tier.split(":")[0],
+                    "transfer_type": transfer_type.split(" (")[0],
+                    "tm_val": float(tm_market_value),
+                    "fee": float(actual_transfer_fee),
+                    "fair_val": round(fair_value, 1),
+                    "diff": round(diff, 1),
+                    "status": status_label,
+                    "deal_score": float(final_deal_score),
+                    "from_team": in_from_team.strip(),
+                    "to_team": in_to_team.strip(),
+                    "trade_type": "OUT" if is_out_trade else "IN"
+                }
+                
+                try:
+                    res = requests.post(
+                        GOOGLE_SHEET_WEBAPP_URL, 
+                        data=json.dumps(payload), 
+                        headers={"Content-Type": "text/plain;charset=utf-8"}, 
+                        timeout=30, 
+                        allow_redirects=True
+                    )
+                    res_json = res.json()
+                    if res.status_code in [200, 302] and res_json.get("status") == "success":
+                        st.session_state["last_saved_msg"] = f"✅ '{player_name}' 선수의 데이터가 구글 시트에 성공적으로 저장되었습니다!"
+                        st.cache_data.clear()
+                        st.rerun()
+                    else:
+                        st.error(f"⚠️ 저장 실패: {res_json.get('message', '통신 오류')}")
+                except Exception as e:
+                    st.error(f"⚠️ 저장 오류: {e}")
 
 # 나머지 탭 영역
 with tab2: st.subheader("📱 FotMob 시즌 성적 & 이적 예측")
