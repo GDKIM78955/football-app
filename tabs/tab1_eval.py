@@ -81,7 +81,6 @@ def render(history_df, webhook_url):
 
     if "form_key_id" not in st.session_state:
         st.session_state["form_key_id"] = 0
-    # 🌟 행 인덱스 유실 방지를 위한 세션 영구 보관소 설정
     if "persistent_edit_row" not in st.session_state:
         st.session_state["persistent_edit_row"] = None
 
@@ -115,14 +114,14 @@ def render(history_df, webhook_url):
                         
                         match_idx_list = e_season_df.index[e_season_df["선수명"] == sel_e_player].tolist()
                         if match_idx_list:
-                            # 🌟 구글 시트 실제 행 번호 계산 (헤더 고려하여 +2)
                             real_row_idx = match_idx_list[-1] + 2
                             st.session_state["persistent_edit_row"] = real_row_idx
 
+                        # 🌟 폼 키 ID를 증가시켜 위젯 세트를 새로 생성
                         st.session_state["form_key_id"] += 1
                         k_id = st.session_state["form_key_id"]
 
-                        # 데이터 주입
+                        # 🌟 불러온 데이터를 세션 키에 직접 대입하여 위젯에 반영
                         st.session_state[f"tab1_name_{k_id}"] = str(get_exact_val(row_raw, "선수명", ""))
                         st.session_state[f"tab1_nat_{k_id}"] = str(get_exact_val(row_raw, "국적", ""))
                         st.session_state[f"tab1_age_{k_id}"] = int(get_exact_val(row_raw, "만나이", 28))
@@ -135,7 +134,38 @@ def render(history_df, webhook_url):
                         p_notes = str(get_exact_val(row_raw, "스카우팅메모", ""))
                         st.session_state[f"tab1_notes_{k_id}"] = p_notes.split(" | [영입")[0].split(" | [방출")[0].strip()
 
-                        st.session_state["last_saved_msg"] = f"✅ '{sel_e_player}' 불러오기 완료! (시트 행번호: {st.session_state['persistent_edit_row']})"
+                        # 셀렉트박스 매칭
+                        p_pos_str = str(get_exact_val(row_raw, "포지션", ""))
+                        for p_k in POSITION_WEIGHTS.keys():
+                            if p_pos_str and p_pos_str in p_k:
+                                st.session_state[f"tab1_pos_{k_id}"] = p_k
+                                break
+
+                        p_from_league = str(get_exact_val(row_raw, "원소속리그", ""))
+                        for l_k in LEAGUE_WEIGHTS.keys():
+                            if p_from_league and p_from_league in l_k:
+                                st.session_state[f"tab1_from_league_{k_id}"] = l_k
+                                break
+
+                        p_to_league_name = str(get_exact_val(row_raw, "이적팀리그", ""))
+                        for l_k in LEAGUE_WEIGHTS.keys():
+                            if p_to_league_name and p_to_league_name in l_k:
+                                st.session_state[f"tab1_to_league_{k_id}"] = l_k
+                                break
+
+                        p_tier = str(get_exact_val(row_raw, "영입구단티어", ""))
+                        for t_k in CLUB_TIERS.keys():
+                            if p_tier and p_tier in t_k:
+                                st.session_state[f"tab1_tier_{k_id}"] = t_k
+                                break
+
+                        p_ttype = str(get_exact_val(row_raw, "이적형태", ""))
+                        for tt_k in TRANSFER_TYPE_WEIGHTS.keys():
+                            if p_ttype and p_ttype in tt_k:
+                                st.session_state[f"tab1_ttype_{k_id}"] = tt_k
+                                break
+
+                        st.session_state["last_saved_msg"] = f"✅ '{sel_e_player}' 데이터 불러오기 완료! (시트 행번호: {st.session_state['persistent_edit_row']})"
                         st.rerun()
     else:
         st.session_state["persistent_edit_row"] = None
@@ -153,7 +183,7 @@ def render(history_df, webhook_url):
     col1, col2 = st.columns([1, 1])
 
     with col1:
-        st.subheader(f"📝 {'[수정 모드] ' if edit_toggle else ''}{'방출(OUT)' if is_out_trade else '영입(IN)'} 선수 & 계약 정보")
+        st.subheader(f"📝 {'[수정 모드 안심 상태] ' if (edit_toggle and active_row_index) else ''}{'방출(OUT)' if is_out_trade else '영입(IN)'} 선수 & 계약 정보")
         c_s1, c_s2 = st.columns(2)
         with c_s1: season_val = st.selectbox("이적 시즌 / 시장", ["26/27 여름 (Summer)", "26/27 겨울 (Winter)", "기타"], index=0, key=f"tab1_season_{k_id}")
         with c_s2: transfer_type = st.selectbox("이적 형태 & 계약 조항", list(TRANSFER_TYPE_WEIGHTS.keys()), index=0, key=f"tab1_ttype_{k_id}")
@@ -223,7 +253,6 @@ def render(history_df, webhook_url):
         st.metric("평가율", f"{overpay_pct:+,.1f}%")
 
     st.markdown("---")
-    # 🌟 수정 모드일 때 action을 명확히 "update"로 고정하고, persistent_edit_row를 실어 보냄
     action_type = "update" if (edit_toggle and active_row_index) else "save_all"
     btn_label = f"🔄 '{player_name or '선수'}' 구글 시트 업데이트 (행: {active_row_index})" if (edit_toggle and active_row_index) else "💾 구글 시트에 신규 저장하기"
 
@@ -231,7 +260,7 @@ def render(history_df, webhook_url):
         if not player_name.strip():
             st.warning("⚠️ 선수 이름을 입력해 주세요.")
         else:
-            with st.spinner("구글 시트와 통신 중..."):
+            with st.spinner("구글 시트 통신 중..."):
                 payload = {
                     "action": action_type,
                     "row_index": active_row_index if (edit_toggle and active_row_index) else None,
