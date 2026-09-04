@@ -19,29 +19,41 @@ def render_tab2(history_df, GOOGLE_SHEET_WEBAPP_URL, LEAGUE_WEIGHTS, TRACKED_LEA
         
         sel_player = st.selectbox("DB 선수 불러오기 (선택 시 자동 매핑)", ["직접 입력 / 커스텀"] + p_list, key="tab2_player_select")
 
-    # 기본값 설정
-    def_mins = 2206; def_goals = 16; def_xg = 17.44; def_assists = 4; def_xa = 3.33
-    def_rating = 7.32; def_matches = 28; def_starts = 25; def_shots = 88; def_sot = 43
-    def_chances = 25; def_dribbles = 14; def_touches = 153; def_tackles = 24
+    # 🌟 1번 탭에서 불러온 세션 값이 있으면 우선 반영하고, 없으면 기존 원본 기본값 사용
+    def_mins = int(st.session_state.get("f_mins", 2206))
+    def_goals = int(st.session_state.get("f_goals", 16))
+    def_xg = float(st.session_state.get("f_xg", 17.44))
+    def_assists = int(st.session_state.get("f_assists", 4))
+    def_xa = float(st.session_state.get("f_xa", 3.33))
+    def_rating = float(st.session_state.get("f_rating", 7.32))
+    def_matches = int(st.session_state.get("f_matches", 28))
+    def_starts = int(st.session_state.get("f_starts", 25))
+    def_shots = int(st.session_state.get("f_shots", 88))
+    def_sot = int(st.session_state.get("f_sot", 43))
+    def_chances = int(st.session_state.get("f_chances", 25))
+    def_dribbles = int(st.session_state.get("f_dribbles", 14))
+    def_touches = int(st.session_state.get("f_touches_box", 153))
+    def_tackles = int(st.session_state.get("f_tackles", 24))
 
+    # 2번 탭 자체 드롭다운에서 선수를 별도로 골랐을 때의 처리
     if sel_player != "직접 입력 / 커스텀" and not history_df.empty:
         matched_rows = history_df[history_df["선수명"] == sel_player]
         if not matched_rows.empty:
             r = matched_rows.iloc[-1]
-            def_mins = int(r.get("이전_출전시간", 2206)) if pd.notnull(r.get("이전_출전시간")) else 2206
-            def_goals = int(r.get("이전_골", 16)) if pd.notnull(r.get("이전_골")) else 16
-            def_xg = float(r.get("이전_xG", 17.44)) if pd.notnull(r.get("이전_xG")) else 17.44
-            def_assists = int(r.get("이전_도움", 4)) if pd.notnull(r.get("이전_도움")) else 4
-            def_xa = float(r.get("이전_xA", 3.33)) if pd.notnull(r.get("이전_xA")) else 3.33
-            def_rating = float(r.get("이전_FotMob평점", 7.32)) if pd.notnull(r.get("이전_FotMob평점")) else 7.32
-            def_matches = int(r.get("이전_출전경기", 28)) if pd.notnull(r.get("이전_출전경기")) else 28
-            def_starts = int(r.get("이전_선발", 25)) if pd.notnull(r.get("이전_선발")) else 25
-            def_shots = int(r.get("이전_총슈팅", 88)) if pd.notnull(r.get("이전_총슈팅")) else 88
-            def_sot = int(r.get("이전_유효슈팅", 43)) if pd.notnull(r.get("이전_유효슈팅")) else 43
-            def_chances = int(r.get("이전_찬스메이킹", 25)) if pd.notnull(r.get("이전_찬스메이킹")) else 25
-            def_dribbles = int(r.get("이전_성공드리블", 14)) if pd.notnull(r.get("이전_성공드리블")) else 14
-            def_touches = int(r.get("이전_박스터치", 153)) if pd.notnull(r.get("이전_박스터치")) else 153
-            def_tackles = int(r.get("이전_태클성공", 24)) if pd.notnull(r.get("이전_태클성공")) else 24
+            def_mins = int(r.get("이전_출전시간", def_mins)) if pd.notnull(r.get("이전_출전시간")) else def_mins
+            def_goals = int(r.get("이전_골", def_goals)) if pd.notnull(r.get("이전_골")) else def_goals
+            def_xg = float(r.get("이전_xG", def_xg)) if pd.notnull(r.get("이전_xG")) else def_xg
+            def_assists = int(r.get("이전_도움", def_assists)) if pd.notnull(r.get("이전_도움")) else def_assists
+            def_xa = float(r.get("이전_xA", def_xa)) if pd.notnull(r.get("이전_xA")) else def_xa
+            def_rating = float(r.get("이전_FotMob평점", def_rating)) if pd.notnull(r.get("이전_FotMob평점")) else def_rating
+            def_matches = int(r.get("이전_출전경기", def_matches)) if pd.notnull(r.get("이전_출전경기")) else def_matches
+            def_starts = int(r.get("이전_선발", def_starts)) if pd.notnull(r.get("이전_선발")) else def_starts
+            def_shots = int(r.get("이전_총슈팅", def_shots)) if pd.notnull(r.get("이전_총슈팅")) else def_shots
+            def_sot = int(r.get("이전_유효슈팅", def_sot)) if pd.notnull(r.get("이전_유효슈팅")) else def_sot
+            def_chances = int(r.get("이전_찬스메이킹", def_chances)) if pd.notnull(r.get("이전_찬스메이킹")) else def_chances
+            def_dribbles = int(r.get("이전_성공드리블", def_dribbles)) if pd.notnull(r.get("이전_성공드리블")) else def_dribbles
+            def_touches = int(r.get("이전_박스터치", def_touches)) if pd.notnull(r.get("이전_박스터치")) else def_touches
+            def_tackles = int(r.get("이전_태클성공", def_tackles)) if pd.notnull(r.get("이전_태클성공")) else def_tackles
 
     st.markdown("---")
     st.markdown("#### ⚽ 직전 시즌 13대 핵심 스탯 입력룸")
