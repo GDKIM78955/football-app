@@ -6,7 +6,7 @@ import json
 import plotly.graph_objects as go
 from datetime import datetime
 
-# tabs 폴더 안에 있는 6개 탭 모듈 임포트
+# tabs 폴더 안의 패키지에서 6개 탭 모듈 임포트
 from tabs.tab1_eval import render_tab1
 from tabs.tab2_fotmob import render_tab2
 from tabs.tab3_comps import render_tab3
