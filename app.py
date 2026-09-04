@@ -272,7 +272,6 @@ with tab1:
                         if match_idx_list:
                             st.session_state["edit_row_index"] = match_idx_list[-1] + 2
 
-                        # 🌟 [완벽 해결] 불러온 즉시 st.session_state 위젯 키에 값을 직접 박아넣어 리셋 방지
                         k_id = st.session_state["form_key_id"] + 1
                         st.session_state["form_key_id"] = k_id
                         st.session_state["stat_key_id"] += 1
@@ -289,7 +288,6 @@ with tab1:
                         p_notes = str(get_exact_val(row_raw, "스카우팅메모", ""))
                         st.session_state[f"note_{k_id}"] = p_notes.split(" | [영입")[0].split(" | [방출")[0].strip()
 
-                        # 셀렉트박스 매칭 저장
                         p_pos_str = str(get_exact_val(row_raw, "포지션", ""))
                         for p_k in POSITION_WEIGHTS.keys():
                             if p_pos_str and p_pos_str in p_k:
@@ -320,7 +318,6 @@ with tab1:
                                 st.session_state[f"ttype_{k_id}"] = tt_k
                                 break
 
-                        # 2번 탭 스탯 동기화
                         st.session_state["f_matches"] = int(get_exact_val(row_raw, "이전_출전경기", 1))
                         st.session_state["f_starts"] = int(get_exact_val(row_raw, "이전_선발", 0))
                         st.session_state["f_mins"] = int(get_exact_val(row_raw, "이전_출전시간", 90))
@@ -464,10 +461,11 @@ with tab1:
         
         fee_label = "실제 수령/지출 임대료 (Loan Fee, 만 유로, €)" if is_loan_type else ("실제 방출(판매) 이적료 (만 유로, €)" if is_out_trade else "실제이적료(만€)")
         
+        default_fee_val = int(st.session_state.get(f"fee_{k_id}", 0))
         actual_transfer_fee = st.number_input(
             fee_label, 
             min_value=0, 
-            value=0 if is_undisclosed else 0, 
+            value=0 if is_undisclosed else default_fee_val, 
             step=50, 
             key=f"fee_{k_id}",
             disabled=is_undisclosed
@@ -479,7 +477,8 @@ with tab1:
             st.caption(f"💡 실제금액 환산: **{format_currency_desc(actual_transfer_fee)}**")
 
         with st.expander("💼 [선택/수정 입력] 주급(Weekly Wage) & 연간 총비용 분석", expanded=True):
-            weekly_wage_in = st.number_input("주급(만€)", min_value=0.0, value=0.0, step=0.5, key=f"wage_{k_id}")
+            default_wage_val = float(st.session_state.get(f"wage_{k_id}", 0.0))
+            weekly_wage_in = st.number_input("주급(만€)", min_value=0.0, value=default_wage_val, step=0.5, key=f"wage_{k_id}")
             annual_wage_eur = weekly_wage_in * 52
             annual_transfer_amort = (actual_transfer_fee / 4.0) if actual_transfer_fee > 0 else 0.0
             total_annual_cost = annual_transfer_amort + annual_wage_eur
