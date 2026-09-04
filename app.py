@@ -241,6 +241,9 @@ with tab1:
     with c_mode1:
         edit_toggle = st.toggle("✏️ 기존 저장된 선수 불러와서 수정/주급 추가 모드", value=False)
 
+    # 선택된 불러오기 데이터 임시 저장용 변수 초기화
+    row_raw = None
+
     if edit_toggle:
         st.markdown("##### 🔍 불러올 선수 선택")
         has_season_col = "이적시즌" in history_df.columns
@@ -452,7 +455,24 @@ with tab1:
                 """)
 
         st.markdown("---")
-        tm_market_value = st.number_input("TM시장가치(만€)", min_value=0, value=4500, step=50, key=f"tm_{k_id}")
+        
+        # 🌟 [완벽 해결 다이렉트 바인딩] 불러온 데이터가 있으면 시트 값을 직접 기본값으로 가져오기
+        loaded_tm_val = 4500
+        loaded_fee_val = 0
+        loaded_wage_val = 0.0
+        
+        if edit_toggle and 'sel_e_player' in locals() and sel_e_player and not history_df.empty:
+            try:
+                matched_check = history_df[history_df["선수명"] == sel_e_player]
+                if not matched_check.empty:
+                    r_raw_temp = matched_check.iloc[-1]
+                    loaded_tm_val = int(get_exact_val(r_raw_temp, "TM시장가치(만€)", 4500))
+                    loaded_fee_val = int(get_exact_val(r_raw_temp, "실제이적료(만€)", 0))
+                    loaded_wage_val = float(get_exact_val(r_raw_temp, "주급(만€)", 0.0))
+            except:
+                pass
+
+        tm_market_value = st.number_input("TM시장가치(만€)", min_value=0, value=loaded_tm_val, step=50, key=f"tm_{k_id}")
         if tm_market_value > 0: st.caption(f"💡 시장가치 환산: **{format_currency_desc(tm_market_value)}**")
         
         is_loan_type = "임대" in transfer_type and "의무" not in transfer_type and not option_exercised
@@ -461,11 +481,10 @@ with tab1:
         
         fee_label = "실제 수령/지출 임대료 (Loan Fee, 만 유로, €)" if is_loan_type else ("실제 방출(판매) 이적료 (만 유로, €)" if is_out_trade else "실제이적료(만€)")
         
-        default_fee_val = int(st.session_state.get(f"fee_{k_id}", 0))
         actual_transfer_fee = st.number_input(
             fee_label, 
             min_value=0, 
-            value=0 if is_undisclosed else default_fee_val, 
+            value=0 if is_undisclosed else loaded_fee_val, 
             step=50, 
             key=f"fee_{k_id}",
             disabled=is_undisclosed
@@ -477,8 +496,7 @@ with tab1:
             st.caption(f"💡 실제금액 환산: **{format_currency_desc(actual_transfer_fee)}**")
 
         with st.expander("💼 [선택/수정 입력] 주급(Weekly Wage) & 연간 총비용 분석", expanded=True):
-            default_wage_val = float(st.session_state.get(f"wage_{k_id}", 0.0))
-            weekly_wage_in = st.number_input("주급(만€)", min_value=0.0, value=default_wage_val, step=0.5, key=f"wage_{k_id}")
+            weekly_wage_in = st.number_input("주급(만€)", min_value=0.0, value=loaded_wage_val, step=0.5, key=f"wage_{k_id}")
             annual_wage_eur = weekly_wage_in * 52
             annual_transfer_amort = (actual_transfer_fee / 4.0) if actual_transfer_fee > 0 else 0.0
             total_annual_cost = annual_transfer_amort + annual_wage_eur
