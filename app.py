@@ -6,13 +6,13 @@ import json
 import plotly.graph_objects as go
 from datetime import datetime
 
-# tabs 폴더 안의 패키지에서 6개 탭 모듈 임포트
-from tabs.tab1_eval import render_tab1
-from tabs.tab2_fotmob import render_tab2
-from tabs.tab3_comps import render_tab3
-from tabs.tab4_validation import render_tab4
-from tabs.tab5_benchmark import render_tab5
-from tabs.tab6_analytics import render_tab6
+# 탭 파일들이 app.py와 같은 최상위 루트에 있으므로 폴더명 없이 바로 임포트합니다.
+from tab1_eval import render_tab1
+from tab2_fotmob import render_tab2
+from tab3_comps import render_tab3
+from tab4_validation import render_tab4
+from tab5_benchmark import render_tab5
+from tab6_analytics import render_tab6
 
 # 1. 페이지 기본 설정
 st.set_page_config(
