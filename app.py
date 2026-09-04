@@ -206,7 +206,6 @@ with tab1:
     is_winter = "겨울" in season_val
     season_factor = 1.10 if is_winter else 1.00
 
-    # 최종 적정가 산출
     base_calc_val = tm_market_value * league_w * age_w * club_w * contract_w * pos_w * vers_w * reg_w * opta_w * ttype_w * stage_w * inj_w * urg_w
     fair_value = base_calc_val * season_factor
     diff = actual_transfer_fee - fair_value
@@ -230,8 +229,12 @@ with tab1:
 
     st.markdown("---")
 
-    # 🌟 [추가됨] 선수 12대 스카우팅 육각형 레이더 차트
-    with st.expander("📊 [시각화] 선수 12대 스카우팅 육각형 레이더 차트", expanded=True):
+    # 🌟 [가로 2단 배치] 왼쪽: 레이더 차트 / 오른쪽: 12대 가중치 적용 현황표
+    st.subheader("📋 스카우팅 시각화 및 12대 가중치 세부 현황")
+    viz_col1, viz_col2 = st.columns([1, 1])
+
+    with viz_col1:
+        st.markdown("##### 📊 선수 12대 스카우팅 육각형 레이더")
         radar_categories = ['리그 템포', '나이/포텐', '구단 스케일', '계약 상태', '포지션 희소성', 'UCL/빅매치', '부상 내구성', '영입 절박성']
         radar_values = [league_w * 100, age_w * 100, club_w * 100, contract_w * 100, pos_w * 100, stage_w * 100, inj_w * 100, urg_w * 100]
         
@@ -247,37 +250,37 @@ with tab1:
         fig.update_layout(
             polar=dict(radialaxis=dict(visible=True, range=[50, 115])),
             showlegend=False,
-            margin=dict(l=40, r=40, t=30, b=30),
-            height=320
+            margin=dict(l=20, r=20, t=20, b=20),
+            height=340
         )
         st.plotly_chart(fig, use_container_width=True)
 
-    # 🌟 [추가됨] 실시간 12대 세부 가중치 적용 현황표
-    with st.expander("🔍 [실시간 확인] 12대 세부 가중치 적용 현황표 & 누적 배율", expanded=False):
+    with viz_col2:
+        st.markdown("##### 🔍 12대 세부 가중치 적용 현황")
         total_multiplier = league_w * age_w * club_w * contract_w * pos_w * vers_w * reg_w * opta_w * ttype_w * stage_w * inj_w * urg_w * season_factor
         df_weights_live = pd.DataFrame({
-            "가중치 세부 항목": [
-                "① 원소속 리그 템포 난이도", "② 포지션별 나이(에이징 커브)", "③ 영입 구단 규모 (클럽 티어)",
-                "④ 이적 당시 잔여 계약 기간", "⑤ 주 포지션 시장 희소성", "⑥ 멀티 포지션 소화 능력",
-                "⑦ 스쿼드 등록 / HG 쿼터", "⑧ FotMob 실적 및 평점 가중치", "⑨ 이적 형태 & 계약 조항",
-                "⑩ UCL / 빅매치 검증도", "⑪ 부상 내구성 & 메디컬 리스크", "⑫ 영입 구단 절박성 & 취약 포지션",
-                "❄️ 계절성 프리미엄 (겨울 특수)", "🎯 [종합] 최종 누적 가중치 배율"
+            "항목": [
+                "① 원소속 리그 템포", "② 포지션별 나이", "③ 영입 구단 규모",
+                "④ 잔여 계약 기간", "⑤ 포지션 희소성", "⑥ 멀티 포지션",
+                "⑦ 쿼터(HG)", "⑧ FotMob 평점", "⑨ 이적 형태",
+                "⑩ UCL/빅매치", "⑪ 부상 내구성", "⑫ 영입 절박성",
+                "❄️ 겨울 프리미엄", "🎯 [종합] 누적 배율"
             ],
-            "선택된 조건 / 등급": [
+            "조건": [
                 selling_league.split(" (")[0], f"만 {player_age}세", buying_club_tier.split(":")[0],
-                remaining_contract.split(" (")[0], main_position.split(" (")[0], "단일 포지션",
-                reg_status.split(" (")[0], "★6.50 (기준)", transfer_type.split(" (")[0],
+                remaining_contract.split(" (")[0], main_position.split(" (")[0], "단일",
+                reg_status.split(" (")[0], "★6.50", transfer_type.split(" (")[0],
                 big_stage.split(" (")[0], injury_status.split(" (")[0], urgency_status.split(" (")[0],
-                "+10% 겨울 프리미엄" if is_winter else "여름 표준 시장", "12대 가중치 총 곱셈 합산"
+                "겨울 +10%" if is_winter else "여름 표준", "총 배율 합산"
             ],
-            "실시간 배율": [
+            "배율": [
                 f"{league_w:.2f}x", f"{age_w:.2f}x", f"{club_w:.2f}x", f"{contract_w:.2f}x",
                 f"{pos_w:.2f}x", f"{vers_w:.2f}x", f"{reg_w:.2f}x", f"{opta_w:.2f}x",
                 f"{ttype_w:.2f}x", f"{stage_w:.2f}x", f"{inj_w:.2f}x", f"{urg_w:.2f}x",
                 f"{season_factor:.2f}x", f"✨ {total_multiplier:.3f}x"
             ]
         })
-        st.table(df_weights_live)
+        st.dataframe(df_weights_live, use_container_width=True, height=340)
 
     st.markdown("---")
 
