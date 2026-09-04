@@ -6,25 +6,37 @@ import json
 import plotly.graph_objects as go
 from datetime import datetime
 
-# 1. 페이지 기본 설정 (와이드 모드 및 커스텀 스타일)
+# 1. 페이지 기본 설정
 st.set_page_config(
     page_title="축구 이적시장 12대 가중치 분석 & FotMob 프로젝션 Pro",
     page_icon="⚽",
     layout="wide"
 )
 
-# UI를 더 세련되게 만들어주는 커스텀 CSS 주입
+# 💡 가독성 및 디자인을 완벽히 잡아주는 커스텀 CSS (카드형 다크/모던 톤)
 st.markdown("""
     <style>
     .block-container {
         padding-top: 2rem;
         padding-bottom: 2rem;
     }
-    .stMetric {
-        background-color: #f8f9fa;
-        padding: 15px;
-        border-radius: 10px;
-        border: 1px solid #e9ecef;
+    /* 카드 컨테이너 스타일링 */
+    div.st-emotion-cache-1r6slb0, div[data-testid="stVerticalBlock"] > div.st-emotion-cache-12w0qpk {
+        border-radius: 12px;
+    }
+    /* 메트릭 박스 가독성 극대화 */
+    [data-testid="stMetric"] {
+        background-color: #1e293b !important;
+        padding: 14px !important;
+        border-radius: 10px !important;
+        border: 1px solid #334155 !important;
+    }
+    [data-testid="stMetric"] label {
+        color: #94a3b8 !important;
+        font-weight: 600 !important;
+    }
+    [data-testid="stMetric"] [data-testid="stMetricValue"] {
+        color: #f8fafc !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -56,8 +68,7 @@ validation_df = fetch_validation_data()
 if "last_saved_msg" not in st.session_state:
     st.session_state["last_saved_msg"] = None
 
-# 메인 헤더 타이틀 (모던하게 압축)
-st.markdown("## ⚽ Pro Football Transfer Market & Scouting Room")
+st.markdown("## ⚽ PRO FOOTBALL TRANSFER MARKET & SCOUTING ROOM")
 st.markdown("---")
 
 # ================= 12대 가중치 딕셔너리 정의 =================
@@ -174,13 +185,12 @@ with tab1:
         st.success(st.session_state["last_saved_msg"])
         st.session_state["last_saved_msg"] = None
 
-    # 좌우 카드형 대시보드 레이아웃
+    # 좌우 2단 카드 레이아웃
     col_left, col_right = st.columns([1.0, 1.3], gap="large")
 
     with col_left:
         with st.container(border=True):
-            st.markdown("##### ⚙️ **이적 거래 조건 및 프로필 설정**")
-            
+            st.markdown("#### 📋 **거래 조건 및 프로필 설정**")
             trade_type_choice = st.radio("거래 유형", ["🔵 영입 (IN)", "🔴 방출 (OUT)"], horizontal=True, key="t_type")
             is_out_trade = "방출" in trade_type_choice
             
@@ -191,20 +201,11 @@ with tab1:
 
             r2_c1, r2_c2 = st.columns([0.8, 2.2])
             with r2_c1: player_age = st.number_input("나이", 15, 45, 28, key="p_age")
-            with r2_c2: 
-                main_position = st.selectbox("주 포지션", list(POSITION_WEIGHTS.keys()), index=0, key="p_pos")
-                with st.expander("💡 포지션 및 나이 가중치 기준"):
-                    st.caption("공격수 포텐셜(19~23세) 우대, GK/CB 장기 유지 특성 반영")
+            with r2_c2: main_position = st.selectbox("주 포지션", list(POSITION_WEIGHTS.keys()), index=0, key="p_pos")
 
             r3_c1, r3_c2 = st.columns(2)
-            with r3_c1: 
-                selling_league = st.selectbox("원소속 리그", list(LEAGUE_WEIGHTS.keys()), index=0, key="p_league")
-                with st.expander("💡 리그 템포 난이도 기준"):
-                    st.caption("EPL 1.00 기준, 하위 리그 및 메이저 외 리그 차등 할인")
-            with r3_c2: 
-                buying_club_tier = st.selectbox("영입구단 티어", list(CLUB_TIERS.keys()), index=1, key="p_tier")
-                with st.expander("💡 구단 스케일 티어 기준"):
-                    st.caption("메가클럽(레알, 맨시티 등) 프리미엄 +5% 반영")
+            with r3_c1: selling_league = st.selectbox("원소속 리그", list(LEAGUE_WEIGHTS.keys()), index=0, key="p_league")
+            with r3_c2: buying_club_tier = st.selectbox("영입구단 티어", list(CLUB_TIERS.keys()), index=1, key="p_tier")
 
             r4_c1, r4_c2 = st.columns(2)
             with r4_c1: in_from_team = st.text_input("원소속팀", value="토트넘 홋스퍼", key="p_from_team")
@@ -219,18 +220,16 @@ with tab1:
             with r6_c2: weekly_wage_in = st.number_input("주급 (만€)", min_value=0.0, value=0.0, step=0.5, key="p_wage")
 
             r7_c1, r7_c2 = st.columns(2)
-            with r7_c1: 
-                remaining_contract = st.selectbox("잔여 계약 기간", list(CONTRACT_WEIGHTS.keys()), index=2, key="p_con")
-            with r7_c2: 
-                transfer_type = st.selectbox("이적 형태", list(TRANSFER_TYPE_WEIGHTS.keys()), index=0, key="p_ttype")
+            with r7_c1: remaining_contract = st.selectbox("잔여 계약", list(CONTRACT_WEIGHTS.keys()), index=2, key="p_con")
+            with r7_c2: transfer_type = st.selectbox("이적 형태", list(TRANSFER_TYPE_WEIGHTS.keys()), index=0, key="p_ttype")
 
             r8_c1, r8_c2 = st.columns(2)
             with r8_c1:
-                reg_status = st.selectbox("스쿼드 쿼터", list(REGISTRATION_WEIGHTS.keys()), index=0, key="p_reg")
-                injury_status = st.selectbox("부상 내구성", list(INJURY_WEIGHTS.keys()), index=1, key="p_inj")
+                reg_status = st.selectbox("쿼터상태", list(REGISTRATION_WEIGHTS.keys()), index=0, key="p_reg")
+                injury_status = st.selectbox("부상내구", list(INJURY_WEIGHTS.keys()), index=1, key="p_inj")
             with r8_c2:
-                big_stage = st.selectbox("UCL/빅매치", list(BIG_STAGE_WEIGHTS.keys()), index=0, key="p_stage")
-                urgency_status = st.selectbox("영입 절박성", list(URGENCY_WEIGHTS.keys()), index=0, key="p_urg")
+                big_stage = st.selectbox("UCL검증", list(BIG_STAGE_WEIGHTS.keys()), index=0, key="p_stage")
+                urgency_status = st.selectbox("절박성", list(URGENCY_WEIGHTS.keys()), index=0, key="p_urg")
 
     # 12대 가중치 연산
     league_w = LEAGUE_WEIGHTS[selling_league]
@@ -263,7 +262,7 @@ with tab1:
 
     with col_right:
         with st.container(border=True):
-            st.markdown("##### 📈 **스카우팅 분석 리포트 & 12대 가중치 시각화**")
+            st.markdown("#### 📊 **스카우팅 분석 리포트 & 시각화**")
             
             res_c1, res_c2, res_c3, res_c4 = st.columns(4)
             res_c1.metric("산출 적정가", f"€{fair_value:,.1f}만", format_currency_desc(fair_value))
@@ -273,7 +272,7 @@ with tab1:
 
             st.markdown("")
 
-            # 육각형 레이더 차트
+            # 육각형 레이더 차트 (다크 테마에 어울리는 컬러감)
             radar_categories = ['리그 템포', '나이/포텐', '구단 스케일', '계약 상태', '포지션 희소성', 'UCL/빅매치', '부상 내구성', '영입 절박성']
             radar_values = [league_w * 100, age_w * 100, club_w * 100, contract_w * 100, pos_w * 100, stage_w * 100, inj_w * 100, urg_w * 100]
             
@@ -282,17 +281,21 @@ with tab1:
                 r=radar_values + [radar_values[0]],
                 theta=radar_categories + [radar_categories[0]],
                 fill='toself',
-                fillcolor='rgba(31, 119, 180, 0.25)' if not is_out_trade else 'rgba(214, 39, 40, 0.25)',
-                line=dict(color='#1f77b4' if not is_out_trade else '#d62728', width=2),
+                fillcolor='rgba(56, 189, 248, 0.2)' if not is_out_trade else 'rgba(248, 113, 113, 0.2)',
+                line=dict(color='#38bdf8' if not is_out_trade else '#f87171', width=2.5),
                 name=player_name if player_name else "선수"
             ))
             fig.update_layout(
-                polar=dict(radialaxis=dict(visible=True, range=[50, 115], showticklabels=False)),
+                polar=dict(
+                    radialaxis=dict(visible=True, range=[50, 115], showticklabels=False, gridcolor='#334155'),
+                    angularaxis=dict(gridcolor='#334155', linecolor='#334155')
+                ),
                 showlegend=False,
                 margin=dict(l=30, r=30, t=10, b=10),
-                height=270,
+                height=280,
                 paper_bgcolor='rgba(0,0,0,0)',
-                plot_bgcolor='rgba(0,0,0,0)'
+                plot_bgcolor='rgba(0,0,0,0)',
+                font=dict(color='#f8fafc', size=11)
             )
             st.plotly_chart(fig, use_container_width=True)
 
