@@ -287,6 +287,7 @@ with tab1:
                             "trade_type": "🔴 방출 / 판매 (OUT)" if str(row_data.get("거래구분", "")).strip() == "OUT" else "🔵 영입 (IN)"
                         }
 
+                        # 🌟 2번 탭 FotMob 스탯 및 골키퍼 지표 완벽 동기화
                         st.session_state["f_mins"] = int(row_data.get("직전_출전시간", 2206)) if pd.notnull(row_data.get("직전_출전시간")) else 2206
                         st.session_state["f_goals"] = int(row_data.get("직전_골", 0)) if pd.notnull(row_data.get("직전_골")) else 0
                         st.session_state["f_xg"] = float(row_data.get("직전_xG", 0.0)) if pd.notnull(row_data.get("직전_xG")) else 0.0
@@ -540,7 +541,6 @@ with tab1:
         risk_delta = (stage_w - 1.00) * 5.0 + (inj_w - 1.00) * 5.0 + (reg_w - 1.00) * 3.0 + (urg_w - 1.00) * 2.0
 
         final_deal_score = round(max(1.00, min(10.00, base_deal_score + val_score_delta + rating_delta + age_delta + risk_delta)), 2)
-
         ext_val_score_delta = 0.0 if is_undisclosed else max(-3.5, min(2.5, score_multiplier * (ext_overpay_pct / 20.0)))
         ext_deal_score = round(max(1.00, min(10.00, base_deal_score + ext_val_score_delta + rating_delta + age_delta + risk_delta)), 2)
 
