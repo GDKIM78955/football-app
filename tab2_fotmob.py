@@ -85,11 +85,3 @@ def render_tab2(history_df, GOOGLE_SHEET_WEBAPP_URL, LEAGUE_WEIGHTS, TRACKED_LEA
         with gk4: st.number_input("클린시트", min_value=0, value=10, key="t2_gk_cs")
         with gk5: st.number_input("실점 실수", min_value=0, value=0, key="t2_gk_errors")
         with gk6: st.number_input("공중볼 캐칭", min_value=0, value=18, key="t2_gk_claims")
-
-    st.markdown("---")
-    st.markdown("#### 📊 직전 시즌 vs 이번 시즌 비교 분석")
-    comp_c1, comp_c2 = st.columns(2)
-    with comp_c1:
-        st.info(f"**직전 시즌 요약**: 총 출전 {f_matches}경기 ({f_starts}선발, {f_mins}분) | 득점 {f_goals}골 (xG {f_xg}) | 도움 {f_assists}개 (xA {f_xa}) | 평점 {f_rating}")
-    with comp_c2:
-        st.success("**이번 시즌 비교 (추정치 / 연동 데이터)**: 1번 탭 및 입력된 스탯 기반 비교 검증 대기 중")
