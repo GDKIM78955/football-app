@@ -16,6 +16,7 @@ st.set_page_config(
 GOOGLE_SHEET_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwUX4diDBw2jD8WufrSa_0PejibYm7tIfyf1ia7O-QTfj1Ae6SQb3bZZ9pmNvDUAT6C/exec"
 SPREADSHEET_ID = "16CeAQp1-xqc-mhtvlP0vLlQu5k1pg8DW5A-m29WCFdw"
 
+# 데이터 로드 함수들
 @st.cache_data(ttl=0)
 def fetch_sheet_history():
     try:
@@ -150,7 +151,7 @@ tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "🏆 구단/리그별 종합 결산"
 ])
 
-# ================= TAB 1: 적정 이적료 평가 (백업 코드 원본 레이아웃 100% 동일 구현) =================
+# ================= TAB 1: 적정 이적료 평가 (백업 원본 1번 탭 코드 100% 동일 적용) =================
 with tab1:
     if st.session_state["last_saved_msg"]:
         st.success(st.session_state["last_saved_msg"])
@@ -370,7 +371,7 @@ with tab1:
                 except Exception as e:
                     st.error(f"⚠️ 저장 오류: {e}")
 
-# 나머지 탭 영역 (2~6번 탭 유지)
+# 나머지 탭 영역
 with tab2: st.subheader("📱 FotMob 시즌 성적 & 이적 예측")
 with tab3: st.subheader("🔍 과거 유사 이적 사례 비교")
 with tab4: st.subheader("🎯 이적 첫 시즌 실제 성적 검증")
