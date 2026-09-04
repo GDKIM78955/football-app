@@ -213,6 +213,24 @@ def render_tab1(history_df, GOOGLE_SHEET_WEBAPP_URL, LEAGUE_WEIGHTS, CLUB_TIERS,
         with res_c3: st.metric("평가율", f"{overpay_pct:+.1f}%")
         with res_c4: st.metric("이적 평점", f"★ {final_deal_score:.2f}")
 
+        # 🌟 12대 스카우팅 육각형 레이더 차트 복구
+        st.markdown("---")
+        with st.expander("📊 [이미지 캡처용] 선수 12대 스카우팅 육각형 레이더 차트", expanded=True):
+            radar_categories = ['리그 템포', '나이/포텐', '구단 스케일', '계약 상태', '포지션 희소성', 'UCL/빅매치', '부상 내구성', '영입 절박성']
+            radar_values = [league_w * 100, age_w * 100, club_w * 100, contract_w * 100, pos_w * 100, stage_w * 100, inj_w * 100, urg_w * 100]
+
+            fig = go.Figure()
+            fig.add_trace(go.Scatterpolar(
+                r=radar_values + [radar_values[0]],
+                theta=radar_categories + [radar_categories[0]],
+                fill='toself',
+                fillcolor='rgba(31, 119, 180, 0.3)' if not is_out_trade else 'rgba(214, 39, 40, 0.3)',
+                line=dict(color='#1f77b4' if not is_out_trade else '#d62728', width=2),
+                name=display_name
+            ))
+            fig.update_layout(polar=dict(radialaxis=dict(visible=True, range=[50, 115])), showlegend=False, margin=dict(l=40, r=40, t=30, b=30), height=320)
+            st.plotly_chart(fig, use_container_width=True)
+
     st.markdown("---")
     btn_label = f"🔄 '{player_name}' 수정된 데이터 구글 시트에 업데이트" if edit_toggle else f"💾 구글 시트에 바로 저장하기"
 
