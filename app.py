@@ -6,8 +6,9 @@ import json
 import plotly.graph_objects as go
 from datetime import datetime
 
-# 외부 탭 모듈 임포트 (현재는 tab1만 먼저 준비)
+# 외부 탭 모듈 임포트
 from tab1_eval import render_tab1
+from tab2_fotmob import render_tab2
 
 # 1. 페이지 기본 설정
 st.set_page_config(
@@ -136,7 +137,7 @@ def fetch_sheet_history():
 
 history_df = fetch_sheet_history()
 
-# 탭 구성 (현재는 1번 탭만 우선 연결하고 나머지는 빈 탭으로 대기)
+# 탭 구성
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "💰 적정 이적료 평가", 
     "📱 FotMob 시즌 성적 & 이적 예측 (13대 풀 스탯)",
@@ -146,7 +147,7 @@ tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "🏆 이적시장 구단/리그별 종합 결산 & 데이터룸"
 ])
 
-# 1번 탭 렌더링 호출
+# 1번 탭 렌더링
 with tab1:
     tab1_data = render_tab1(
         history_df, GOOGLE_SHEET_WEBAPP_URL, LEAGUE_WEIGHTS, CLUB_TIERS, 
@@ -155,12 +156,16 @@ with tab1:
         TRACKED_LEAGUE_NAMES, get_positional_age_weight, format_currency_desc, rate_krw, rate_gbp
     )
 
+# 2번 탭 렌더링
 with tab2:
-    st.subheader("📱 FotMob 시즌 성적 & 이적 예측")
-    st.info("다음 단계에서 2번 탭 모듈(`tab2_fotmob.py`)을 생성해 연결하겠습니다.")
+    render_tab2(
+        history_df, GOOGLE_SHEET_WEBAPP_URL, LEAGUE_WEIGHTS, TRACKED_LEAGUE_NAMES, 
+        format_currency_desc, rate_krw, rate_gbp, tab1_data
+    )
 
 with tab3:
     st.subheader("🔍 과거 유사 이적 사례 비교")
+    st.info("다음 단계에서 3번 탭 모듈(`tab3_comps.py`)을 생성해 연결하겠습니다.")
 
 with tab4:
     st.subheader("🎯 이적 첫 시즌 실제 성적 검증")
