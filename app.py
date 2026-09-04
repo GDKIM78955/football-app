@@ -156,7 +156,6 @@ with tab1:
         st.success(st.session_state["last_saved_msg"])
         st.session_state["last_saved_msg"] = None
 
-    # 좌우 비율을 균형 있게 조정 (왼쪽 입력폼이 넉넉하게 쓸 수 있도록 분할)
     col_left, col_right = st.columns([1.1, 1.4], gap="large")
 
     with col_left:
@@ -164,29 +163,63 @@ with tab1:
         trade_type_choice = st.radio("거래 유형", ["🔵 영입 (IN)", "🔴 방출 (OUT)"], horizontal=True, key="t_type")
         is_out_trade = "방출" in trade_type_choice
         
-        season_val = st.selectbox("이적 시즌", ["26/27 여름 (Summer)", "26/27 겨울 (Winter)", "기타"], key="p_season")
-        
-        # 입력 항목을 넉넉하고 편안한 단일/세로 배치로 구성
-        player_name = st.text_input("선수 이름", value="손흥민", key="p_name")
-        player_nat = st.text_input("국적", value="대한민국", key="p_nat")
-        
-        c_l1, c_l2 = st.columns(2)
-        with c_l1:
+        # 💡 [압축 레이아웃] 이적 시즌, 선수 이름, 국적을 한 행에 나란히 배치
+        r1_c1, r1_c2, r1_c3 = st.columns([1.1, 1.2, 0.9])
+        with r1_c1:
+            season_val = st.selectbox("이적 시즌", ["26/27 여름", "26/27 겨울", "기타"], key="p_season")
+        with r1_c2:
+            player_name = st.text_input("선수 이름", value="손흥민", key="p_name")
+        with r1_c3:
+            player_nat = st.text_input("국적", value="대한민국", key="p_nat")
+
+        # 💡 [압축 레이아웃] 나이와 포지션을 한 행에 배치
+        r2_c1, r2_c2 = st.columns([0.8, 2.2])
+        with r2_c1:
             player_age = st.number_input("만 나이", min_value=15, max_value=45, value=28, key="p_age")
-            selling_league = st.selectbox("원소속 리그", list(LEAGUE_WEIGHTS.keys()), index=0, key="p_league")
-            in_from_team = st.text_input("원소속팀명", value="토트넘 홋스퍼", key="p_from_team")
-            tm_market_value = st.number_input("TM 시장가치 (만€)", min_value=0, value=5000, step=100, key="p_tm")
-            remaining_contract = st.selectbox("잔여 계약 기간", list(CONTRACT_WEIGHTS.keys()), index=2, key="p_con")
-            transfer_type = st.selectbox("이적 형태", list(TRANSFER_TYPE_WEIGHTS.keys()), index=0, key="p_ttype")
-            injury_status = st.selectbox("부상 내구성", list(INJURY_WEIGHTS.keys()), index=1, key="p_inj")
-        with c_l2:
+        with r2_c2:
             main_position = st.selectbox("주 포지션", list(POSITION_WEIGHTS.keys()), index=0, key="p_pos")
+
+        # 💡 [압축 레이아웃] 원소속 리그와 영입 구단 티어
+        r3_c1, r3_c2 = st.columns(2)
+        with r3_c1:
+            selling_league = st.selectbox("원소속 리그", list(LEAGUE_WEIGHTS.keys()), index=0, key="p_league")
+        with r3_c2:
             buying_club_tier = st.selectbox("영입구단 티어", list(CLUB_TIERS.keys()), index=1, key="p_tier")
-            to_league_choice = st.selectbox("이적팀 리그", list(LEAGUE_WEIGHTS.keys()), index=0, key="p_to_league")
+
+        # 💡 [압축 레이아웃] 원소속팀명과 이적팀명
+        r4_c1, r4_c2 = st.columns(2)
+        with r4_c1:
+            in_from_team = st.text_input("원소속팀명", value="토트넘 홋스퍼", key="p_from_team")
+        with r4_c2:
             in_to_team = st.text_input("이적팀명", value="바이에른 뮌헨", key="p_to_team")
+
+        # 💡 [압축 레이아웃] 이적팀 리그와 TM 시장가치
+        r5_c1, r5_c2 = st.columns(2)
+        with r5_c1:
+            to_league_choice = st.selectbox("이적팀 리그", list(LEAGUE_WEIGHTS.keys()), index=0, key="p_to_league")
+        with r5_c2:
+            tm_market_value = st.number_input("TM 시장가치 (만€)", min_value=0, value=5000, step=100, key="p_tm")
+
+        # 💡 [압축 레이아웃] 실제 이적료와 주급
+        r6_c1, r6_c2 = st.columns(2)
+        with r6_c1:
             actual_transfer_fee = st.number_input("실제 이적료 (만€)", min_value=0, value=5500, step=100, key="p_fee")
+        with r6_c2:
             weekly_wage_in = st.number_input("주급 (만€)", min_value=0.0, value=0.0, step=0.5, key="p_wage")
+
+        # 💡 [압축 레이아웃] 잔여 계약 기간과 이적 형태
+        r7_c1, r7_c2 = st.columns(2)
+        with r7_c1:
+            remaining_contract = st.selectbox("잔여 계약 기간", list(CONTRACT_WEIGHTS.keys()), index=2, key="p_con")
+        with r7_c2:
+            transfer_type = st.selectbox("이적 형태", list(TRANSFER_TYPE_WEIGHTS.keys()), index=0, key="p_ttype")
+
+        # 💡 [압축 레이아웃] 쿼터, 부상, UCL 검증, 절박성 (2개씩 짝지어 배치)
+        r8_c1, r8_c2 = st.columns(2)
+        with r8_c1:
             reg_status = st.selectbox("스쿼드 쿼터 상태", list(REGISTRATION_WEIGHTS.keys()), index=0, key="p_reg")
+            injury_status = st.selectbox("부상 내구성", list(INJURY_WEIGHTS.keys()), index=1, key="p_inj")
+        with r8_c2:
             big_stage = st.selectbox("UCL/빅매치 검증도", list(BIG_STAGE_WEIGHTS.keys()), index=0, key="p_stage")
             urgency_status = st.selectbox("영입 절박성", list(URGENCY_WEIGHTS.keys()), index=0, key="p_urg")
 
@@ -231,7 +264,7 @@ with tab1:
 
         st.markdown("---")
 
-        # 2. 육각형 레이더 차트 (상단에 큼직하게 배치)
+        # 2. 육각형 레이더 차트
         st.markdown("##### 📈 12대 스카우팅 육각형 레이더 차트")
         radar_categories = ['리그 템포', '나이/포텐', '구단 스케일', '계약 상태', '포지션 희소성', 'UCL/빅매치', '부상 내구성', '영입 절박성']
         radar_values = [league_w * 100, age_w * 100, club_w * 100, contract_w * 100, pos_w * 100, stage_w * 100, inj_w * 100, urg_w * 100]
@@ -249,11 +282,11 @@ with tab1:
             polar=dict(radialaxis=dict(visible=True, range=[50, 115])),
             showlegend=False,
             margin=dict(l=20, r=20, t=10, b=10),
-            height=280
+            height=260
         )
         st.plotly_chart(fig, use_container_width=True)
 
-        # 3. 12대 가중치 세부 적용 현황표 (접었다 펼칠 수 있는 Expander로 배치)
+        # 3. 12대 가중치 세부 적용 현황표 (접이식)
         with st.expander("🔍 12대 가중치 세부 적용 현황표 상세 보기", expanded=False):
             total_multiplier = league_w * age_w * club_w * contract_w * pos_w * vers_w * reg_w * opta_w * ttype_w * stage_w * inj_w * urg_w * season_factor
             df_weights_live = pd.DataFrame({
