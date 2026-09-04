@@ -185,6 +185,7 @@ def render(history_df, GOOGLE_SHEET_WEBAPP_URL):
                         if match_idx_list:
                             st.session_state["edit_row_index"] = match_idx_list[-1] + 2
 
+                        # 시트 컬럼명에 맞춰 안전하게 데이터 추출 및 세션 저장
                         st.session_state["edit_data"] = {
                             "name": str(get_exact_val(row_raw, "선수명", "")),
                             "nat": str(get_exact_val(row_raw, "국적", "")),
@@ -195,8 +196,14 @@ def render(history_df, GOOGLE_SHEET_WEBAPP_URL):
                             "fee": int(get_exact_val(row_raw, "실제이적료(만€)", 0)),
                             "wage": float(get_exact_val(row_raw, "주급(만€)", 0.0)),
                             "note": str(get_exact_val(row_raw, "스카우팅메모", "")).split(" | [영입")[0].split(" | [방출")[0].strip(),
+                            "season": str(get_exact_val(row_raw, "이적시즌", "26/27 여름 (Summer)")),
+                            "from_league": str(get_exact_val(row_raw, "원소속리그", "잉글랜드 프리미어리그 (EPL 1부)")),
+                            "to_league": str(get_exact_val(row_raw, "이적팀리그", "잉글랜드 프리미어리그 (EPL 1부)")),
+                            "pos": str(get_exact_val(row_raw, "포지션", "센터백")),
+                            "tier": str(get_exact_val(row_raw, "영입구단티어", "Tier 2")),
+                            "ttype": str(get_exact_val(row_raw, "이적형태", "일반 완전 이적"))
                         }
-                        st.success(f"✅ '{sel_e_player}' 데이터 로드 완료! 아래 폼을 확인하세요.")
+                        st.success(f"✅ '{sel_e_player}' 데이터 불러오기 성공!")
                         st.rerun()
     else:
         st.session_state["edit_row_index"] = None
@@ -207,7 +214,6 @@ def render(history_df, GOOGLE_SHEET_WEBAPP_URL):
 
     st.markdown("---")
     
-    # 🌟 st.form으로 감싸서 데이터 리셋 현상 원천 차단
     with st.form(key="player_eval_form"):
         trade_type_choice = st.radio("거래 유형 구분", ["🔵 영입 (IN)", "🔴 방출 / 판매 (OUT)"], index=0, horizontal=True)
         is_out_trade = "방출" in trade_type_choice
@@ -299,9 +305,8 @@ def render(history_df, GOOGLE_SHEET_WEBAPP_URL):
         st.markdown("---")
         
         action_type = "update" if edit_toggle and st.session_state.get("edit_row_index") else "save_all"
-        btn_label = f"🔄 '{player_name}' 수정된 데이터 덮어쓰기" if action_type == "update" else f"💾 구글 시트에 신규 저장하기"
+        btn_label = f"🔄 '{player_name}' 수정된 데이터 덮어쓰기 (업데이트)" if action_type == "update" else f"💾 구글 시트에 신규 저장하기"
         
-        # 🌟 폼 내부의 서브밋 버튼
         submitted = st.form_submit_button(btn_label, use_container_width=True)
 
         if submitted:
@@ -353,7 +358,14 @@ def render(history_df, GOOGLE_SHEET_WEBAPP_URL):
                         "to_team": in_to_team.strip(),
                         "to_league_name": in_to_league_choice.split(" (")[0],
                         "trade_type": "OUT" if is_out_trade else "IN",
-                        "weekly_wage": float(weekly_wage_in)
+                        "weekly_wage": float(weekly_wage_in),
+                        "gk_saves": 0, "gk_conceded": 0, "gk_prevented": 0.0, "gk_cs": 0, "gk_errors": 0, "gk_claims": 0,
+                        "prev_starts": int(st.session_state.get("f_starts", 0)),
+                        "big_chances": int(st.session_state.get("f_big_chances", 0)),
+                        "pk_goals": int(st.session_state.get("f_pk_goals", 0)),
+                        "pass_pct": float(st.session_state.get("f_pass_pct", 0.0)),
+                        "duels_pct": float(st.session_state.get("f_duels_pct", 0.0)),
+                        "aerial_pct": float(st.session_state.get("f_aerial_pct", 0.0))
                     }
                     
                     try:
