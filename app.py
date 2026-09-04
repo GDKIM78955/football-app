@@ -267,7 +267,6 @@ with tab1:
                                 to_l_match = l_k
                                 break
 
-                        # 1) 1번 탭 계약/이적료 폼 데이터 주입
                         st.session_state["current_form"] = {
                             "name": str(row_data.get("선수명", "")),
                             "nat": str(row_data.get("국적", "")),
@@ -288,7 +287,6 @@ with tab1:
                             "trade_type": "🔴 방출 / 판매 (OUT)" if str(row_data.get("거래구분", "")).strip() == "OUT" else "🔵 영입 (IN)"
                         }
 
-                        # 2) 🌟 [핵심] 2번 탭 FotMob 스탯 및 골키퍼 지표 완벽 동기화
                         st.session_state["f_mins"] = int(row_data.get("직전_출전시간", 2206)) if pd.notnull(row_data.get("직전_출전시간")) else 2206
                         st.session_state["f_goals"] = int(row_data.get("직전_골", 0)) if pd.notnull(row_data.get("직전_골")) else 0
                         st.session_state["f_xg"] = float(row_data.get("직전_xG", 0.0)) if pd.notnull(row_data.get("직전_xG")) else 0.0
@@ -304,7 +302,6 @@ with tab1:
                         st.session_state["f_touches_box"] = int(row_data.get("직전_박스터치", 0)) if pd.notnull(row_data.get("직전_박스터치")) else 0
                         st.session_state["f_tackles"] = int(row_data.get("직전_태클", 0)) if pd.notnull(row_data.get("직전_태클")) else 0
 
-                        # 골키퍼 6대 지표 동기화
                         st.session_state["f_gk_saves"] = int(row_data.get("GK_선방", 0)) if pd.notnull(row_data.get("GK_선방")) else 0
                         st.session_state["f_gk_conceded"] = int(row_data.get("GK_실점", 0)) if pd.notnull(row_data.get("GK_실점")) else 0
                         st.session_state["f_gk_prevented"] = float(row_data.get("GK_득점차단", 0.0)) if pd.notnull(row_data.get("GK_득점차단")) else 0.0
@@ -408,6 +405,33 @@ with tab1:
                 - **기대 생산력**: `xG {st.session_state['f_xg']:.2f}` / `xA {st.session_state['f_xa']:.2f}` (90분당 **{cur_p90_exp:.2f}**)
                 - **FotMob 평균 평점**: `★ {cur_rating:.2f}` ➔ **{opta_desc} (가중치 {opta_w:.2f})**
                 """)
+
+        with st.expander("📚 [클릭하여 확인] 12대 가중치 전체 세부 산정 기준표 & 가이드", expanded=False):
+            st.markdown("#### 1️⃣ 포지션별 나이(에이징 커브) 가중치 기준표")
+            age_ref_df = pd.DataFrame({
+                "나이 구간": ["19세 이하 (원더키드)", "20~23세 (유망주 성장기)", "24~27세 (전성기 피크)", "28~29세 (전성기 후반)", "30~31세 (에이징 초입)", "32~34세 (베테랑)", "35세 이상"],
+                "공격수/윙어 (ST/WG/CAM)": ["1.05 (+5%)", "1.03 (+3%)", "1.00 (기준)", "0.97 (-3%)", "0.90 (-10%)", "0.80 (-20%)", "0.65 (-35%)"],
+                "미드필더 (CM/CDM/FB)": ["1.03 (+3%)", "1.02 (+2%)", "1.00 (기준)", "0.98 (-2%)", "0.92 (-8%)", "0.84 (-16%)", "0.70 (-30%)"],
+                "수비수/골키퍼 (CB/GK)": ["1.01 (+1%)", "1.01 (+1%)", "1.00 (기준)", "1.00 (기준)", "0.96 (-4%)", "0.90 (-10%)", "0.78 (-22%)"]
+            })
+            st.table(age_ref_df)
+
+            st.markdown("#### 2️⃣ 주요 리그 난이도 가중치 기준")
+            st.markdown("""
+            - **1.00**: 잉글랜드 프리미어리그 (EPL 1부)
+            - **0.90 ~ 0.92**: 라리가(0.92), 분데스리가(0.91), 세리에 A(0.90)
+            - **0.88**: 프랑스 리그 1
+            - **0.75 ~ 0.80**: 잉글랜드 챔피언십(0.80), 포르투갈(0.78), 네덜란드(0.77), 벨기에(0.75)
+            - **0.60 ~ 0.68**: 브라질(0.68), 튀르키예(0.65), MLS(0.64), 스위스/오스트리아(0.62), 스코틀랜드(0.60)
+            - **0.48 ~ 0.52**: 사우디 SPL(0.52), J1리그(0.50), K리그1(0.48)
+            """)
+
+            st.markdown("#### 3️⃣ 계약 형태 및 비공개 이적 처리 원칙")
+            st.markdown("""
+            - **비공개 이적 (Undisclosed)**: 보도된 추정치가 없으면 시장 적정가와 1:1 수렴한 것으로 간주 (평가율 0%, 기본 7.5점)
+            - **단순 1년 임대**: 1년 감가상각 사용가치(20%)로 자동 환산하여 임대료와 비교
+            - **FA 자유계약**: 지급 계약금(사이닝보너스) 기준 비교 및 평점 상한선 통제
+            """)
 
         st.markdown("---")
         tm_market_value = st.number_input("트랜스퍼마르크트 시장 가치 (만 유로, €)", min_value=0, value=cf["tm"], step=50, key=f"tm_{k_id}")
@@ -516,6 +540,7 @@ with tab1:
         risk_delta = (stage_w - 1.00) * 5.0 + (inj_w - 1.00) * 5.0 + (reg_w - 1.00) * 3.0 + (urg_w - 1.00) * 2.0
 
         final_deal_score = round(max(1.00, min(10.00, base_deal_score + val_score_delta + rating_delta + age_delta + risk_delta)), 2)
+
         ext_val_score_delta = 0.0 if is_undisclosed else max(-3.5, min(2.5, score_multiplier * (ext_overpay_pct / 20.0)))
         ext_deal_score = round(max(1.00, min(10.00, base_deal_score + ext_val_score_delta + rating_delta + age_delta + risk_delta)), 2)
 
@@ -638,8 +663,6 @@ with tab1:
             })
             st.table(df_weights_live)
 
-    # 🌟 [1번 탭] 신규 저장 or 기존 데이터 수정 덮어쓰기 버튼 (NameError 완벽 차단)
-    # 🌟 [1번 탭] 신규 저장 or 기존 데이터 수정 덮어쓰기 버튼
     st.markdown("---")
     display_pname_t1 = player_name.strip() if player_name.strip() else "선수명 미입력"
     tag_btn_name_t1 = "🔴 방출(OUT) 데이터" if is_out_trade else "🔵 영입(IN) 데이터"
@@ -776,7 +799,6 @@ with tab2:
         ],
         index=1 if is_winter else 0,
         horizontal=True,
-        key="global_data_source_radio"
         key=f"global_data_source_radio_{k_id}"
     )
 
@@ -784,12 +806,8 @@ with tab2:
     default_proj_mins = 1440 if is_winter_mode else 3036
 
     f_c1, f_c2, f_c3, f_c4 = st.columns(4)
-    with f_c1: f_pos = st.selectbox("선수 포지션 분류", ["⚽ 필드 플레이어 (공격수/미드필더/수비수)", "🧤 골키퍼 (Goalkeeper)"], index=1 if "GK" in main_position else 0, key="f_tab_pos")
-    with f_c2: f_from_l = st.selectbox("원소속 리그 (기록 기준)", list(LEAGUE_WEIGHTS.keys()), index=0, key="f_tab_from_l")
-    with f_c3: f_to_l = st.selectbox("이적할 리그", list(LEAGUE_WEIGHTS.keys()), index=list(LEAGUE_WEIGHTS.keys()).index(in_to_league_choice) if in_to_league_choice in LEAGUE_WEIGHTS else 0, key="f_tab_to_l")
-    with f_c4: f_target_mins = st.number_input("이적 팀 예상 출전 시간(분)", min_value=450, max_value=4500, value=min(int(default_proj_mins), 4500), step=90, key="f_tab_target_mins")
     with f_c1: f_pos = st.selectbox("선수 포지션 분류", ["⚽ 필드 플레이어 (공격수/미드필더/수비수)", "🧤 골키퍼 (Goalkeeper)"], index=1 if "GK" in main_position else 0, key=f"f_tab_pos_{k_id}")
-    with f_c2: f_from_l = st.selectbox("원소속 리그 (기록 기준)", list(LEAGUE_WEIGHTS.keys()), index=list(LEAGUE_WEIGHTS.keys()).index(selling_league) if selling_league in LEAGUE_WEIGHTS else 0, key=f"f_tab_from_l_{k_id}")
+    with f_c2: f_from_l = st.selectbox("원소속 리그 (기록 기준)", list(LEAGUE_WEIGHTS.keys()), index=0, key=f"f_tab_from_l_{k_id}")
     with f_c3: f_to_l = st.selectbox("이적할 리그", list(LEAGUE_WEIGHTS.keys()), index=list(LEAGUE_WEIGHTS.keys()).index(in_to_league_choice) if in_to_league_choice in LEAGUE_WEIGHTS else 0, key=f"f_tab_to_l_{k_id}")
     with f_c4: f_target_mins = st.number_input("이적 팀 예상 출전 시간(분)", min_value=450, max_value=4500, value=min(int(default_proj_mins), 4500), step=90, key=f"f_tab_target_mins_{k_id}")
 
@@ -807,12 +825,7 @@ with tab2:
     st.divider()
     st.markdown(f"### 📥 FotMob 시즌 실제 기록 입력 (`{winter_data_source.split(' (')[0]}` 기준)")
 
-    # 🌟 [개선] key에 k_id를 연동하여 1번 탭에서 불러오기 시 2번 탭 위젯들도 시트 값으로 강제 갱신
     b1, b2, b3, b4 = st.columns(4)
-    with b1: in_matches = st.number_input("출전 경기 (Matches)", 1, 60, value=min(int(st.session_state["f_matches"]), 60), key="in_matches_box")
-    with b2: in_starts = st.number_input("선발 출전 (Starts)", 0, 60, value=min(int(st.session_state["f_starts"]), 60), key="in_starts_box")
-    with b3: in_mins = st.number_input("출전 시간 (Minutes)", 90, 4500, value=min(int(st.session_state["f_mins"]), 4500), key="in_mins_box")
-    with b4: in_rating = st.number_input("FotMob 평균 평점", 5.0, 10.0, value=float(st.session_state["f_rating"]), step=0.01, key="in_rating_box")
     with b1: in_matches = st.number_input("출전 경기 (Matches)", 1, 60, value=min(int(st.session_state["f_matches"]), 60), key=f"in_matches_box_{k_id}")
     with b2: in_starts = st.number_input("선발 출전 (Starts)", 0, 60, value=min(int(st.session_state["f_starts"]), 60), key=f"in_starts_box_{k_id}")
     with b3: in_mins = st.number_input("출전 시간 (Minutes)", 90, 4500, value=min(int(st.session_state["f_mins"]), 4500), key=f"in_mins_box_{k_id}")
@@ -829,11 +842,6 @@ with tab2:
     if "골키퍼" not in f_pos:
         st.markdown("#### 1️⃣ 슈팅 및 득점 (Shooting & Goals)")
         s1, s2, s3, s4, s5 = st.columns(5)
-        with s1: in_goals = st.number_input("득점 (Goals)", 0, 50, value=min(int(st.session_state["f_goals"]), 50), key="in_goals_box")
-        with s2: in_xg = st.number_input("기대 득점 (xG)", 0.0, 50.0, value=min(float(st.session_state["f_xg"]), 50.0), step=0.01, key="in_xg_box")
-        with s3: in_shots = st.number_input("총 슈팅 (Shots)", 0, 200, value=min(int(st.session_state["f_shots"]), 200), key="in_shots_box")
-        with s4: in_sot = st.number_input("유효 슈팅 (On Target)", 0, 100, value=min(int(st.session_state["f_sot"]), 100), key="in_sot_box")
-        with s5: in_pk_goals = st.number_input("PK 득점 (Penalty)", 0, 20, 0, key="in_pk_box")
         with s1: in_goals = st.number_input("득점 (Goals)", 0, 50, value=min(int(st.session_state["f_goals"]), 50), key=f"in_goals_box_{k_id}")
         with s2: in_xg = st.number_input("기대 득점 (xG)", 0.0, 50.0, value=min(float(st.session_state["f_xg"]), 50.0), step=0.01, key=f"in_xg_box_{k_id}")
         with s3: in_shots = st.number_input("총 슈팅 (Shots)", 0, 200, value=min(int(st.session_state["f_shots"]), 200), key=f"in_shots_box_{k_id}")
@@ -847,11 +855,6 @@ with tab2:
 
         st.markdown("#### 2️⃣ 패스 및 기회 창출 (Passing & Creativity)")
         p1, p2, p3, p4, p5 = st.columns(5)
-        with p1: in_assists = st.number_input("도움 (Assists)", 0, 50, value=min(int(st.session_state["f_assists"]), 50), key="in_assists_box")
-        with p2: in_xa = st.number_input("기대 도움 (xA)", 0.0, 50.0, value=min(float(st.session_state["f_xa"]), 50.0), step=0.01, key="in_xa_box")
-        with p3: in_chances = st.number_input("기회 창출 (Chances)", 0, 150, value=min(int(st.session_state["f_chances"]), 150), key="in_chances_box")
-        with p4: in_big_chances = st.number_input("빅 찬스 메이킹", 0, 50, 2, key="in_bc_box")
-        with p5: in_pass_pct = st.number_input("패스 성공률 (%)", 30.0, 100.0, 88.2, 0.1, key="in_pass_pct_box")
         with p1: in_assists = st.number_input("도움 (Assists)", 0, 50, value=min(int(st.session_state["f_assists"]), 50), key=f"in_assists_box_{k_id}")
         with p2: in_xa = st.number_input("기대 도움 (xA)", 0.0, 50.0, value=min(float(st.session_state["f_xa"]), 50.0), step=0.01, key=f"in_xa_box_{k_id}")
         with p3: in_chances = st.number_input("기회 창출 (Chances)", 0, 150, value=min(int(st.session_state["f_chances"]), 150), key=f"in_chances_box_{k_id}")
@@ -864,11 +867,6 @@ with tab2:
 
         st.markdown("#### 3️⃣ 경합 및 수비 기여 (Duels & Defending - 공격/수비 전원 기록)")
         d1, d2, d3, d4, d5 = st.columns(5)
-        with d1: in_dribbles = st.number_input("성공한 드리블", 0, 100, value=min(int(st.session_state["f_dribbles"]), 100), key="in_dribbles_box")
-        with d2: in_touches_box = st.number_input("박스 안 터치 (Box Touches)", 0, 300, value=min(int(st.session_state["f_touches_box"]), 300), key="in_touches_box")
-        with d3: in_duels_pct = st.number_input("지상 경합 승률 (%)", 20.0, 100.0, 62.4, 0.1, key="in_duels_box")
-        with d4: in_aerial_pct = st.number_input("공중볼 승률 (%)", 20.0, 100.0, 65.8, 0.1, key="in_aerial_box")
-        with d5: in_tackles = st.number_input("태클 성공 (Tackles)", 0, 150, value=min(int(st.session_state["f_tackles"]), 150), key="in_tackles_box")
         with d1: in_dribbles = st.number_input("성공한 드리블", 0, 100, value=min(int(st.session_state["f_dribbles"]), 100), key=f"in_dribbles_box_{k_id}")
         with d2: in_touches_box = st.number_input("박스 안 터치 (Box Touches)", 0, 300, value=min(int(st.session_state["f_touches_box"]), 300), key=f"in_touches_box_{k_id}")
         with d3: in_duels_pct = st.number_input("지상 경합 승률 (%)", 20.0, 100.0, 62.4, 0.1, key=f"in_duels_box_{k_id}")
@@ -882,17 +880,11 @@ with tab2:
     else:
         st.markdown("#### 🧤 FotMob 실제 골키퍼 지표 입력 (Goalkeeping)")
         gk1, gk2, gk3 = st.columns(3)
-        with gk1: in_gk_saves = st.number_input("선방 (Saves)", 0, 250, value=int(st.session_state["f_gk_saves"]), key="in_gk_saves_box")
-        with gk2: in_gk_conceded = st.number_input("실점 수 (Goals Conceded)", 0, 120, value=int(st.session_state["f_gk_conceded"]), key="in_gk_conceded_box")
-        with gk3: in_gk_prevented = st.number_input("득점 차단 (Goals Prevented)", -20.0, 30.0, value=float(st.session_state["f_gk_prevented"]), step=0.01, key="in_gk_prevented_box")
         with gk1: in_gk_saves = st.number_input("선방 (Saves)", 0, 250, value=int(st.session_state["f_gk_saves"]), key=f"in_gk_saves_box_{k_id}")
         with gk2: in_gk_conceded = st.number_input("실점 수 (Goals Conceded)", 0, 120, value=int(st.session_state["f_gk_conceded"]), key=f"in_gk_conceded_box_{k_id}")
         with gk3: in_gk_prevented = st.number_input("득점 차단 (Goals Prevented)", -20.0, 30.0, value=float(st.session_state["f_gk_prevented"]), step=0.01, key=f"in_gk_prevented_box_{k_id}")
 
         gk4, gk5, gk6 = st.columns(3)
-        with gk4: in_gk_cs = st.number_input("클린 시트 (Clean Sheets)", 0, 35, value=int(st.session_state["f_gk_cs"]), key="in_gk_cs_box")
-        with gk5: in_gk_errors = st.number_input("골로 이어진 실수 (Errors Led to Goal)", 0, 15, value=int(st.session_state["f_gk_errors"]), key="in_gk_errors_box")
-        with gk6: in_gk_claims = st.number_input("공중에서 잡기 (High Claims)", 0, 80, value=int(st.session_state["f_gk_claims"]), key="in_gk_claims_box")
         with gk4: in_gk_cs = st.number_input("클린 시트 (Clean Sheets)", 0, 35, value=int(st.session_state["f_gk_cs"]), key=f"in_gk_cs_box_{k_id}")
         with gk5: in_gk_errors = st.number_input("골로 이어진 실수 (Errors Led to Goal)", 0, 15, value=int(st.session_state["f_gk_errors"]), key=f"in_gk_errors_box_{k_id}")
         with gk6: in_gk_claims = st.number_input("공중에서 잡기 (High Claims)", 0, 80, value=int(st.session_state["f_gk_claims"]), key=f"in_gk_claims_box_{k_id}")
