@@ -10,8 +10,9 @@ def render_tab2(history_df, GOOGLE_SHEET_WEBAPP_URL, LEAGUE_WEIGHTS, TRACKED_LEA
     
     player_name = tab1_data.get("player_name", "선수")
     is_out_trade = tab1_data.get("is_out_trade", False)
+    selling_league = tab1_data.get("selling_league", list(LEAGUE_WEIGHTS.keys())[0])
     
-    st.markdown(f"**분석 대상 선수**: `{'🔴 방출/판매' if is_out_trade else '🔵 영입/보강'}` **{player_name if player_name else '선수명 미입력'}**")
+    st.markdown(f"**분석 대상 선수**: `{'🔴 방출/판매' if is_out_trade else '🔵 영입/보강'}` **{player_name if player_name else '선수명 미입력'}** (원소속 리그: `{selling_league}`)")
 
     with st.expander("📊 지난 시즌 FotMob 스타일 상세 스탯 입력 (직전 시즌)", expanded=True):
         st.markdown("##### 📌 기본 출전 및 평점 지표")
@@ -46,4 +47,34 @@ def render_tab2(history_df, GOOGLE_SHEET_WEBAPP_URL, LEAGUE_WEIGHTS, TRACKED_LEA
         with dc5: f_tackles = st.number_input("태클 성공", min_value=0, value=int(st.session_state.get("f_tackles", 24)), key="f_tackles")
 
     st.markdown("---")
-    st.info("💡 1번 탭에서 선수를 불러온 후, 위 스탯들이 정상적으로 반영되었는지 2번 탭에서 확인하실 수 있습니다.")
+    st.subheader("🔮 이적 후 신규 팀에서의 퍼포먼스 프로젝션 (Prediction Engine)")
+
+    # 프로젝션 예측 계산 로직
+    league_coef = LEAGUE_WEIGHTS.get(selling_league, 1.0)
+    projected_mins = int(f_mins * 1.05 if f_mins < 3000 else 3420)
+    proj_ratio = projected_mins / (f_mins if f_mins > 0 else 1)
+
+    projected_goals = round(f_goals * proj_ratio * (1.0 + (1.0 - league_coef) * 0.2), 1)
+    projected_xg = round(f_xg * proj_ratio, 1)
+    projected_assists = round(f_assists * proj_ratio * (1.0 + (1.0 - league_coef) * 0.2), 1)
+    projected_xa = round(f_xa * proj_ratio, 1)
+    projected_shots = round(f_shots * proj_ratio, 1)
+    projected_rating = round(min(10.0, max(1.0, f_rating * (1.0 + (1.0 - league_coef) * 0.05))), 2)
+
+    p_c1, p_c2, p_c3, p_c4, p_c5 = st.columns(5)
+    with p_c1: st.metric("예상 출전 시간", f"{projected_mins:,}분", delta=f"{projected_mins - f_mins:+}분")
+    with p_c2: st.metric("예상 득점 (Goals)", f"{projected_goals}골", delta=f"{projected_goals - f_goals:+.1f}")
+    with p_c3: st.metric("예상 기대득점 (xG)", f"{projected_xg}", delta=f"{projected_xg - f_xg:+.1f}")
+    with p_c4: st.metric("예상 도움 (Assists)", f"{projected_assists}개", delta=f"{projected_assists - f_assists:+.1f}")
+    with p_c5: st.metric("예상 평균 평점", f"★ {projected_rating}", delta=f"{projected_rating - f_rating:+.2f}")
+
+    st.markdown("---")
+    st.markdown("##### 📈 직전 시즌 vs 이적 후 프로젝션 비교 바차트")
+    
+    chart_df = pd.DataFrame({
+        "지표": ["득점 (Goals)", "기대득점 (xG)", "도움 (Assists)", "기대도움 (xA)", "총 슈팅"],
+        "직전 시즌": [f_goals, f_xg, f_assists, f_xa, f_shots],
+        "프로젝션 예측": [projected_goals, projected_xg, projected_assists, projected_xa, projected_shots]
+    })
+    
+    st.bar_chart(chart_df.set_index("지표"))
