@@ -1,8 +1,13 @@
 import streamlit as st
+import pandas as pd
+import requests
+import json
 
-def render(val_df, webhook_url):
-    st.subheader("🎯 이적 첫 시즌 실제 성적 & 사후 검증 존 ([검증데이터] 2번 시트 연동)")
-    if val_df.empty:
-        st.warning("⚠️ 2번 시트(검증데이터)를 불러오지 못했거나 데이터가 비어 있습니다.")
+def render(validation_df, GOOGLE_SHEET_WEBAPP_URL):
+    st.subheader("🎯 이적 첫 시즌 실제 성적 입력 & 모델 예측 정확도 사후 검증")
+    st.caption("시즌 종료 후 선수가 실제로 기록한 최종 스탯을 입력하여 모델 예측치와의 오차율을 산출합니다.")
+
+    if validation_df.empty or "이적시즌" not in validation_df.columns:
+        st.info("💡 아직 검증 데이터 시트에 등록된 선수가 없습니다. (10대 리그 이적 시 자동 등록됩니다)")
     else:
-        st.dataframe(val_df, use_container_width=True)
+        st.dataframe(validation_df, use_container_width=True)
