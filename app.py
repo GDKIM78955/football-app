@@ -215,10 +215,21 @@ def format_currency_desc(eur_man_euro):
     gbp_man = eur_man_euro * rate_gbp
     return f"약 {krw_eok:,.1f}억원 | £{gbp_man:,.1f}만"
 
-def safe_float(val, default=0.0):
+def get_col(row, idx, default=""):
+    try:
+        if idx < len(row):
+            val = row.iloc[idx]
+            if pd.notnull(val) and str(val).strip() not in ["", "nan", "None"]:
+                return type(default)(val)
+    except:
+        pass
+    return default
+
+def safe_float(val, default=0.0, max_val=9999.0):
     try:
         if pd.notnull(val) and str(val).strip() not in ["", "nan", "None"]:
-            return float(val)
+            res = float(val)
+            return min(res, max_val)
     except:
         pass
     return default
@@ -227,17 +238,6 @@ def safe_int(val, default=0):
     try:
         if pd.notnull(val) and str(val).strip() not in ["", "nan", "None"]:
             return int(float(val))
-    except:
-        pass
-    return default
-
-# 🌟 절대 인덱스 기반으로 데이터를 꽂아버리는 함수 (헤더 이름 전면 무시)
-def get_col(row, idx, default=""):
-    try:
-        if idx < len(row):
-            val = row.iloc[idx]
-            if pd.notnull(val) and str(val).strip() not in ["", "nan", "None"]:
-                return type(default)(val)
     except:
         pass
     return default
@@ -310,7 +310,6 @@ with tab1:
                         if match_idx_list:
                             st.session_state["edit_row_index"] = match_idx_list[-1] + 2
 
-                        # 🌟 앱스크립트 저장 배열 인덱스 (0부터 시작)와 1:1 하드코딩 매칭
                         p_name = get_col(row_raw, 2, "")
                         p_nat = get_col(row_raw, 3, "")
                         p_age = safe_int(get_col(row_raw, 4, 28))
@@ -320,6 +319,7 @@ with tab1:
                         p_ttype = get_col(row_raw, 8, "")
                         p_tm = safe_int(get_col(row_raw, 9, 4500))
                         p_fee = safe_int(get_col(row_raw, 10, 0))
+                        
                         p_to_league_name = get_col(row_raw, 28, "")
                         p_notes = get_col(row_raw, 36, "")
                         p_from_team = get_col(row_raw, 37, "")
@@ -384,7 +384,6 @@ with tab1:
                             "option_exercised": "임대후옵션발동완료" in p_notes
                         }
 
-                        # 2번 탭 FotMob 스탯 인덱스 매핑
                         st.session_state["f_matches"] = safe_int(get_col(row_raw, 15, 1))
                         st.session_state["f_mins"] = safe_int(get_col(row_raw, 16, 90))
                         st.session_state["f_goals"] = safe_int(get_col(row_raw, 17, 0))
@@ -1384,12 +1383,12 @@ with tab4:
 
             p_pos = str(get_col(target_row, 3, "CB"))
             p_to_l = str(get_col(target_row, 2, "EPL"))
-            proj_m = safe_float(get_col(target_row, 5, 3000), 3000.0)
-            proj_g = safe_float(get_col(target_row, 7, 0), 0.0)
-            proj_xg = safe_float(get_col(target_row, 9, 0), 0.0)
-            proj_a = safe_float(get_col(target_row, 11, 0), 0.0)
-            proj_xa = safe_float(get_col(target_row, 13, 0), 0.0)
-            proj_r = safe_float(get_col(target_row, 27, 7.0), 7.0)
+            proj_m = safe_float(get_col(target_row, 5, 3000), 3000.0, 4500.0)
+            proj_g = safe_float(get_col(target_row, 7, 0), 0.0, 100.0)
+            proj_xg = safe_float(get_col(target_row, 9, 0), 0.0, 50.0)
+            proj_a = safe_float(get_col(target_row, 11, 0), 0.0, 100.0)
+            proj_xa = safe_float(get_col(target_row, 13, 0), 0.0, 50.0)
+            proj_r = safe_float(get_col(target_row, 27, 7.0), 7.0, 10.0)
             curr_status = str(target_row.get("입력상태", "⏳ 검증 대기"))
 
             st.markdown("---")
@@ -1409,10 +1408,10 @@ with tab4:
             
             exist_act_mins = safe_int(get_col(target_row, 6, int(proj_m)), int(proj_m))
             exist_act_goals = safe_int(get_col(target_row, 8, int(round(proj_g))), int(round(proj_g)))
-            exist_act_xg = safe_float(get_col(target_row, 10, float(proj_xg)), float(proj_xg))
+            exist_act_xg = safe_float(get_col(target_row, 10, float(proj_xg)), float(proj_xg), 50.0)
             exist_act_assists = safe_int(get_col(target_row, 12, int(round(proj_a))), int(round(proj_a)))
-            exist_act_xa = safe_float(get_col(target_row, 14, float(proj_xa)), float(proj_xa))
-            exist_act_rating = safe_float(get_col(target_row, 28, float(proj_r)), float(proj_r))
+            exist_act_xa = safe_float(get_col(target_row, 14, float(proj_xa)), float(proj_xa), 50.0)
+            exist_act_rating = safe_float(get_col(target_row, 28, float(proj_r)), float(proj_r), 10.0)
             exist_act_notes = str(get_col(target_row, 46, ""))
 
             in_ac1, in_ac2, in_ac3, in_ac4, in_ac5, in_ac6 = st.columns(6)
