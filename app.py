@@ -37,8 +37,29 @@ def fetch_validation_data():
 history_df = fetch_sheet_history()
 validation_df = fetch_validation_data()
 
+if "form_key_id" not in st.session_state:
+    st.session_state["form_key_id"] = 0
+if "stat_key_id" not in st.session_state:
+    st.session_state["stat_key_id"] = 0
 if "last_saved_msg" not in st.session_state:
     st.session_state["last_saved_msg"] = None
+if "edit_row_index" not in st.session_state:
+    st.session_state["edit_row_index"] = None
+
+if "custom_proj_mins" not in st.session_state:
+    st.session_state["custom_proj_mins"] = 3000
+
+default_stats = {
+    "f_mins": 90, "f_goals": 0, "f_xg": 0.0, "f_assists": 0, "f_xa": 0.0,
+    "f_rating": 6.50, "f_matches": 1, "f_starts": 0, "f_shots": 0, "f_sot": 0,
+    "f_chances": 0, "f_dribbles": 0, "f_touches_box": 0, "f_tackles": 0,
+    "f_gk_saves": 0, "f_gk_conceded": 0, "f_gk_prevented": 0.0,
+    "f_gk_cs": 0, "f_gk_errors": 0, "f_gk_claims": 0,
+    "f_big_chances": 0, "f_pk_goals": 0, "f_pass_pct": 0.0, "f_duels_pct": 0.0, "f_aerial_pct": 0.0
+}
+for k, v in default_stats.items():
+    if k not in st.session_state:
+        st.session_state[k] = v
 
 st.title("⚽ 프로페셔널 축구 이적시장 12대 가중치 분석 & 스카우팅 데이터룸")
 
@@ -56,13 +77,32 @@ LEAGUE_WEIGHTS = {
     "브라질 세리에 A (Brasileirão 1부)": 0.68,
     "독일 2. 분데스리가 (2부)": 0.67,
     "스페인 라리가 2 (세군다 2부)": 0.66,
+    "튀르키예 쉬페르리그 (1부)": 0.65,
+    "이탈리아 세리에 B (2부)": 0.64,
+    "미국 메이저리그사커 (MLS 1부)": 0.64,
+    "멕시코 리가 MX (1부)": 0.63,
+    "스위스 슈퍼리그 (1부)": 0.62,
+    "오스트리아 분데스리가 (1부)": 0.62,
+    "덴마크 수페르리가 (1부)": 0.61,
+    "스코틀랜드 프리미어십 (1부)": 0.60,
+    "아르헨티나 프리메라 디비시온 (1부)": 0.60,
+    "폴란드 엑스트라클라사 (1부)": 0.55,
+    "프랑스 리그 2 (2부)": 0.55,
+    "그리스 슈퍼리그 (1부)": 0.54,
+    "사우디 프로리그 (SPL 1부)": 0.52,
+    "일본 J1리그 (1부)": 0.50,
+    "대한민국 K리그1 (1부)": 0.48,
+    "스웨덴 알스벤스칸 (1부)": 0.48,
+    "노르웨이 엘리테세리엔 (1부)": 0.47,
+    "일본 J2리그 (2부)": 0.35,
+    "대한민국 K리그2 (2부)": 0.33,
     "기타 리그": 0.30
 }
 
 CLUB_TIERS = {
     "Tier 1: 엘리트 메가클럽 (레알, 맨시티, 바이에른 등)": 1.05,
-    "Tier 2: 빅클럽 (아스날, 리버풀, 바르샤 등)": 1.02,
-    "Tier 3: 중상위권 클럽 (토트넘, 도르트문트 등)": 1.00,
+    "Tier 2: 빅클럽 (아스날, 리버풀 등)": 1.02,
+    "Tier 3: 중상위권 클럽 (토트넘 등)": 1.00,
     "Tier 4: 중하위권 클럽": 0.98,
     "Tier 5: 소형/셀링 클럽": 0.95
 }
@@ -150,7 +190,7 @@ tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "🏆 구단/리그별 종합 결산"
 ])
 
-# ================= TAB 1: 적정 이적료 평가 =================
+# ================= TAB 1: 적정 이적료 평가 (원본 백업 스타일 그대로 복원) =================
 with tab1:
     if st.session_state["last_saved_msg"]:
         st.success(st.session_state["last_saved_msg"])
@@ -229,7 +269,6 @@ with tab1:
 
     st.markdown("---")
 
-    # 시각화 및 가중치 현황표 (안정적인 2단 배치)
     viz_col1, viz_col2 = st.columns([1, 1], gap="large")
 
     with viz_col1:
@@ -371,7 +410,7 @@ with tab1:
                 except Exception as e:
                     st.error(f"⚠️ 저장 오류: {e}")
 
-# 나머지 탭 영역
+# 나머지 탭 영역 (2~6번 탭 유지)
 with tab2: st.subheader("📱 FotMob 시즌 성적 & 이적 예측")
 with tab3: st.subheader("🔍 과거 유사 이적 사례 비교")
 with tab4: st.subheader("🎯 이적 첫 시즌 실제 성적 검증")
