@@ -6,9 +6,13 @@ import json
 import plotly.graph_objects as go
 from datetime import datetime
 
-# 외부 탭 모듈 임포트
+# 6개 탭 모듈 전체 임포트
 from tab1_eval import render_tab1
 from tab2_fotmob import render_tab2
+from tab3_comps import render_tab3
+from tab4_validation import render_tab4
+from tab5_benchmark import render_tab5
+from tab6_analytics import render_tab6
 
 # 1. 페이지 기본 설정
 st.set_page_config(
@@ -137,7 +141,7 @@ def fetch_sheet_history():
 
 history_df = fetch_sheet_history()
 
-# 탭 구성
+# 메인 6개 탭 정의
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "💰 적정 이적료 평가", 
     "📱 FotMob 시즌 성적 & 이적 예측 (13대 풀 스탯)",
@@ -147,7 +151,7 @@ tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "🏆 이적시장 구단/리그별 종합 결산 & 데이터룸"
 ])
 
-# 1번 탭 렌더링
+# 각 탭별 모듈 호출 및 연동 데이터(tab1_data) 전달
 with tab1:
     tab1_data = render_tab1(
         history_df, GOOGLE_SHEET_WEBAPP_URL, LEAGUE_WEIGHTS, CLUB_TIERS, 
@@ -156,7 +160,6 @@ with tab1:
         TRACKED_LEAGUE_NAMES, get_positional_age_weight, format_currency_desc, rate_krw, rate_gbp
     )
 
-# 2번 탭 렌더링
 with tab2:
     render_tab2(
         history_df, GOOGLE_SHEET_WEBAPP_URL, LEAGUE_WEIGHTS, TRACKED_LEAGUE_NAMES, 
@@ -164,14 +167,13 @@ with tab2:
     )
 
 with tab3:
-    st.subheader("🔍 과거 유사 이적 사례 비교")
-    st.info("다음 단계에서 3번 탭 모듈(`tab3_comps.py`)을 생성해 연결하겠습니다.")
+    render_tab3(history_df, LEAGUE_WEIGHTS, format_currency_desc, tab1_data)
 
 with tab4:
-    st.subheader("🎯 이적 첫 시즌 실제 성적 검증")
+    render_tab4(VAL_SHEET_CSV_URL, GOOGLE_SHEET_WEBAPP_URL)
 
 with tab5:
-    st.subheader("👥 신규 이적생 vs 과거 유사 선수 벤치마크")
+    render_tab5(history_df, LEAGUE_WEIGHTS, format_currency_desc, tab1_data)
 
 with tab6:
-    st.subheader("🏆 이적시장 구단/리그별 종합 결산")
+    render_tab6(history_df, GOOGLE_SHEET_WEBAPP_URL, format_currency_desc)
