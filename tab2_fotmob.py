@@ -8,6 +8,13 @@ from datetime import datetime
 def render_tab2(history_df, GOOGLE_SHEET_WEBAPP_URL, LEAGUE_WEIGHTS, TRACKED_LEAGUE_NAMES, format_currency_desc, rate_krw, rate_gbp, tab1_data):
     st.subheader("📱 FotMob 스타일 시즌 성적 및 이적 예측룸 (13대 풀 스탯)")
 
+    # 1번 탭에서 전달받은 데이터 추출 (안전한 기본값 처리)
+    player_name = tab1_data.get("player_name", "선수")
+    is_out_trade = tab1_data.get("is_out_trade", False)
+    selling_league = tab1_data.get("selling_league", list(LEAGUE_WEIGHTS.keys())[0])
+
+    st.markdown(f"**분석 대상 선수**: `{'🔴 방출/판매' if is_out_trade else '🔵 영입/보강'}` **{player_name if player_name else '선수명 미입력'}** (원소속 리그: `{selling_league}`)")
+
     col_s1, col_s2 = st.columns([2, 1])
     with col_s1:
         st.markdown("##### 🔍 비교 및 분석 대상 선수 선택")
