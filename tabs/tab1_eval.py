@@ -83,6 +83,8 @@ def render(history_df, webhook_url):
         st.session_state["form_key_id"] = 0
     if "persistent_edit_row" not in st.session_state:
         st.session_state["persistent_edit_row"] = None
+    if "edit_form_data" not in st.session_state:
+        st.session_state["edit_form_data"] = {}
 
     c_mode1, _ = st.columns([1, 1])
     with c_mode1:
@@ -117,64 +119,50 @@ def render(history_df, webhook_url):
                             real_row_idx = match_idx_list[-1] + 2
                             st.session_state["persistent_edit_row"] = real_row_idx
 
-                        # 🌟 폼 키 ID를 증가시켜 위젯 세트를 새로 생성
                         st.session_state["form_key_id"] += 1
-                        k_id = st.session_state["form_key_id"]
 
-                        # 🌟 불러온 데이터를 세션 키에 직접 대입하여 위젯에 반영
-                        st.session_state[f"tab1_name_{k_id}"] = str(get_exact_val(row_raw, "선수명", ""))
-                        st.session_state[f"tab1_nat_{k_id}"] = str(get_exact_val(row_raw, "국적", ""))
-                        st.session_state[f"tab1_age_{k_id}"] = int(get_exact_val(row_raw, "만나이", 28))
-                        st.session_state[f"tab1_from_team_{k_id}"] = str(get_exact_val(row_raw, "원소속팀명", ""))
-                        st.session_state[f"tab1_to_team_{k_id}"] = str(get_exact_val(row_raw, "이적팀명", ""))
-                        st.session_state[f"tab1_tm_{k_id}"] = int(get_exact_val(row_raw, "TM시장가치(만€)", 4500))
-                        st.session_state[f"tab1_fee_{k_id}"] = int(get_exact_val(row_raw, "실제이적료(만€)", 0))
-                        st.session_state[f"tab1_wage_{k_id}"] = float(get_exact_val(row_raw, "주급(만€)", 0.0))
-                        
+                        # 셀렉트박스 매칭 헬퍼
+                        def find_match(val, options):
+                            for opt in options:
+                                if str(val).strip() in opt:
+                                    return opt
+                            return options[0]
+
                         p_notes = str(get_exact_val(row_raw, "스카우팅메모", ""))
-                        st.session_state[f"tab1_notes_{k_id}"] = p_notes.split(" | [영입")[0].split(" | [방출")[0].strip()
+                        clean_notes = p_notes.split(" | [영입")[0].split(" | [방출")[0].strip()
 
-                        # 셀렉트박스 매칭
-                        p_pos_str = str(get_exact_val(row_raw, "포지션", ""))
-                        for p_k in POSITION_WEIGHTS.keys():
-                            if p_pos_str and p_pos_str in p_k:
-                                st.session_state[f"tab1_pos_{k_id}"] = p_k
-                                break
+                        # 🌟 불러온 데이터를 세션 데이터 딕셔너리에 완벽히 저장
+                        st.session_state["edit_form_data"] = {
+                            "name": str(get_exact_val(row_raw, "선수명", "")),
+                            "nat": str(get_exact_val(row_raw, "국적", "")),
+                            "age": int(get_exact_val(row_raw, "만나이", 28)),
+                            "from_team": str(get_exact_val(row_raw, "원소속팀명", "")),
+                            "to_team": str(get_exact_val(row_raw, "이적팀명", "")),
+                            "tm": int(get_exact_val(row_raw, "TM시장가치(만€)", 4500)),
+                            "fee": int(get_exact_val(row_raw, "실제이적료(만€)", 0)),
+                            "wage": float(get_exact_val(row_raw, "주급(만€)", 0.0)),
+                            "notes": clean_notes,
+                            "season": find_match(get_exact_val(row_raw, "이적시즌", "26/27"), ["26/27 여름 (Summer)", "26/27 겨울 (Winter)", "기타"]),
+                            "ttype": find_match(get_exact_val(row_raw, "이적형태", ""), list(TRANSFER_TYPE_WEIGHTS.keys())),
+                            "pos": find_match(get_exact_val(row_raw, "포지션", ""), list(POSITION_WEIGHTS.keys())),
+                            "from_league": find_match(get_exact_val(row_raw, "원소속리그", ""), list(LEAGUE_WEIGHTS.keys())),
+                            "to_league": find_match(get_exact_val(row_raw, "이적팀리그", ""), list(LEAGUE_WEIGHTS.keys())),
+                            "tier": find_match(get_exact_val(row_raw, "영입구단티어", ""), list(CLUB_TIERS.keys()))
+                        }
 
-                        p_from_league = str(get_exact_val(row_raw, "원소속리그", ""))
-                        for l_k in LEAGUE_WEIGHTS.keys():
-                            if p_from_league and p_from_league in l_k:
-                                st.session_state[f"tab1_from_league_{k_id}"] = l_k
-                                break
-
-                        p_to_league_name = str(get_exact_val(row_raw, "이적팀리그", ""))
-                        for l_k in LEAGUE_WEIGHTS.keys():
-                            if p_to_league_name and p_to_league_name in l_k:
-                                st.session_state[f"tab1_to_league_{k_id}"] = l_k
-                                break
-
-                        p_tier = str(get_exact_val(row_raw, "영입구단티어", ""))
-                        for t_k in CLUB_TIERS.keys():
-                            if p_tier and p_tier in t_k:
-                                st.session_state[f"tab1_tier_{k_id}"] = t_k
-                                break
-
-                        p_ttype = str(get_exact_val(row_raw, "이적형태", ""))
-                        for tt_k in TRANSFER_TYPE_WEIGHTS.keys():
-                            if p_ttype and p_ttype in tt_k:
-                                st.session_state[f"tab1_ttype_{k_id}"] = tt_k
-                                break
-
-                        st.session_state["last_saved_msg"] = f"✅ '{sel_e_player}' 데이터 불러오기 완료! (시트 행번호: {st.session_state['persistent_edit_row']})"
+                        st.session_state["last_saved_msg"] = f"✅ '{sel_e_player}' 불러오기 완료! (시트 행번호: {st.session_state['persistent_edit_row']})"
                         st.rerun()
     else:
         st.session_state["persistent_edit_row"] = None
+        if not edit_toggle and st.session_state.get("edit_form_data"):
+            st.session_state["edit_form_data"] = {}
 
+    efd = st.session_state.get("edit_form_data", {})
     k_id = st.session_state["form_key_id"]
     active_row_index = st.session_state.get("persistent_edit_row")
 
     if edit_toggle and active_row_index:
-        st.info(f"📌 [수정 모드 활성화됨] 현재 타겟 구글 시트 행 번호: **{active_row_index}번째 행** (이 행의 데이터가 덮어씌워집니다)")
+        st.info(f"📌 [수정 모드 활성화됨] 대상 행 번호: **{active_row_index}번째 행** (이 행의 데이터가 덮어씌워집니다)")
 
     st.markdown("---")
     trade_type_choice = st.radio("거래 유형 구분", ["🔵 영입 (IN)", "🔴 방출 / 판매 (OUT)"], index=0, horizontal=True, key=f"tab1_trade_type_{k_id}")
@@ -183,27 +171,38 @@ def render(history_df, webhook_url):
     col1, col2 = st.columns([1, 1])
 
     with col1:
-        st.subheader(f"📝 {'[수정 모드 안심 상태] ' if (edit_toggle and active_row_index) else ''}{'방출(OUT)' if is_out_trade else '영입(IN)'} 선수 & 계약 정보")
+        st.subheader(f"📝 {'[수정 모드] ' if (edit_toggle and active_row_index) else ''}{'방출(OUT)' if is_out_trade else '영입(IN)'} 선수 & 계약 정보")
         c_s1, c_s2 = st.columns(2)
-        with c_s1: season_val = st.selectbox("이적 시즌 / 시장", ["26/27 여름 (Summer)", "26/27 겨울 (Winter)", "기타"], index=0, key=f"tab1_season_{k_id}")
-        with c_s2: transfer_type = st.selectbox("이적 형태 & 계약 조항", list(TRANSFER_TYPE_WEIGHTS.keys()), index=0, key=f"tab1_ttype_{k_id}")
+        
+        seasons_list = ["26/27 여름 (Summer)", "26/27 겨울 (Winter)", "기타"]
+        def_seas_idx = seasons_list.index(efd.get("season")) if efd.get("season") in seasons_list else 0
+        with c_s1: season_val = st.selectbox("이적 시즌 / 시장", seasons_list, index=def_seas_idx, key=f"tab1_season_{k_id}")
+        
+        ttype_list = list(TRANSFER_TYPE_WEIGHTS.keys())
+        def_tt_idx = ttype_list.index(efd.get("ttype")) if efd.get("ttype") in ttype_list else 0
+        with c_s2: transfer_type = st.selectbox("이적 형태 & 계약 조항", ttype_list, index=def_tt_idx, key=f"tab1_ttype_{k_id}")
             
         option_exercised = st.checkbox("📌 임대 후 옵션 발동 (완전 전환 완료된 건)", value=False, key=f"tab1_opt_{k_id}")
         if option_exercised:
             transfer_type = "일반 완전 이적 (Permanent, 기준)"
 
         c_n1, c_n2, c_n3 = st.columns([2, 1, 1])
-        with c_n1: player_name = st.text_input("선수 이름", placeholder="예: Bruno Guimarães", key=f"tab1_name_{k_id}")
-        with c_n2: player_nat = st.text_input("국적", placeholder="예: 브라질", key=f"tab1_nat_{k_id}")
-        with c_n3: player_age = st.number_input("만 나이", min_value=15, max_value=45, value=28, key=f"tab1_age_{k_id}")
+        with c_n1: player_name = st.text_input("선수 이름", value=efd.get("name", ""), placeholder="예: Bruno Guimarães", key=f"tab1_name_{k_id}")
+        with c_n2: player_nat = st.text_input("국적", value=efd.get("nat", ""), placeholder="예: 브라질", key=f"tab1_nat_{k_id}")
+        with c_n3: player_age = st.number_input("만 나이", min_value=15, max_value=45, value=int(efd.get("age", 28)), key=f"tab1_age_{k_id}")
 
         c_t1, c_t2, c_t3 = st.columns(3)
-        with c_t1: in_from_team = st.text_input("원소속팀명 (보내는 팀)", placeholder="예: 뉴캐슬", key=f"tab1_from_team_{k_id}")
-        with c_t2: in_to_team = st.text_input("이적팀명 (영입 구단)", placeholder="예: 맨체스터 시티", key=f"tab1_to_team_{k_id}")
-        with c_t3: in_to_league_choice = st.selectbox("이적팀 리그", list(LEAGUE_WEIGHTS.keys()), index=0, key=f"tab1_to_league_{k_id}")
+        with c_t1: in_from_team = st.text_input("원소속팀명 (보내는 팀)", value=efd.get("from_team", ""), placeholder="예: 뉴캐슬", key=f"tab1_from_team_{k_id}")
+        with c_t2: in_to_team = st.text_input("이적팀명 (영입 구단)", value=efd.get("to_team", ""), placeholder="예: 맨체스터 시티", key=f"tab1_to_team_{k_id}")
         
+        league_list = list(LEAGUE_WEIGHTS.keys())
+        def_to_l_idx = league_list.index(efd.get("to_league")) if efd.get("to_league") in league_list else 0
+        with c_t3: in_to_league_choice = st.selectbox("이적팀 리그", league_list, index=def_to_l_idx, key=f"tab1_to_league_{k_id}")
+        
+        pos_list = list(POSITION_WEIGHTS.keys())
+        def_pos_idx = pos_list.index(efd.get("pos")) if efd.get("pos") in pos_list else 2
         pos_col1, pos_col2 = st.columns(2)
-        with pos_col1: main_position = st.selectbox("주 포지션", list(POSITION_WEIGHTS.keys()), index=2, key=f"tab1_pos_{k_id}")
+        with pos_col1: main_position = st.selectbox("주 포지션", pos_list, index=def_pos_idx, key=f"tab1_pos_{k_id}")
         with pos_col2: versatility = st.selectbox("멀티 포지션 소화 능력", list(VERSATILITY_WEIGHTS.keys()), index=0, key=f"tab1_vers_{k_id}")
             
         c_r1, c_r2 = st.columns(2)
@@ -214,15 +213,20 @@ def render(history_df, webhook_url):
         with c_i1: injury_status = st.selectbox("부상 내구성 & 메디컬 리스크", list(INJURY_WEIGHTS.keys()), index=1, key=f"tab1_inj_{k_id}")
         with c_i2: urgency_status = st.selectbox("영입 구단 절박성 & 취약 포지션", list(URGENCY_WEIGHTS.keys()), index=0, key=f"tab1_urg_{k_id}")
 
-        selling_league = st.selectbox("보내는 리그 (원소속 리그)", list(LEAGUE_WEIGHTS.keys()), index=0, key=f"tab1_from_league_{k_id}")
-        buying_club_tier = st.selectbox("영입구단티어", list(CLUB_TIERS.keys()), index=1, key=f"tab1_tier_{k_id}")
+        def_from_l_idx = league_list.index(efd.get("from_league")) if efd.get("from_league") in league_list else 0
+        selling_league = st.selectbox("보내는 리그 (원소속 리그)", league_list, index=def_from_l_idx, key=f"tab1_from_league_{k_id}")
+        
+        tier_list = list(CLUB_TIERS.keys())
+        def_tier_idx = tier_list.index(efd.get("tier")) if efd.get("tier") in tier_list else 1
+        buying_club_tier = st.selectbox("영입구단티어", tier_list, index=def_tier_idx, key=f"tab1_tier_{k_id}")
+        
         remaining_contract = st.selectbox("이적 당시 잔여 계약 기간", list(CONTRACT_WEIGHTS.keys()), index=2, key=f"tab1_contract_{k_id}")
         
         st.markdown("---")
-        tm_market_value = st.number_input("TM시장가치(만€)", min_value=0, value=8500, step=50, key=f"tab1_tm_{k_id}")
-        actual_transfer_fee = st.number_input("실제이적료(만€)", min_value=0, value=10000, step=50, key=f"tab1_fee_{k_id}")
-        weekly_wage_in = st.number_input("주급(만€)", min_value=0.0, value=30.0, step=0.5, key=f"tab1_wage_{k_id}")
-        player_notes = st.text_area("스카우팅메모", placeholder="특이사항 입력", key=f"tab1_notes_{k_id}")
+        tm_market_value = st.number_input("TM시장가치(만€)", min_value=0, value=int(efd.get("tm", 8500)), step=50, key=f"tab1_tm_{k_id}")
+        actual_transfer_fee = st.number_input("실제이적료(만€)", min_value=0, value=int(efd.get("fee", 10000)), step=50, key=f"tab1_fee_{k_id}")
+        weekly_wage_in = st.number_input("주급(만€)", min_value=0.0, value=float(efd.get("wage", 30.0)), step=0.5, key=f"tab1_wage_{k_id}")
+        player_notes = st.text_area("스카우팅메모", value=efd.get("notes", ""), placeholder="특이사항 입력", key=f"tab1_notes_{k_id}")
 
     # 계산 로직
     league_w = LEAGUE_WEIGHTS[selling_league]
@@ -297,6 +301,7 @@ def render(history_df, webhook_url):
                     if res.status_code in [200, 302]:
                         st.session_state["last_saved_msg"] = f"✅ '{player_name}' 데이터가 {active_row_index if (edit_toggle and active_row_index) else '신규'} 행에 정상 반영되었습니다!"
                         st.session_state["persistent_edit_row"] = None
+                        st.session_state["edit_form_data"] = {}
                         st.cache_data.clear()
                         st.rerun()
                 except Exception as e:
