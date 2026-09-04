@@ -75,9 +75,9 @@ def render_tab1(history_df, GOOGLE_SHEET_WEBAPP_URL, LEAGUE_WEIGHTS, CLUB_TIERS,
                             "age": int(row_data.get("나이", 28)) if pd.notnull(row_data.get("나이")) else 28,
                             "from_team": str(row_data.get("원소속팀명", "")),
                             "to_team": str(row_data.get("이적팀명", "")),
-                            "tm": int(row_data.get("TM시장가치(만€)", row_data.get("시장가치(만€)", 4500))) if pd.notnull(row_data.get("TM시장가치(만€)", row_data.get("시장가치(만€)"))) else 4500,
+                            "tm": int(row_data.get("TM시장가치(만€)", 4500)) if pd.notnull(row_data.get("TM시장가치(만€)")) else 4500,
                             "fee": int(row_data.get("실제이적료(만€)", 0)) if pd.notnull(row_data.get("실제이적료(만€)")) else 0,
-                            "wage": float(row_data.get("주급(만€)", row_data.get("선수주급(만€)", 0.0))) if pd.notnull(row_data.get("주급(만€)", row_data.get("선수주급(만€)"))) else 0.0,
+                            "wage": float(row_data.get("주급(만€)", 0.0)) if pd.notnull(row_data.get("주급(만€)")) else 0.0,
                             "notes": str(row_data.get("스카우팅메모", "")),
                             "season": sel_e_season,
                             "pos": pos_match,
@@ -89,7 +89,7 @@ def render_tab1(history_df, GOOGLE_SHEET_WEBAPP_URL, LEAGUE_WEIGHTS, CLUB_TIERS,
                             "trade_type": "🔴 방출 / 판매 (OUT)" if str(row_data.get("거래구분", "")).strip() == "OUT" else "🔵 영입 (IN)"
                         }
 
-                        # 🌟 2번 탭 13대 풀 스탯 및 세부 지표 완벽 매칭 주입
+                        # 🌟 구글 시트 실제 컬럼명과 100% 일치하도록 매핑 주입
                         def get_val(keys, default_val):
                             for k in keys:
                                 if k in row_data and pd.notnull(row_data[k]) and str(row_data[k]).strip() not in ["", "nan"]:
@@ -99,35 +99,35 @@ def render_tab1(history_df, GOOGLE_SHEET_WEBAPP_URL, LEAGUE_WEIGHTS, CLUB_TIERS,
                                         pass
                             return default_val
 
-                        st.session_state["f_matches"] = get_val(["이전_출전경기", "직전_경기수", "출전경기", "Matches"], 28)
-                        st.session_state["f_starts"] = get_val(["이전_선발", "직전_선발", "선발", "Starts"], 25)
-                        st.session_state["f_mins"] = get_val(["이전_출전시간", "직전_출전시간", "출전시간", "Minutes"], 2206)
-                        st.session_state["f_rating"] = get_val(["이전_FotMob평점", "직전_평점", "FotMob평점", "평점"], 7.32)
+                        st.session_state["f_matches"] = get_val(["이전_출전경기", "출전경기"], 28)
+                        st.session_state["f_starts"] = get_val(["선발출전", "선발"], 25)
+                        st.session_state["f_mins"] = get_val(["이전_출전시간", "출전시간"], 2206)
+                        st.session_state["f_rating"] = get_val(["이전_FotMob평점", "FotMob평점", "평점"], 7.32)
 
-                        st.session_state["f_goals"] = get_val(["이전_골", "직전_골", "득점", "Goals"], 16)
-                        st.session_state["f_xg"] = get_val(["이전_xG", "직전_xG", "기대득점", "xG"], 17.44)
-                        st.session_state["f_shots"] = get_val(["이전_총슈팅", "직전_슈팅", "슈팅", "Shots"], 88)
-                        st.session_state["f_sot"] = get_val(["이전_유효슈팅", "유효슈팅", "SOT"], 43)
+                        st.session_state["f_goals"] = get_val(["이전_골", "득점"], 16)
+                        st.session_state["f_xg"] = get_val(["이전_xG", "xG"], 17.44)
+                        st.session_state["f_shots"] = get_val(["이전_총슈팅", "총슈팅", "슈팅"], 88)
+                        st.session_state["f_sot"] = get_val(["이전_유효슈팅", "유효슈팅"], 43)
                         st.session_state["f_pk_goals"] = get_val(["PK득점", "PK"], 0)
 
-                        st.session_state["f_assists"] = get_val(["이전_도움", "직전_도움", "도움", "Assists"], 4)
-                        st.session_state["f_xa"] = get_val(["이전_xA", "직전_xA", "기대도움", "xA"], 3.33)
-                        st.session_state["f_chances"] = get_val(["이전_찬스메이킹", "직전_기회창출", "기회창출", "Chances"], 25)
+                        st.session_state["f_assists"] = get_val(["이전_도움", "도움"], 4)
+                        st.session_state["f_xa"] = get_val(["이전_xA", "xA"], 3.33)
+                        st.session_state["f_chances"] = get_val(["이전_찬스메이킹", "찬스메이킹", "기회창출"], 25)
                         st.session_state["f_big_chances"] = get_val(["빅찬스메이킹", "빅찬스"], 0)
-                        st.session_state["f_pass_acc"] = get_val(["패스성공률", "PassAcc"], 85.0)
+                        st.session_state["f_pass_acc"] = get_val(["패스성공률"], 85.0)
 
-                        st.session_state["f_dribbles"] = get_val(["이전_성공드리블", "직전_드리블", "드리블", "Dribbles"], 14)
-                        st.session_state["f_touches_box"] = get_val(["이전_박스터치", "직전_박스터치", "박스터치"], 153)
-                        st.session_state["f_ground_duels"] = get_val(["지상경합승률", "GroundDuels"], 55.0)
-                        st.session_state["f_aerial_duels"] = get_val(["공중볼승률", "AerialDuels"], 50.0)
-                        st.session_state["f_tackles"] = get_val(["이전_태클성공", "직전_태클", "태클", "Tackles"], 24)
+                        st.session_state["f_dribbles"] = get_val(["이전_성공드리블", "성공드리블", "드리블"], 14)
+                        st.session_state["f_touches_box"] = get_val(["이전_박스터치", "박스터치"], 153)
+                        st.session_state["f_ground_duels"] = get_val(["지상경합승률"], 55.0)
+                        st.session_state["f_aerial_duels"] = get_val(["공중볼승률"], 50.0)
+                        st.session_state["f_tackles"] = get_val(["이전_태클성공", "태클성공", "태클"], 24)
 
-                        st.session_state["f_gk_saves"] = get_val(["GK_선방", "선방"], 78)
-                        st.session_state["f_gk_conceded"] = get_val(["GK_실점", "실점"], 28)
-                        st.session_state["f_gk_prevented"] = get_val(["GK_득점차단", "득점차단"], 2.45)
-                        st.session_state["f_gk_cs"] = get_val(["GK_클린시트", "클린시트"], 10)
-                        st.session_state["f_gk_errors"] = get_val(["GK_실수", "실수"], 0)
-                        st.session_state["f_gk_claims"] = get_val(["GK_공중볼", "공중볼"], 18)
+                        st.session_state["f_gk_saves"] = get_val(["GK_선방"], 78)
+                        st.session_state["f_gk_conceded"] = get_val(["GK_실점"], 28)
+                        st.session_state["f_gk_prevented"] = get_val(["GK_득점차단"], 2.45)
+                        st.session_state["f_gk_cs"] = get_val(["GK_클린시트"], 10)
+                        st.session_state["f_gk_errors"] = get_val(["GK_실수"], 0)
+                        st.session_state["f_gk_claims"] = get_val(["GK_공중볼"], 18)
 
                         st.session_state["form_key_id"] += 1
                         st.rerun()
