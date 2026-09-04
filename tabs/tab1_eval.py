@@ -46,6 +46,13 @@ def get_exact_val(row, col_name, default_val=""):
     return default_val
 
 def render(history_df, GOOGLE_SHEET_WEBAPP_URL):
+    # 🌟 폼 구성 전용 세션 데이터 컨테이너 초기화
+    if "form_data" not in st.session_state:
+        st.session_state["form_data"] = {
+            "name": "", "nat": "", "age": 28, "from_team": "", "to_team": "",
+            "tm": 4500, "fee": 0, "wage": 0.0, "notes": "", "row_idx": None
+        }
+
     c_m1, c_m2 = st.columns([1, 1])
     with c_m1:
         edit_toggle = st.toggle("✏️ 기존 저장된 선수 불러와서 수정 모드", value=False)
@@ -69,22 +76,30 @@ def render(history_df, GOOGLE_SHEET_WEBAPP_URL):
                     if sel_e_player:
                         row_raw = e_season_df[e_season_df["선수명"] == sel_e_player].iloc[-1]
                         match_idx_list = e_season_df.index[e_season_df["선수명"] == sel_e_player].tolist()
-                        if match_idx_list:
-                            st.session_state["edit_row_index"] = match_idx_list[-1] + 2
+                        
+                        target_row_index = match_idx_list[-1] + 2 if match_idx_list else None
 
-                        st.session_state["input_name"] = str(get_exact_val(row_raw, "선수명", ""))
-                        st.session_state["input_nat"] = str(get_exact_val(row_raw, "국적", ""))
-                        st.session_state["input_age"] = int(get_exact_val(row_raw, "만나이", 28))
-                        st.session_state["input_from_team"] = str(get_exact_val(row_raw, "원소속팀명", ""))
-                        st.session_state["input_to_team"] = str(get_exact_val(row_raw, "이적팀명", ""))
-                        st.session_state["input_tm"] = int(get_exact_val(row_raw, "TM시장가치(만€)", 4500))
-                        st.session_state["input_fee"] = int(get_exact_val(row_raw, "실제이적료(만€)", 0))
-                        st.session_state["input_wage"] = float(get_exact_val(row_raw, "주급(만€)", 0.0))
-                        st.session_state["input_notes"] = str(get_exact_val(row_raw, "스카우팅메모", ""))
-                        st.success(f"✅ '{sel_e_player}' 불러오기 완료!")
+                        # 🌟 불러온 데이터를 딕셔너리에 담아 완벽하게 고정
+                        st.session_state["form_data"] = {
+                            "name": str(get_exact_val(row_raw, "선수명", "")),
+                            "nat": str(get_exact_val(row_raw, "국적", "")),
+                            "age": int(get_exact_val(row_raw, "만나이", 28)),
+                            "from_team": str(get_exact_val(row_raw, "원소속팀명", "")),
+                            "to_team": str(get_exact_val(row_raw, "이적팀명", "")),
+                            "tm": int(get_exact_val(row_raw, "TM시장가치(만€)", 4500)),
+                            "fee": int(get_exact_val(row_raw, "실제이적료(만€)", 0)),
+                            "wage": float(get_exact_val(row_raw, "주급(만€)", 0.0)),
+                            "notes": str(get_exact_val(row_raw, "스카우팅메모", "")),
+                            "row_idx": target_row_index
+                        }
+                        st.success(f"✅ '{sel_e_player}' 데이터 불러오기 완료!")
                         st.rerun()
     else:
-        st.session_state["edit_row_index"] = None
+        if not edit_toggle and st.session_state["form_data"]["row_idx"] is not None:
+            # 수정 모드가 아닐 때는 데이터 초기화
+            st.session_state["form_data"]["row_idx"] = None
+
+    fd = st.session_state["form_data"]
 
     st.markdown("---")
     trade_type_choice = st.radio("거래 유형 구분", ["🔵 영입 (IN)", "🔴 방출 / 판매 (OUT)"], index=0, horizontal=True)
@@ -92,19 +107,20 @@ def render(history_df, GOOGLE_SHEET_WEBAPP_URL):
 
     col1, col2 = st.columns([1, 1])
     with col1:
-        st.subheader(f"📝 {'[수정 모드] ' if edit_toggle else ''}선수 & 계약 정보")
+        st.subheader(f"📝 {'[수정 모드] ' if fd['row_idx'] else ''}선수 & 계약 정보")
         c_s1, c_s2 = st.columns(2)
         with c_s1: season_val = st.selectbox("이적 시즌", ["26/27 여름 (Summer)", "26/27 겨울 (Winter)", "기타"], index=0)
         with c_s2: transfer_type = st.selectbox("이적 형태", list(TRANSFER_TYPE_WEIGHTS.keys()), index=0)
 
         cn1, cn2, cn3 = st.columns([2, 1, 1])
-        with cn1: player_name = st.text_input("선수 이름", key="input_name")
-        with cn2: player_nat = st.text_input("국적", key="input_nat")
-        with cn3: player_age = st.number_input("만 나이", min_value=15, max_value=45, key="input_age")
+        # 🌟 세션 딕셔너리의 값을 기본값(value)으로 고정하여 렌더링 (리셋 방지)
+        with cn1: player_name = st.text_input("선수 이름", value=fd["name"])
+        with cn2: player_nat = st.text_input("국적", value=fd["nat"])
+        with cn3: player_age = st.number_input("만 나이", min_value=15, max_value=45, value=fd["age"])
 
         ct1, ct2, ct3 = st.columns(3)
-        with ct1: in_from_team = st.text_input("원소속팀명", key="input_from_team")
-        with ct2: in_to_team = st.text_input("이적팀명", key="input_to_team")
+        with ct1: in_from_team = st.text_input("원소속팀명", value=fd["from_team"])
+        with ct2: in_to_team = st.text_input("이적팀명", value=fd["to_team"])
         with ct3: in_to_league_choice = st.selectbox("이적팀 리그", list(LEAGUE_WEIGHTS.keys()), index=0)
 
         pc1, pc2 = st.columns(2)
@@ -124,11 +140,11 @@ def render(history_df, GOOGLE_SHEET_WEBAPP_URL):
         remaining_contract = st.selectbox("잔여 계약", list(CONTRACT_WEIGHTS.keys()), index=2)
 
         st.markdown("---")
-        tm_market_value = st.number_input("TM시장가치(만€)", min_value=0, key="input_tm", step=50)
+        tm_market_value = st.number_input("TM시장가치(만€)", min_value=0, value=fd["tm"], step=50)
         is_undisclosed = "비공개" in transfer_type
-        actual_transfer_fee = st.number_input("실제이적료(만€)", min_value=0, key="input_fee", step=50, disabled=is_undisclosed)
-        weekly_wage_in = st.number_input("주급(만€)", min_value=0.0, key="input_wage", step=0.5)
-        player_notes = st.text_area("스카우팅메모", key="input_notes")
+        actual_transfer_fee = st.number_input("실제이적료(만€)", min_value=0, value=fd["fee"], step=50, disabled=is_undisclosed)
+        weekly_wage_in = st.number_input("주급(만€)", min_value=0.0, value=fd["wage"], step=0.5)
+        player_notes = st.text_area("스카우팅메모", value=fd["notes"])
 
     # 가중치 계산
     league_w = LEAGUE_WEIGHTS[selling_league]
@@ -162,7 +178,9 @@ def render(history_df, GOOGLE_SHEET_WEBAPP_URL):
         rc4.metric("이적 평점", f"★ {final_deal_score:.2f}")
 
     st.markdown("---")
-    action_type = "update" if edit_toggle and st.session_state.get("edit_row_index") is not None else "save_all"
+    
+    # 🌟 수정 모드 여부 판단 (row_idx가 존재하면 update, 아니면 save_all)
+    action_type = "update" if fd["row_idx"] is not None else "save_all"
     btn_label = f"🔄 '{player_name}' 기존 기록 수정하기 (덮어쓰기)" if action_type == "update" else f"💾 구글 시트에 신규 저장하기"
 
     if st.button(btn_label, type="primary", use_container_width=True):
@@ -172,7 +190,7 @@ def render(history_df, GOOGLE_SHEET_WEBAPP_URL):
             with st.spinner("구글 시트에 데이터를 전송 중입니다..."):
                 payload = {
                     "action": action_type,
-                    "row_index": st.session_state.get("edit_row_index") if action_type == "update" else None,
+                    "row_index": fd["row_idx"],
                     "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
                     "season": season_val, "name": player_name, "nat": player_nat or "미상",
                     "age": int(player_age), "pos": main_position.split(" (")[0],
@@ -195,15 +213,13 @@ def render(history_df, GOOGLE_SHEET_WEBAPP_URL):
                     res = requests.post(GOOGLE_SHEET_WEBAPP_URL, data=json.dumps(payload), headers={"Content-Type": "text/plain;charset=utf-8"}, timeout=30)
                     res_json = res.json()
                     if res.status_code in [200, 302] and res_json.get("status") == "success":
-                        st.session_state["last_saved_msg"] = f"✅ '{player_name}' 데이터 처리 완료!"
+                        st.session_state["last_saved_msg"] = f"✅ '{player_name}' 선수의 데이터가 성공적으로 {'수정(덮어쓰기)' if action_type == 'update' else '저장'}되었습니다!"
                         st.cache_data.clear()
-                        st.session_state["edit_row_index"] = None
-                        for k in ["input_name", "input_nat", "input_from_team", "input_to_team", "input_notes"]:
-                            st.session_state[k] = ""
-                        st.session_state["input_age"] = 28
-                        st.session_state["input_tm"] = 4500
-                        st.session_state["input_fee"] = 0
-                        st.session_state["input_wage"] = 0.0
+                        # 폼 데이터 초기화
+                        st.session_state["form_data"] = {
+                            "name": "", "nat": "", "age": 28, "from_team": "", "to_team": "",
+                            "tm": 4500, "fee": 0, "wage": 0.0, "notes": "", "row_idx": None
+                        }
                         st.rerun()
                     else:
                         st.error(f"⚠️ 실패: {res_json.get('message')}")
