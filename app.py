@@ -939,7 +939,18 @@ with tab2:
 
     is_winter_mode = "겨울" in winter_data_source
 
-    # 🌟 [신규 추가] 유망주 및 겨울 이적시장 기준이 세분화된 역할군 선택 필터
+    # 🌟 [세션 연동 동적 출전시간 관리]
+    target_mins_key = f"target_mins_state_{k_id}"
+    last_role_key = f"last_role_{k_id}"
+    last_winter_key = f"last_winter_{k_id}"
+
+    if target_mins_key not in st.session_state:
+        st.session_state[target_mins_key] = 1440 if is_winter_mode else 3000
+    if last_role_key not in st.session_state:
+        st.session_state[last_role_key] = ""
+    if last_winter_key not in st.session_state:
+        st.session_state[last_winter_key] = is_winter_mode
+
     st.markdown("##### ⏱️ 이적 팀 예상 출전 시간 역할군 설정 (Quick Role Selector)")
     role_col1, role_col2 = st.columns([2, 2])
     
@@ -958,17 +969,25 @@ with tab2:
             key=f"role_selector_{k_id}"
         )
 
-    # 역할군 및 여름/겨울 모드에 따른 자동 출전시간 할당
+    # 역할군별 출전 시간 산출
     if "3,000분" in selected_role:
-        auto_mins = 1440 if is_winter_mode else 3000
+        calc_mins = 1440 if is_winter_mode else 3000
     elif "2,500분" in selected_role:
-        auto_mins = 1200 if is_winter_mode else 2500
+        calc_mins = 1200 if is_winter_mode else 2500
     elif "1,800분" in selected_role:
-        auto_mins = 900 if is_winter_mode else 1800
+        calc_mins = 900 if is_winter_mode else 1800
     elif "800분" in selected_role or "유망주" in selected_role:
-        auto_mins = 400 if is_winter_mode else 800
+        calc_mins = 400 if is_winter_mode else 800
     else:
-        auto_mins = 1440 if is_winter_mode else 3036
+        calc_mins = st.session_state[target_mins_key]
+
+    # 역할군이나 겨울모드가 변경되었을 때만 출전시간 자동 갱신
+    if selected_role != "✏️ 직접 분 단위로 입력하기":
+        if st.session_state[last_role_key] != selected_role or st.session_state[last_winter_key] != is_winter_mode:
+            st.session_state[target_mins_key] = calc_mins
+
+    st.session_state[last_role_key] = selected_role
+    st.session_state[last_winter_key] = is_winter_mode
 
     f_c1, f_c2, f_c3, f_c4 = st.columns(4)
     with f_c1: f_pos = st.selectbox("선수 포지션 분류", ["⚽ 필드 플레이어 (공격수/미드필더/수비수)", "🧤 골키퍼 (Goalkeeper)"], index=1 if "GK" in main_position else 0, key=f"f_tab_pos_{k_id}")
@@ -980,10 +999,11 @@ with tab2:
             "이적 팀 예상 출전 시간(분)", 
             min_value=90, 
             max_value=4500, 
-            value=int(auto_mins), 
+            value=int(st.session_state[target_mins_key]), 
             step=90, 
             key=f"f_tab_target_mins_{k_id}"
         )
+        st.session_state[target_mins_key] = f_target_mins
 
     raw_l_factor = LEAGUE_WEIGHTS[f_from_l] / LEAGUE_WEIGHTS[f_to_l]
     if LEAGUE_WEIGHTS[f_to_l] > LEAGUE_WEIGHTS[f_from_l]:
