@@ -351,11 +351,11 @@ with tab1:
                             "urgency": urg_match
                         }
 
-                        # 🌟 [2번 탭 세부 스탯까지 완벽 연동] 불러오기 매핑
+                        # 🌟 [평점 포함 세부 스탯 완벽 연동]
                         st.session_state["f_matches"] = int(find_val(rd, ["이전_출전경기", "출전경기", "matches"], 28))
                         st.session_state["f_starts"] = int(find_val(rd, ["선발출전", "선발", "starts"], 25))
                         st.session_state["f_mins"] = int(find_val(rd, ["이전_출전시간", "출전시간", "mins"], 2206))
-                        st.session_state["f_rating"] = float(find_val(rd, ["이전_FotMob평점", "평점", "rating"], 7.32))
+                        st.session_state["f_rating"] = float(find_val(rd, ["이전_FotMob평점", "이전평점", "FotMob평점", "평점", "rating"], 7.32))
 
                         st.session_state["f_goals"] = int(find_val(rd, ["이전_골", "골", "goals"], 16))
                         st.session_state["f_xg"] = float(find_val(rd, ["이전_xg", "xg"], 17.44))
@@ -938,13 +938,49 @@ with tab2:
     )
 
     is_winter_mode = "겨울" in winter_data_source
-    default_proj_mins = 1440 if is_winter_mode else 3036
+
+    # 🌟 [신규 추가] 선수 역할별 예상 출전시간 간편 필터 선택 박스
+    st.markdown("##### ⏱️ 이적 팀 예상 출전 시간 역할군 설정 (Quick Role Selector)")
+    role_col1, role_col2 = st.columns([2, 2])
+    
+    with role_col1:
+        selected_role = st.selectbox(
+            "선수의 팀 내 예상 위상 (역할군 선택)",
+            [
+                "🔥 1티어 핵심 주전 (메인 스타터 - 3,000분)",
+                "⭐ 2티어 일반 주전 (로테이션 핵심 - 2,500분)",
+                "⚖️ 3티어 스쿼드 뎁스 / 로테이션 (백업 - 1,800분)",
+                "🌱 4티어 로테이션 서브 / 컵대회 자원 (1,200분)",
+                "✏️ 직접 분 단위로 입력하기"
+            ],
+            index=0 if not is_winter_mode else 3,
+            key=f"role_selector_{k_id}"
+        )
+
+    if "3,000분" in selected_role:
+        auto_mins = 1440 if is_winter_mode else 3000
+    elif "2,500분" in selected_role:
+        auto_mins = 1200 if is_winter_mode else 2500
+    elif "1,800분" in selected_role:
+        auto_mins = 900 if is_winter_mode else 1800
+    elif "1,200분" in selected_role:
+        auto_mins = 600 if is_winter_mode else 1200
+    else:
+        auto_mins = 1440 if is_winter_mode else 3036
 
     f_c1, f_c2, f_c3, f_c4 = st.columns(4)
     with f_c1: f_pos = st.selectbox("선수 포지션 분류", ["⚽ 필드 플레이어 (공격수/미드필더/수비수)", "🧤 골키퍼 (Goalkeeper)"], index=1 if "GK" in main_position else 0, key=f"f_tab_pos_{k_id}")
     with f_c2: f_from_l = st.selectbox("원소속 리그 (기록 기준)", list(LEAGUE_WEIGHTS.keys()), index=list(LEAGUE_WEIGHTS.keys()).index(selling_league) if selling_league in LEAGUE_WEIGHTS else 0, key=f"f_tab_from_l_{k_id}")
     with f_c3: f_to_l = st.selectbox("이적할 리그", list(LEAGUE_WEIGHTS.keys()), index=list(LEAGUE_WEIGHTS.keys()).index(in_to_league_choice) if in_to_league_choice in LEAGUE_WEIGHTS else 0, key=f"f_tab_to_l_{k_id}")
-    with f_c4: f_target_mins = st.number_input("이적 팀 예상 출전 시간(분)", min_value=450, max_value=4500, value=min(int(default_proj_mins), 4500), step=90, key=f"f_tab_target_mins_{k_id}")
+    with f_c4: 
+        f_target_mins = st.number_input(
+            "이적 팀 예상 출전 시간(분)", 
+            min_value=90, 
+            max_value=4500, 
+            value=int(auto_mins), 
+            step=90, 
+            key=f"f_tab_target_mins_{k_id}"
+        )
 
     raw_l_factor = LEAGUE_WEIGHTS[f_from_l] / LEAGUE_WEIGHTS[f_to_l]
     if LEAGUE_WEIGHTS[f_to_l] > LEAGUE_WEIGHTS[f_from_l]:
@@ -1579,7 +1615,7 @@ with tab5:
     st.caption("새로운 시즌 영입 선수의 프로필(나이, 포지션, 이적료 규모, 생산력)을 과거 시트에 누적된 다른 선수들의 실제 사례와 1:1 및 다차원으로 정밀 비교합니다.")
 
     if history_df.empty or len(history_df) == 0 or "선수명" not in history_df.columns:
-        st.info("💡 **아직 과거 누적 데이터가 없습니다.**\n\n1번 및 2번 탭에서 선수 데이터를 2명 이상 저장하시면 과거 선수들과의 1:1 교차 비교 및 벤치마크 매칭이 활성화됩니다.")
+        st.info("💡 **아직 구글 시트에 누적된 과거 이적 데이터가 없습니다.**\n\n1번 및 2번 탭에서 선수 데이터를 2명 이상 저장하시면 과거 선수들과의 1:1 교차 비교 및 벤치마크 매칭이 활성화됩니다.")
     else:
         st.markdown("#### 1️⃣ 신규 분석 대상 선수 프로필 설정 (1번 탭 데이터 자동 연동)")
 
