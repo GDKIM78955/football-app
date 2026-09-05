@@ -940,7 +940,6 @@ with tab2:
 
     st.markdown("##### ⏱️ 이적 팀 예상 출전 시간 역할군 설정 (Quick Role Selector)")
     
-    # 원래 코드 레이아웃처럼 컬럼을 나누어 필터 크기를 적절하게 유지
     role_col_a, role_col_b = st.columns([2, 2])
     with role_col_a:
         role_options = [
@@ -1453,11 +1452,12 @@ with tab3:
 # ================= TAB 4: 이적 첫 시즌 실제 성적 입력 & 모델 검증 =================
 with tab4:
     st.subheader("🎯 이적 첫 시즌 실제 성적 입력 & 모델 예측 정확도 사후 검증")
-    st.caption("시즌 종료 후 선수가 실제로 기록한 최종 스탯(xG, xA 포함)을 입력하여 모델 예측치와의 오차율 및 적중률을 산출하고 [검증데이터] 시트에 업데이트합니다.")
+    st.caption("시즌 종료 후 선수가 실제로 기록한 최종 스탯(슈팅, xG, xA, 태클, 패스성공률 등 포함)을 입력하여 모델 예측치와의 오차율 및 적중률을 산출하고 [검증데이터] 시트에 업데이트합니다.")
 
     @st.cache_data(ttl=5)
     def fetch_validation_data():
         try:
+            df = pd.read_csvVAL_SHEET_CSV_URL if 'VAL_SHEET_CSV_URL' in globals() else pd.DataFrame()
             df = pd.read_csv(VAL_SHEET_CSV_URL)
             if not df.empty and "선수명" in df.columns:
                 return df
@@ -1542,34 +1542,100 @@ with tab4:
             pm5.metric("예측 평점", f"★ {proj_r:.2f}")
 
             st.markdown("<br>", unsafe_allow_html=True)
-            st.markdown("##### 📥 시즌 종료 후 실제 최종 기록 입력 (FotMob 기준)")
+            st.markdown("##### 📥 시즌 종료 후 실제 최종 기록 입력 (FotMob 기준 전 항목 완벽 지원)")
 
-            exist_act_mins = int(target_row.get("실제출전시간", 0)) if pd.notnull(target_row.get("실제출전시간")) and str(target_row.get("실제출전시간")).strip() not in ["", "nan"] else int(proj_m)
-            exist_act_goals = int(target_row.get("실제득점", 0)) if pd.notnull(target_row.get("실제득점")) and str(target_row.get("실제득점")).strip() not in ["", "nan"] else int(round(proj_g))
-            exist_act_xg = float(target_row.get("실제xG", 0.0)) if pd.notnull(target_row.get("실제xG")) and str(target_row.get("실제xG")).strip() not in ["", "nan"] else float(proj_xg)
-            exist_act_assists = int(target_row.get("실제도움", 0)) if pd.notnull(target_row.get("실제도움")) and str(target_row.get("실제도움")).strip() not in ["", "nan"] else int(round(proj_a))
-            exist_act_xa = float(target_row.get("실제xA", 0.0)) if pd.notnull(target_row.get("실제xA")) and str(target_row.get("실제xA")).strip() not in ["", "nan"] else float(proj_xa)
-            exist_act_rating = float(target_row.get("실제평점", 0.0)) if pd.notnull(target_row.get("실제평점")) and str(target_row.get("실제평점")).strip() not in ["", "nan"] else float(proj_r)
+            # 기존 입력값 또는 기본값 로드 헬퍼 함수
+            def get_val_num(col_name, default_v):
+                val = target_row.get(col_name, default_v)
+                if pd.notnull(val) and str(val).strip() not in ["", "nan", "None"]:
+                    try:
+                        return float(val) if isinstance(default_v, float) else int(float(val))
+                    except:
+                        return default_v
+                return default_v
+
+            exist_act_mins = get_val_num("실제_출전시간", int(proj_m))
+            exist_act_goals = get_val_num("실제_골", int(round(proj_g)))
+            exist_act_xg = get_val_num("실제_xG", float(proj_xg))
+            exist_act_assists = get_val_num("실제_도움", int(round(proj_a)))
+            exist_act_xa = get_val_num("실제_xA", float(proj_xa))
+            exist_act_rating = get_val_num("실제_평점", float(proj_r))
+
+            # 추가 누락 필드 로드
+            exist_act_shots = get_val_num("실제_총슈팅", 50)
+            exist_act_sot = get_val_num("실제_유효슈팅", 20)
+            exist_act_chances = get_val_num("실제_기회창출", 20)
+            exist_act_dribbles = get_val_num("실제_성공드리블", 15)
+            exist_act_box = get_val_num("실제_박스터치", 100)
+            exist_act_tackles = get_val_num("실제_태클성공", 25)
+            exist_act_bc = get_val_num("빅찬스메이킹(실제)", 2)
+            exist_act_pk = get_val_num("PK득점(실제)", 0)
+            exist_act_pass_pct = get_val_num("패스성공률(실제)", 85.0)
+            exist_act_duels_pct = get_val_num("지상경합승률(실제)", 60.0)
+            exist_act_aerial_pct = get_val_num("공중볼승률(실제)", 60.0)
+
+            # GK 전용 필드
+            exist_act_gk_saves = get_val_num("실제_GK선방", 0)
+            exist_act_gk_conceded = get_val_num("실제_GK실점", 0)
+            exist_act_gk_prevented = get_val_num("실제_GK득점차단", 0.0)
+            exist_act_gk_cs = get_val_num("실제_GK클린시트", 0)
+            exist_act_gk_errors = get_val_num("실제_GK실수", 0)
+            exist_act_gk_claims = get_val_num("실제_GK공중볼", 0)
+
             exist_act_notes = str(target_row.get("검증메모", "")) if pd.notnull(target_row.get("검증메모")) else ""
 
-            in_ac1, in_ac2, in_ac3, in_ac4, in_ac5, in_ac6 = st.columns(6)
-            with in_ac1: act_mins_val = st.number_input("실제 출전 시간(분)", 0, 4500, value=exist_act_mins, step=90, key="val_act_mins")
-            with in_ac2: act_goals_val = st.number_input("실제 득점(Goals)", 0, 60, value=exist_act_goals, step=1, key="val_act_goals")
-            with in_ac3: act_xg_val = st.number_input("실제 기대득점(xG)", 0.0, 50.0, value=exist_act_xg, step=0.01, key="val_act_xg")
-            with in_ac4: act_assists_val = st.number_input("실제 도움(Assists)", 0, 40, value=exist_act_assists, step=1, key="val_act_assists")
-            with in_ac5: act_xa_val = st.number_input("실제 기대도움(xA)", 0.0, 30.0, value=exist_act_xa, step=0.01, key="val_act_xa")
-            with in_ac6: act_rating_val = st.number_input("실제 FotMob 평균 평점", 4.0, 10.0, value=exist_act_rating, step=0.01, key="val_act_rating")
+            is_val_gk = "GK" in p_pos
 
-            act_notes_val = st.text_input("사후 검증 스카우팅 총평 / 비고", value=exist_act_notes, placeholder="예: 리그 적응 성공, 모델 예측 xG 및 평점 정확도 매우 우수", key="val_act_notes")
+            # 입력 폼 구성 (그룹별 렌더링)
+            st.markdown("###### ⏱️ 기본 출전 & 평점")
+            v_c1, v_c2, v_c3 = st.columns(3)
+            with v_c1: act_mins_val = st.number_input("실제 출전 시간(분)", 0, 4500, value=exist_act_mins, step=90, key="val_act_mins")
+            with v_c2: act_rating_val = st.number_input("실제 FotMob 평균 평점", 4.0, 10.0, value=float(exist_act_rating), step=0.01, key="val_act_rating")
+            with v_c3: act_notes_val = st.text_input("사후 검증 스카우팅 총평 / 비고", value=exist_act_notes, placeholder="예: 리그 적응 성공", key="val_act_notes")
+
+            if not is_val_gk:
+                st.markdown("###### ⚽ 득점 및 슈팅 관련 실제 지표")
+                v_s1, v_s2, v_s3, v_s4, v_s5 = st.columns(5)
+                with v_s1: act_goals_val = st.number_input("실제 득점(Goals)", 0, 60, value=exist_act_goals, step=1, key="val_act_goals")
+                with v_s2: act_xg_val = st.number_input("실제 기대득점(xG)", 0.0, 50.0, value=float(exist_act_xg), step=0.01, key="val_act_xg")
+                with v_s3: act_shots_val = st.number_input("실제 총 슈팅", 0, 250, value=exist_act_shots, step=1, key="val_act_shots")
+                with v_s4: act_sot_val = st.number_input("실제 유효 슈팅", 0, 120, value=exist_act_sot, step=1, key="val_act_sot")
+                with v_s5: act_pk_val = st.number_input("실제 PK 득점", 0, 20, value=exist_act_pk, step=1, key="val_act_pk")
+
+                st.markdown("###### 🎯 도움 및 기회 창출 실제 지표")
+                v_p1, v_p2, v_p3, v_p4 = st.columns(4)
+                with v_p1: act_assists_val = st.number_input("실제 도움(Assists)", 0, 40, value=exist_act_assists, step=1, key="val_act_assists")
+                with v_p2: act_xa_val = st.number_input("실제 기대도움(xA)", 0.0, 30.0, value=float(exist_act_xa), step=0.01, key="val_act_xa")
+                with v_p3: act_chances_val = st.number_input("실제 기회 창출", 0, 150, value=exist_act_chances, step=1, key="val_act_chances")
+                with v_p4: act_bc_val = st.number_input("실제 빅 찬스 메이킹", 0, 50, value=exist_act_bc, step=1, key="val_act_bc")
+
+                st.markdown("###### 🛡️ 드리블, 경합 및 수비 실제 지표")
+                v_d1, v_d2, v_d3, v_d4, v_d5 = st.columns(5)
+                with v_d1: act_dribbles_val = st.number_input("실제 성공 드리블", 0, 120, value=exist_act_dribbles, step=1, key="val_act_dribbles")
+                with v_d2: act_box_val = st.number_input("실제 박스 안 터치", 0, 300, value=exist_act_box, step=1, key="val_act_box")
+                with v_d3: act_tackles_val = st.number_input("실제 태클 성공", 0, 150, value=exist_act_tackles, step=1, key="val_act_tackles")
+                with v_d4: act_pass_pct_val = st.number_input("실제 패스 성공률(%)", 30.0, 100.0, value=float(exist_act_pass_pct), step=0.1, key="val_act_pass_pct")
+                with v_d5: act_duels_pct_val = st.number_input("실제 지상경합승률(%)", 10.0, 100.0, value=float(exist_act_duels_pct), step=0.1, key="val_act_duels_pct")
+                
+                # 추가 승률 입력
+                act_aerial_pct_val = st.number_input("실제 공중볼승률(%)", 10.0, 100.0, value=float(exist_act_aerial_pct), step=0.1, key="val_act_aerial_pct")
+            else:
+                st.markdown("###### 🧤 골키퍼(GK) 실제 세부 지표")
+                gk_c1, gk_c2, gk_c3 = st.columns(3)
+                with gk_c1: act_gk_saves_val = st.number_input("실제 선방", 0, 250, value=exist_act_gk_saves, key="val_act_gk_saves")
+                with gk_c2: act_gk_conceded_val = st.number_input("실제 실점", 0, 120, value=exist_act_gk_conceded, key="val_act_gk_conceded")
+                with gk_c3: act_gk_prevented_val = st.number_input("실제 득점 차단", -20.0, 30.0, value=float(exist_act_gk_prevented), step=0.01, key="val_act_gk_prevented")
+
+                gk_c4, gk_c5, gk_c6 = st.columns(3)
+                with gk_c4: act_gk_cs_val = st.number_input("실제 클린 시트", 0, 35, value=exist_act_gk_cs, key="val_act_gk_cs")
+                with gk_c5: act_gk_errors_val = st.number_input("실제 골 실수", 0, 15, value=exist_act_gk_errors, key="val_act_gk_errors")
+                with gk_c6: act_gk_claims_val = st.number_input("실제 공중볼 잡기", 0, 80, value=exist_act_gk_claims, key="val_act_gk_claims")
 
             rating_error = abs(act_rating_val - proj_r)
             rating_accuracy = max(0.0, round((1.0 - (rating_error / 1.5)) * 100, 1))
 
             mins_diff = act_mins_val - proj_m
-            goals_diff = act_goals_val - proj_g
-            xg_diff = act_xg_val - proj_xg
-            assists_diff = act_assists_val - proj_a
-            xa_diff = act_xa_val - proj_xa
+            goals_diff = (act_goals_val if not is_val_gk else 0) - proj_g
 
             st.markdown("---")
             st.markdown("#### 3️⃣ **모델 예측 vs 실제 성적 1:1 정밀 대칭 비교 리포트**")
@@ -1577,22 +1643,44 @@ with tab4:
             comp_col1, comp_col2, comp_col3, comp_col4, comp_col5 = st.columns(5)
             comp_col1.metric("평점 적중률", f"{rating_accuracy}%", delta=f"{act_rating_val - proj_r:+.2f}점 오차")
             comp_col2.metric("실제 출전시간", f"{act_mins_val:,}분", delta=f"{mins_diff:+,.0f}분 차이")
-            comp_col3.metric("실제 득점 (xG)", f"{act_goals_val}골", delta=f"xG 오차 {xg_diff:+.2f}")
-            comp_col4.metric("실제 도움 (xA)", f"{act_assists_val}도움", delta=f"xA 오차 {xa_diff:+.2f}")
-            comp_col5.metric("실제 공격포인트", f"{act_goals_val + act_assists_val}P", delta=f"{(act_goals_val + act_assists_val) - (proj_g + proj_a):+.1f}P 차이")
+            if not is_val_gk:
+                comp_col3.metric("실제 득점 (xG)", f"{act_goals_val}골", delta=f"xG 오차 {float(act_xg_val) - proj_xg:+.2f}")
+                comp_col4.metric("실제 도움 (xA)", f"{act_assists_val}도움", delta=f"xA 오차 {float(act_xa_val) - proj_xa:+.2f}")
+                comp_col5.metric("실제 공격포인트", f"{act_goals_val + act_assists_val}P", delta=f"{(act_goals_val + act_assists_val) - (proj_g + proj_a):+.1f}P 차이")
+            else:
+                comp_col3.metric("실제 선방", f"{act_gk_saves_val}회")
+                comp_col4.metric("실제 클린시트", f"{act_gk_cs_val}경기")
+                comp_col5.metric("득점 차단", f"{act_gk_prevented_val:+.2f}")
 
-            if st.button("🚀 '검증데이터' 시트에 실제 최종 기록 업데이트하기", type="primary", use_container_width=True, key="update_actual_btn"):
-                with st.spinner("구글 시트에 최종 실제 성적을 업데이트 중입니다..."):
+            if st.button("🚀 '검증데이터' 시트에 실제 최종 기록 및 세부 지표 업데이트하기", type="primary", use_container_width=True, key="update_actual_btn"):
+                with st.spinner("구글 시트에 최종 실제 성적 및 세부 스탯을 업데이트 중입니다..."):
                     update_payload = {
                         "action": "update_actual",
                         "season": sel_val_season,
                         "name": sel_val_player,
                         "act_mins": int(act_mins_val),
-                        "act_goals": int(act_goals_val),
-                        "act_xg": float(act_xg_val),
-                        "act_assists": int(act_assists_val),
-                        "act_xa": float(act_xa_val),
+                        "act_goals": int(act_goals_val) if not is_val_gk else 0,
+                        "act_xg": float(act_xg_val) if not is_val_gk else 0.0,
+                        "act_assists": int(act_assists_val) if not is_val_gk else 0,
+                        "act_xa": float(act_xa_val) if not is_val_gk else 0.0,
                         "act_rating": float(act_rating_val),
+                        "act_shots": int(act_shots_val) if not is_val_gk else 0,
+                        "act_sot": int(act_sot_val) if not is_val_gk else 0,
+                        "act_chances": int(act_chances_val) if not is_val_gk else 0,
+                        "act_dribbles": int(act_dribbles_val) if not is_val_gk else 0,
+                        "act_box": int(act_box_val) if not is_val_gk else 0,
+                        "act_tackles": int(act_tackles_val) if not is_val_gk else 0,
+                        "act_big_chances": int(act_bc_val) if not is_val_gk else 0,
+                        "act_pk": int(act_pk_val) if not is_val_gk else 0,
+                        "act_pass_pct": float(act_pass_pct_val) if not is_val_gk else 0.0,
+                        "act_duels_pct": float(act_duels_pct_val) if not is_val_gk else 0.0,
+                        "act_aerial_pct": float(act_aerial_pct_val) if not is_val_gk else 0.0,
+                        "act_gk_saves": int(act_gk_saves_val) if is_val_gk else 0,
+                        "act_gk_conceded": int(act_gk_conceded_val) if is_val_gk else 0,
+                        "act_gk_prevented": float(act_gk_prevented_val) if is_val_gk else 0.0,
+                        "act_gk_cs": int(act_gk_cs_val) if is_val_gk else 0,
+                        "act_gk_errors": int(act_gk_errors_val) if is_val_gk else 0,
+                        "act_gk_claims": int(act_gk_claims_val) if is_val_gk else 0,
                         "notes": act_notes_val
                     }
                     try:
@@ -1605,7 +1693,7 @@ with tab4:
                         )
                         res_json = res.json()
                         if res_json.get("status") == "success":
-                            st.success(f"✅ '{sel_val_player}' 선수의 실제 최종 성적이 성공적으로 기록되었습니다!")
+                            st.success(f"✅ '{sel_val_player}' 선수의 실제 최종 성적 및 세부 스탯이 성공적으로 기록되었습니다!")
                             st.cache_data.clear()
                             st.rerun()
                         else:
