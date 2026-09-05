@@ -939,32 +939,34 @@ with tab2:
 
     is_winter_mode = "겨울" in winter_data_source
 
-    # 🌟 [신규 추가] 선수 역할별 예상 출전시간 간편 필터 선택 박스
+    # 🌟 [신규 추가] 유망주 및 겨울 이적시장 기준이 세분화된 역할군 선택 필터
     st.markdown("##### ⏱️ 이적 팀 예상 출전 시간 역할군 설정 (Quick Role Selector)")
     role_col1, role_col2 = st.columns([2, 2])
     
     with role_col1:
+        role_options = [
+            "🔥 1티어 핵심 주전 (메인 스타터 - 3,000분 / 겨울 1,440분)",
+            "⭐ 2티어 일반 주전 (로테이션 핵심 - 2,500분 / 겨울 1,200분)",
+            "⚖️ 3티어 스쿼드 뎁스 / 로테이션 (백업 - 1,800분 / 겨울 900분)",
+            "🌱 4티어 유망주 / 컵대회 자원 (신예 - 800분 / 겨울 400분)",
+            "✏️ 직접 분 단위로 입력하기"
+        ]
         selected_role = st.selectbox(
             "선수의 팀 내 예상 위상 (역할군 선택)",
-            [
-                "🔥 1티어 핵심 주전 (메인 스타터 - 3,000분)",
-                "⭐ 2티어 일반 주전 (로테이션 핵심 - 2,500분)",
-                "⚖️ 3티어 스쿼드 뎁스 / 로테이션 (백업 - 1,800분)",
-                "🌱 4티어 로테이션 서브 / 컵대회 자원 (1,200분)",
-                "✏️ 직접 분 단위로 입력하기"
-            ],
+            role_options,
             index=0 if not is_winter_mode else 3,
             key=f"role_selector_{k_id}"
         )
 
+    # 역할군 및 여름/겨울 모드에 따른 자동 출전시간 할당
     if "3,000분" in selected_role:
         auto_mins = 1440 if is_winter_mode else 3000
     elif "2,500분" in selected_role:
         auto_mins = 1200 if is_winter_mode else 2500
     elif "1,800분" in selected_role:
         auto_mins = 900 if is_winter_mode else 1800
-    elif "1,200분" in selected_role:
-        auto_mins = 600 if is_winter_mode else 1200
+    elif "800분" in selected_role or "유망주" in selected_role:
+        auto_mins = 400 if is_winter_mode else 800
     else:
         auto_mins = 1440 if is_winter_mode else 3036
 
@@ -972,6 +974,7 @@ with tab2:
     with f_c1: f_pos = st.selectbox("선수 포지션 분류", ["⚽ 필드 플레이어 (공격수/미드필더/수비수)", "🧤 골키퍼 (Goalkeeper)"], index=1 if "GK" in main_position else 0, key=f"f_tab_pos_{k_id}")
     with f_c2: f_from_l = st.selectbox("원소속 리그 (기록 기준)", list(LEAGUE_WEIGHTS.keys()), index=list(LEAGUE_WEIGHTS.keys()).index(selling_league) if selling_league in LEAGUE_WEIGHTS else 0, key=f"f_tab_from_l_{k_id}")
     with f_c3: f_to_l = st.selectbox("이적할 리그", list(LEAGUE_WEIGHTS.keys()), index=list(LEAGUE_WEIGHTS.keys()).index(in_to_league_choice) if in_to_league_choice in LEAGUE_WEIGHTS else 0, key=f"f_tab_to_l_{k_id}")
+    
     with f_c4: 
         f_target_mins = st.number_input(
             "이적 팀 예상 출전 시간(분)", 
