@@ -940,32 +940,38 @@ with tab2:
 
     st.markdown("##### ⏱️ 이적 팀 예상 출전 시간 역할군 설정 (Quick Role Selector)")
     
-    role_options = [
-        "🔥 1티어 핵심 주전 (메인 스타터)",
-        "⭐ 2티어 일반 주전 (로테이션 핵심)",
-        "⚖️ 3티어 스쿼드 뎁스 / 로테이션 (백업)",
-        "🌱 4티어 유망주 / 컵대회 자원 (신예)",
-        "✏️ 직접 분 단위로 입력하기"
-    ]
-    
-    selected_role = st.selectbox(
-        "선수의 팀 내 예상 위상 (역할군 선택)",
-        role_options,
-        index=0 if not is_winter_mode else 0,
-        key=f"role_selector_{k_id}"
-    )
+    # 원래 코드 레이아웃처럼 컬럼을 나누어 필터 크기를 적절하게 유지
+    role_col_a, role_col_b = st.columns([2, 2])
+    with role_col_a:
+        role_options = [
+            "🔥 1티어 핵심 주전 (메인 스타터)",
+            "⭐ 2티어 일반 주전 (로테이션 핵심)",
+            "⚖️ 3티어 스쿼드 뎁스 / 로테이션 (백업)",
+            "🌱 4티어 유망주 / 컵대회 자원 (신예)",
+            "✏️ 직접 분 단위로 입력하기"
+        ]
+        
+        selected_role = st.selectbox(
+            "선수의 팀 내 예상 위상 (역할군 선택)",
+            role_options,
+            index=0,
+            key=f"role_selector_{k_id}"
+        )
 
-    # 여름/겨울 모드 및 역할군에 따른 기본 출전 시간 자동 매칭
-    if "1티어" in selected_role:
-        default_role_mins = 1440 if is_winter_mode else 3000
-    elif "2티어" in selected_role:
-        default_role_mins = 1200 if is_winter_mode else 2500
-    elif "3티어" in selected_role:
-        default_role_mins = 900 if is_winter_mode else 1800
-    elif "4티어" in selected_role:
-        default_role_mins = 400 if is_winter_mode else 800
-    else:
-        default_role_mins = st.session_state.get(f"target_mins_state_{k_id}", 3000)
+    state_mins_key = f"target_mins_state_{k_id}"
+    last_mode_key = f"last_mode_state_{k_id}"
+
+    current_mode_sig = f"{is_winter_mode}_{selected_role}"
+    if last_mode_key not in st.session_state or st.session_state[last_mode_key] != current_mode_sig:
+        st.session_state[last_mode_key] = current_mode_sig
+        if "1티어" in selected_role:
+            st.session_state[state_mins_key] = 1440 if is_winter_mode else 3000
+        elif "2티어" in selected_role:
+            st.session_state[state_mins_key] = 1200 if is_winter_mode else 2500
+        elif "3티어" in selected_role:
+            st.session_state[state_mins_key] = 900 if is_winter_mode else 1800
+        elif "4티어" in selected_role:
+            st.session_state[state_mins_key] = 400 if is_winter_mode else 800
 
     f_c1, f_c2, f_c3, f_c4 = st.columns(4)
     with f_c1: f_pos = st.selectbox("선수 포지션 분류", ["⚽ 필드 플레이어 (공격수/미드필더/수비수)", "🧤 골키퍼 (Goalkeeper)"], index=1 if "GK" in main_position else 0, key=f"f_tab_pos_{k_id}")
@@ -973,20 +979,19 @@ with tab2:
     with f_c3: f_to_l = st.selectbox("이적할 리그", list(LEAGUE_WEIGHTS.keys()), index=list(LEAGUE_WEIGHTS.keys()).index(in_to_league_choice) if in_to_league_choice in LEAGUE_WEIGHTS else 0, key=f"f_tab_to_l_{k_id}")
     
     with f_c4: 
-        if selected_role != "✏️ 직접 분 단위로 입력하기":
-            target_mins_val = default_role_mins
+        if selected_role == "✏️ 직접 분 단위로 입력하기":
+            default_input_val = st.session_state.get(state_mins_key, 3000)
         else:
-            target_mins_val = st.session_state.get(f"target_mins_state_{k_id}", default_role_mins)
+            default_input_val = st.session_state.get(state_mins_key, 1440 if is_winter_mode else 3000)
 
         f_target_mins = st.number_input(
             "이적 팀 예상 출전 시간(분)", 
             min_value=90, 
             max_value=4500, 
-            value=int(target_mins_val), 
+            value=int(default_input_val), 
             step=90, 
-            key=f"f_tab_target_mins_{k_id}"
+            key=state_mins_key
         )
-        st.session_state[f"target_mins_state_{k_id}"] = f_target_mins
 
     raw_l_factor = LEAGUE_WEIGHTS[f_from_l] / LEAGUE_WEIGHTS[f_to_l]
     if LEAGUE_WEIGHTS[f_to_l] > LEAGUE_WEIGHTS[f_from_l]:
