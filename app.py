@@ -93,7 +93,7 @@ def build_svg_radar(labels, values_a, color_a="#38BDF8", values_b=None, color_b=
 
     defs_svg = f"""
     <defs>
-        <filter id=" radarGlowA" x="-20%" y="-20%" width="140%" height="140%">
+        <filter id="radarGlowA" x="-20%" y="-20%" width="140%" height="140%">
             <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="{color_a}" flood-opacity="0.55"/>
         </filter>
         <linearGradient id="gradPolyA" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -907,7 +907,7 @@ with tab1:
                 else:
                     st.caption("ℹ️ 주급이 입력되지 않았습니다. (주급 미입력 시 순수 이적료 기준으로 분석)")
 
-        player_notes = st.text_area("개인 메모 / 스카우팅 코멘트", value=cf.get("notes", ""), placeholder="예: 대인 방어 및 후방 빌드업 우수 (옵션 조항이 있다면 여기에 메모)", key=f"note_{k_id}")
+        player_notes = st.text_area("개인 메모 / 스카우팅 코멘트 (시트 저장 전용 · 인포그래픽 미표시)", value=cf.get("notes", ""), placeholder="예: 대인 방어 및 후방 빌드업 우수 (구글 시트에만 기록됩니다)", key=f"note_{k_id}")
 
     league_w = LEAGUE_WEIGHTS[selling_league]
     age_w = get_positional_age_weight(player_age, main_position)
@@ -1124,7 +1124,7 @@ with tab1:
         w_3yr = min(100, int(proj_3yr_val / max_v_ref * 100))
 
         # =========================================================================
-        # [1번 탭 V5 Broadcast 마스터 보드] (도넛 게이지 2종 + 네온 6각형 레이더 + 글래스모피즘)
+        # [1번 탭 V5 Broadcast 마스터 보드] (하단 스카우팅 코멘트 미표시 적용 완료)
         # =========================================================================
         tab1_board_html = f"""
         <!-- 상단 브로드캐스트 리본 헤더 -->
@@ -1219,7 +1219,7 @@ with tab1:
             </div>
         </div>
 
-        <!-- 하단 12대 스카우팅 프로파일링 배지 그리드 (가중치 배율 완전 비공개) -->
+        <!-- 하단 12대 스카우팅 프로파일링 배지 그리드 (가중치 배율 & 코멘트 미표시) -->
         <div class="glass-panel" style="padding:16px 18px;">
             <div style="font-size:12.5px; font-weight:900; color:#94A3B8; margin-bottom:12px; letter-spacing:0.3px;">📋 12대 세부 스카우팅 프로파일링 (가중치 알고리즘 반영 · 배율 비공개)</div>
             <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:9px; font-size:12px;">
@@ -1236,10 +1236,9 @@ with tab1:
                 <div style="background:#090D16; padding:9px 11px; border-radius:10px; border-left:3px solid #EC4899;"><div style="color:#64748B; font-size:10.5px; font-weight:700;">11. 메디컬 / 내구성</div><div style="color:#F8FAFC; font-weight:800; margin-top:2px;">{injury_status.split(' (')[0]}</div></div>
                 <div style="background:#090D16; padding:9px 11px; border-radius:10px; border-left:3px solid #2DD4BF;"><div style="color:#64748B; font-size:10.5px; font-weight:700;">12. 구단 영입 절박성</div><div style="color:#F8FAFC; font-weight:800; margin-top:2px;">{urg_short}</div></div>
             </div>
-            {f"<div style='margin-top:12px; padding:10px 14px; background:#090D16; border:1px solid #334155; border-radius:10px; font-size:12.5px; color:#E2E8F0;'>💬 <b>스카우팅 코멘트:</b> {player_notes.strip()}</div>" if player_notes.strip() else ""}
         </div>
         """
-        render_copyable_infographic(tab1_board_html, filename=f"scouting_{display_name}", height=960)
+        render_copyable_infographic(tab1_board_html, filename=f"scouting_{display_name}", height=915)
 
         with st.expander("🔍 [내부 관리용] 12대 세부 가중치 적용 현황표 & 누적 배율 (외부 비공개 확인용)", expanded=False):
             total_multiplier = league_w * age_w * club_w * contract_w * pos_w * vers_w * reg_w * opta_w * ttype_w * stage_w * inj_w * urg_w * season_factor
