@@ -4,6 +4,7 @@ import numpy as np
 import requests
 import json
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from datetime import datetime
 
 # 1. 페이지 기본 설정
@@ -221,6 +222,11 @@ def make_gauge_bar(score, max_score=10.0, length=10):
     ratio = max(0.0, min(1.0, score / max_score)) if max_score > 0 else 0.0
     filled = int(round(ratio * length))
     return "█" * filled + "▒" * (length - filled)
+
+# 가중치 배율을 외부에 노출하지 않고 60~99점의 직관적인 스카우팅 능력치 점수로 변환하는 헬퍼 함수
+def to_public_index(weight_val, min_w=0.65, max_w=1.08):
+    norm = (weight_val - min_w) / (max_w - min_w) if max_w > min_w else 0.5
+    return int(round(max(55, min(98, 60 + norm * 38))))
 
 @st.cache_data(ttl=5)
 def fetch_sheet_history():
@@ -497,7 +503,6 @@ with tab1:
 
         st.markdown("---")
 
-        # 포지션별 맞춤형 FotMob 실적 및 평점 가중치 (수비수/미드필더 수비 지표 보너스 반영)
         f_p90 = (st.session_state["f_mins"] / 90.0) if st.session_state["f_mins"] > 0 else 1.0
         cur_p90_exp = (st.session_state["f_xg"] + st.session_state["f_xa"]) / f_p90
         cur_p90_tackles = st.session_state.get("f_tackles", 0) / f_p90
@@ -553,19 +558,19 @@ with tab1:
                 st.markdown(f"""
                 - **골키퍼 실적**: 선방 `{st.session_state.get('f_gk_saves', 78)}회` / 실점 `{st.session_state.get('f_gk_conceded', 28)}` / 클린시트 `{st.session_state.get('f_gk_cs', 10)}경기`
                 - **득점 차단 (선방력)**: `{st.session_state.get('f_gk_prevented', 2.45):+.2f}` (출전 {st.session_state['f_mins']:,}분)
-                - **FotMob 평균 평점**: `★ {cur_rating:.2f}` ➔ **{opta_desc} (가중치 {opta_w:.2f})**
+                - **FotMob 평균 평점**: `★ {cur_rating:.2f}` ➔ **{opta_desc}**
                 """)
             elif is_def_or_mid:
                 st.markdown(f"""
                 - **지난 시즌 실적**: `{st.session_state['f_goals']}골 {st.session_state['f_assists']}도움` | **90분당 태클**: `{cur_p90_tackles:.2f}회` | **평균 경합승률**: `{cur_duels_avg:.1f}%`
                 - **기대 생산력**: `xG {st.session_state['f_xg']:.2f}` / `xA {st.session_state['f_xa']:.2f}` (출전 {st.session_state['f_mins']:,}분)
-                - **FotMob 평균 평점**: `★ {cur_rating:.2f}` ➔ **{opta_desc} (가중치 {opta_w:.2f})**
+                - **FotMob 평균 평점**: `★ {cur_rating:.2f}` ➔ **{opta_desc}**
                 """)
             else:
                 st.markdown(f"""
                 - **지난 시즌 실적**: `{st.session_state['f_goals']}골 {st.session_state['f_assists']}도움` (출전 {st.session_state['f_mins']:,}분)
                 - **기대 생산력**: `xG {st.session_state['f_xg']:.2f}` / `xA {st.session_state['f_xa']:.2f}` (90분당 **{cur_p90_exp:.2f}**)
-                - **FotMob 평균 평점**: `★ {cur_rating:.2f}` ➔ **{opta_desc} (가중치 {opta_w:.2f})**
+                - **FotMob 평균 평점**: `★ {cur_rating:.2f}` ➔ **{opta_desc}**
                 """)
 
         st.markdown("---")
@@ -744,8 +749,21 @@ with tab1:
         deal_grade = "분석 대기 중"
         ext_deal_grade = "분석 대기 중"
 
+    # 3년 뒤 예상 리세일 밸류 계산
+    if not is_loan_type and fair_value > 0:
+        future_age = player_age + 3
+        future_age_w = get_positional_age_weight(future_age, main_position)
+        age_retention_ratio = (future_age_w / age_w) if age_w > 0 else 1.0
+        pot_growth_bonus = 1.15 if player_age <= 22 else (1.05 if player_age <= 24 else 0.95)
+        proj_3yr_val = fair_value * age_retention_ratio * pot_growth_bonus
+        recovery_pct = (proj_3yr_val / calc_actual_fee * 100.0) if calc_actual_fee > 0 else 100.0
+    else:
+        future_age = player_age + 3
+        proj_3yr_val = 0.0
+        recovery_pct = 0.0
+
     with col2:
-        st.subheader("📊 분석 결과 및 12대 세부 지표")
+        st.subheader("📊 분석 결과 및 외부 공유용 비주얼 인포그래픽")
         display_name = player_name if player_name else "선수명 미입력"
         display_nat = f"({player_nat})" if player_nat else ""
         pos_short = main_position.split(" (")[0]
@@ -775,30 +793,123 @@ with tab1:
             st.metric("이적 거래 평점", f"★ {final_deal_score:.2f}", delta=deal_grade.split(" ")[0])
             st.caption(deal_grade.split(" (")[0])
 
-        # 3년 뒤 예상 리세일 밸류(재판매 가치) 및 원금 회수율 자동 산출
+        # =========================================================================
+        # [신규 핵심 기능] 외부 업로드용 올인원 비주얼 인포그래픽 보드 (가중치 배율 비공개)
+        # 육각형 스카우팅 레이더 + 딜 평점 계기판(Gauge) + 가치 비교 막대 차트 통합
+        # =========================================================================
+        st.markdown("#### 🖼️ **[외부 이미지 업로드용] 프로 스카우팅 비주얼 인포그래픽 카드 (가중치 비공개)**")
+        st.caption("우측 상단 📷(카메라 아이콘)을 누르거나 화면을 캡처하면 블로그·카페 업로드용 고화질 이미지로 바로 저장됩니다.")
+
+        # 외부 공개용 6각형 스카우팅 지수 (내부 배율 대신 60~98점 스케일의 직관적 능력치로 변환)
+        hex_cats = ['리그 경쟁력', '에이징/포텐', '직전 퍼포먼스', '빅매치 검증', '피지컬 내구성', '전술/스쿼드 가치']
+        hex_scores = [
+            to_public_index(league_w, 0.45, 1.00),
+            to_public_index(age_w, 0.70, 1.05),
+            int(round(max(55, min(98, (cur_rating - 6.0) * 22 + 50)))),
+            to_public_index(stage_w, 0.98, 1.03),
+            to_public_index(inj_w, 0.94, 1.01),
+            to_public_index((pos_w + vers_w + reg_w + urg_w) / 4.0, 0.98, 1.04)
+        ]
+
+        theme_color = "#00D4FF" if not is_out_trade else "#FF4B4B"
+        theme_fill = "rgba(0, 212, 255, 0.28)" if not is_out_trade else "rgba(255, 75, 75, 0.28)"
+
+        fig_card = make_subplots(
+            rows=1, cols=3,
+            specs=[[{'type': 'polar'}, {'type': 'indicator'}, {'type': 'xy'}]],
+            column_widths=[0.38, 0.28, 0.34],
+            subplot_titles=("<b>6각형 스카우팅 인덱스</b>", "<b>이적 딜 종합 평점</b>", "<b>가치 비교 (만 €)</b>")
+        )
+
+        # 1) 좌측: 6각형 스카우팅 레이더
+        fig_card.add_trace(go.Scatterpolar(
+            r=hex_scores + [hex_scores[0]],
+            theta=hex_cats + [hex_cats[0]],
+            fill='toself',
+            fillcolor=theme_fill,
+            line=dict(color=theme_color, width=2.5),
+            marker=dict(size=6, color="#FFFFFF"),
+            text=[f"{s}" for s in hex_scores + [hex_scores[0]]],
+            hoverinfo="theta+r"
+        ), row=1, col=1)
+
+        # 2) 중앙: 딜 평점 계기판(Gauge)
+        gauge_color = "#00E676" if final_deal_score >= 8.0 else ("#29B6F6" if final_deal_score >= 7.0 else ("#FFA726" if final_deal_score >= 6.0 else "#EF5350"))
+        fig_card.add_trace(go.Indicator(
+            mode="gauge+number",
+            value=final_deal_score,
+            number={'suffix': " / 10", 'font': {'size': 26, 'color': '#FFFFFF'}},
+            title={'text': f"<b>{deal_grade.split(' (')[0]}</b><br><span style='font-size:12px;color:#B0BEC5'>{status_label}</span>", 'font': {'size': 15, 'color': gauge_color}},
+            gauge={
+                'axis': {'range': [0, 10], 'tickwidth': 1, 'tickcolor': "#90A4AE"},
+                'bar': {'color': gauge_color, 'thickness': 0.35},
+                'bgcolor': "#1E2530",
+                'borderwidth': 1,
+                'bordercolor': "#37474F",
+                'steps': [
+                    {'range': [0, 6], 'color': "rgba(239, 83, 80, 0.18)"},
+                    {'range': [6, 7], 'color': "rgba(255, 167, 38, 0.18)"},
+                    {'range': [7, 8], 'color': "rgba(41, 182, 246, 0.18)"},
+                    {'range': [8, 10], 'color': "rgba(0, 230, 118, 0.22)"}
+                ],
+                'threshold': {'line': {'color': "#FFFFFF", 'width': 3}, 'thickness': 0.8, 'value': final_deal_score}
+            }
+        ), row=1, col=2)
+
+        # 3) 우측: 가치 비교 막대 차트 (TM가치 / 산출 적정가 / 실제 거래액 / 3년 후 가치)
+        bar_labels = ["TM 시장가치", "산출 적정가", "실제 거래액", f"3년후({future_age}세)"]
+        bar_vals = [round(tm_market_value, 0), round(fair_value, 0), round(calc_actual_fee, 0), round(proj_3yr_val, 0)]
+        bar_colors = ["#78909C", "#00E676", "#FF5252" if overpay_pct > 5 else "#29B6F6", "#AB47BC"]
+
+        fig_card.add_trace(go.Bar(
+            x=bar_labels,
+            y=bar_vals,
+            text=[f"€{v:,.0f}만" for v in bar_vals],
+            textposition="outside",
+            textfont=dict(color="#FFFFFF", size=11),
+            marker=dict(color=bar_colors, line=dict(color="#FFFFFF", width=1)),
+            cliponaxis=False
+        ), row=1, col=3)
+
+        route_header = f"{in_from_team.strip()} ➔ {in_to_team.strip()}" if in_from_team.strip() or in_to_team.strip() else "이적 분석"
+        max_bar_y = max(bar_vals + [1000]) * 1.28
+
+        fig_card.update_layout(
+            title=dict(
+                text=f"<b>⚽ {display_name} {display_nat}</b>  |  <span style='font-size:14px;color:#00D4FF'>만 {player_age}세 · {pos_short} · {route_header} ({season_val.split(' (')[0]})</span>",
+                font=dict(size=19, color="#FFFFFF"),
+                x=0.02, y=0.96
+            ),
+            paper_bgcolor="#0E1117",
+            plot_bgcolor="#0E1117",
+            font=dict(color="#ECEFF1", family="Pretendard, Malgun Gothic, sans-serif"),
+            polar=dict(
+                bgcolor="#161B22",
+                radialaxis=dict(visible=True, range=[40, 100], gridcolor="#2D3748", tickfont=dict(size=9, color="#90A4AE")),
+                angularaxis=dict(gridcolor="#2D3748", tickfont=dict(size=11, color="#FFFFFF"))
+            ),
+            xaxis=dict(gridcolor="#1E2530", tickfont=dict(size=11, color="#ECEFF1")),
+            yaxis=dict(gridcolor="#1E2530", range=[0, max_bar_y], showticklabels=False),
+            showlegend=False,
+            height=410,
+            margin=dict(l=35, r=35, t=80, b=35)
+        )
+        st.plotly_chart(fig_card, use_container_width=True, config={"toImageButtonOptions": {"format": "png", "filename": f"scouting_card_{display_name}", "height": 500, "width": 1200, "scale": 2}})
+
+        # 3년 뒤 예상 리세일 밸류 상세 수치 Expander
         if not is_loan_type and fair_value > 0:
-            future_age = player_age + 3
-            future_age_w = get_positional_age_weight(future_age, main_position)
-            age_retention_ratio = (future_age_w / age_w) if age_w > 0 else 1.0
-            pot_growth_bonus = 1.15 if player_age <= 22 else (1.05 if player_age <= 24 else 0.95)
-            proj_3yr_val = fair_value * age_retention_ratio * pot_growth_bonus
-            recovery_pct = (proj_3yr_val / calc_actual_fee * 100.0) if calc_actual_fee > 0 else 100.0
-            
-            with st.expander(f"📈 [3년 후 리세일 밸류 예측] 만 {future_age}세 시점 예상 재판매 가치 & 원금 회수율", expanded=False):
+            with st.expander(f"📈 [3년 후 리세일 밸류 상세] 만 {future_age}세 시점 예상 재판매 가치 & 원금 회수율", expanded=False):
                 rv1, rv2, rv3 = st.columns(3)
                 rv1.metric(f"3년 후 나이 ({pos_short})", f"만 {future_age}세", delta="에이징 커브 반영")
                 rv2.metric("3년 후 예상 시장가치", f"€{proj_3yr_val:,.1f}만", delta=f"{proj_3yr_val - calc_actual_fee:+,.1f}만 € (실제거래액 대비)")
                 rv3.metric("투자 원금 회수율", f"{recovery_pct:.1f}%" if not is_fa else "FA 순수익", delta="리세일 우수" if recovery_pct >= 80 else "에이징 감가 주의")
-        else:
-            proj_3yr_val = 0.0
-            recovery_pct = 0.0
 
-        # [핵심 기능] 블로그/카페 업로드용 '가중치 비공개' 12대 세부 지표 인포그래픽 원클릭 복사
-        with st.expander("📋 [블로그/카페 업로드용] 12대 지표 인포그래픽 리포트 원클릭 복사 (가중치 배율 비공개)", expanded=True):
+        # 블로그/카페 본문 붙여넣기용 텍스트 인포그래픽 (가중치 배율 비공개)
+        with st.expander("📋 [블로그/카페 본문용] 12대 지표 텍스트 인포그래픽 원클릭 복사 (가중치 비공개)", expanded=False):
             route_txt = f"{in_from_team.strip()} ➔ {in_to_team.strip()}" if in_from_team.strip() or in_to_team.strip() else "구단 미상"
             score_bar = make_gauge_bar(final_deal_score, 10.0, 10)
             ext_score_bar = make_gauge_bar(ext_deal_score, 10.0, 10)
-            resale_line = f"• 3년 후(만 {player_age+3}세) 예상 리세일 가치: €{proj_3yr_val:,.1f}만 (원금 회수율 {recovery_pct:.1f}%)\n" if (not is_loan_type and fair_value > 0) else ""
+            resale_line = f"• 3년 후(만 {future_age}세) 예상 리세일 가치: €{proj_3yr_val:,.1f}만 (원금 회수율 {recovery_pct:.1f}%)\n" if (not is_loan_type and fair_value > 0) else ""
             wage_line = f"• 주급 및 연간 총비용: 주급 €{weekly_wage_in:,.1f}만 (연간 총비용 €{total_annual_cost:,.1f}만 / 약 {total_annual_cost*10000*rate_krw/100000000:.0f}억원)\n" if weekly_wage_in > 0 else ""
 
             infographic_tab1_text = (
@@ -817,7 +928,8 @@ with tab1:
                 f"• 가치 괴리 진단 : {status_label} (격차: {diff:+,.1f}만 €)\n"
                 f"{wage_line}"
                 f"{resale_line}\n"
-                f"■ 12대 스카우팅 세부 프로파일링 (가중치 알고리즘 반영)\n"
+                f"■ 6각형 스카우팅 인덱스 & 12대 세부 프로파일링\n"
+                f"• 6대 능력치 지수 : 리그경쟁력({hex_scores[0]}) · 에이징/포텐({hex_scores[1]}) · 퍼포먼스({hex_scores[2]}) · 빅매치({hex_scores[3]}) · 내구성({hex_scores[4]}) · 전술가치({hex_scores[5]})\n"
                 f"┌─────────────────────────────────────────┐\n"
                 f"  01. 출발 리그 난이도 : {selling_league.split(' (')[0]}\n"
                 f"  02. 에이징 커브 구간 : 만 {player_age}세 ({pos_short} 기준)\n"
@@ -840,29 +952,6 @@ with tab1:
             )
             st.caption("우측 상단 복사(📄) 버튼을 누르면 세부 가중치 배율 노출 없이 인포그래픽 전체가 복사됩니다.")
             st.code(infographic_tab1_text, language="text")
-
-        st.markdown("---")
-
-        with st.expander("📊 [이미지 캡처용] 선수 12대 스카우팅 육각형 레이더 차트", expanded=True):
-            radar_categories = ['리그 템포', '나이/포텐', '구단 스케일', '계약 상태', '포지션 희소성', 'UCL/빅매치', '부상 내구성', '영입 절박성']
-            radar_values = [league_w * 100, age_w * 100, club_w * 100, contract_w * 100, pos_w * 100, stage_w * 100, inj_w * 100, urg_w * 100]
-
-            fig = go.Figure()
-            fig.add_trace(go.Scatterpolar(
-                r=radar_values + [radar_values[0]],
-                theta=radar_categories + [radar_categories[0]],
-                fill='toself',
-                fillcolor='rgba(31, 119, 180, 0.3)' if not is_out_trade else 'rgba(214, 39, 40, 0.3)',
-                line=dict(color='#1f77b4' if not is_out_trade else '#d62728', width=2),
-                name=display_name
-            ))
-            fig.update_layout(
-                polar=dict(radialaxis=dict(visible=True, range=[50, 115])),
-                showlegend=False,
-                margin=dict(l=40, r=40, t=30, b=30),
-                height=320
-            )
-            st.plotly_chart(fig, use_container_width=True)
 
         st.divider()
 
@@ -1265,7 +1354,44 @@ with tab2:
         m4.metric("예상 공격포인트", f"{proj_goals + proj_assists:.0f} P", delta=f"{proj_goals:.0f}G+{proj_assists:.0f}A")
         m5.metric("예상 슈팅 (유효)", f"{int(proj_shots)} 회", delta=f"유효 {int(proj_sot)}회")
 
-        st.markdown("<br>", unsafe_allow_html=True)
+        # [신규 핵심 기능] 2번 탭 외부 이미지 업로드용 비주얼 프로젝션 차트 카드 (환산계수 비공개)
+        st.markdown("#### 🖼️ **[외부 이미지 업로드용] 직전 시즌 vs 이적 첫 시즌 성적 프로젝션 비주얼 보드**")
+        fig_proj_visual = make_subplots(
+            rows=1, cols=2,
+            column_widths=[0.55, 0.45],
+            subplot_titles=("<b>핵심 공격 지표 비교 (득점·xG·도움·xA·공격P)</b>", "<b>세부 볼륨 지표 비교 (슈팅·기회창출·드리블·태클)</b>")
+        )
+
+        cat_left = ["득점", "기대득점(xG)", "도움", "기대도움(xA)", "총 공격포인트"]
+        prev_left = [in_goals, round(in_xg, 1), in_assists, round(in_xa, 1), in_goals + in_assists]
+        proj_left = [proj_goals, round(proj_xg, 1), proj_assists, round(proj_xa, 1), round(proj_goals + proj_assists, 1)]
+
+        fig_proj_visual.add_trace(go.Bar(name=f"직전 시즌 ({f_from_l.split(' ')[1]})", x=cat_left, y=prev_left, text=prev_left, textposition="outside", marker_color="#546E7A"), row=1, col=1)
+        fig_proj_visual.add_trace(go.Bar(name=f"이적 첫 시즌 예측 ({f_to_l.split(' ')[1]})", x=cat_left, y=proj_left, text=proj_left, textposition="outside", marker_color="#00D4FF"), row=1, col=1)
+
+        cat_right = ["총 슈팅", "유효 슈팅", "기회 창출", "성공 드리블", "태클 성공"]
+        prev_right = [in_shots, in_sot, in_chances, in_dribbles, in_tackles]
+        proj_right = [int(proj_shots), int(proj_sot), int(proj_chances), int(proj_dribbles), int(proj_tackles)]
+
+        fig_proj_visual.add_trace(go.Bar(name=f"직전 시즌 ({f_from_l.split(' ')[1]})", x=cat_right, y=prev_right, text=prev_right, textposition="outside", marker_color="#546E7A", showlegend=False), row=1, col=2)
+        fig_proj_visual.add_trace(go.Bar(name=f"이적 첫 시즌 예측 ({f_to_l.split(' ')[1]})", x=cat_right, y=proj_right, text=proj_right, textposition="outside", marker_color="#00E676", showlegend=False), row=1, col=2)
+
+        fig_proj_visual.update_layout(
+            title=dict(
+                text=f"<b>📊 {display_name} 성적 프로젝션</b>  |  <span style='font-size:13px;color:#00D4FF'>{f_from_l.split(' (')[0]} (★{in_rating:.2f}) ➔ {f_to_l.split(' (')[0]} 예상 ★{proj_rating:.2f} (예상 {f_target_mins:,}분)</span>",
+                font=dict(size=18, color="#FFFFFF"), x=0.02, y=0.95
+            ),
+            barmode="group",
+            paper_bgcolor="#0E1117",
+            plot_bgcolor="#0E1117",
+            font=dict(color="#ECEFF1"),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=0.98),
+            height=390,
+            margin=dict(l=35, r=35, t=85, b=35)
+        )
+        fig_proj_visual.update_yaxes(gridcolor="#1E2530")
+        st.plotly_chart(fig_proj_visual, use_container_width=True, config={"toImageButtonOptions": {"format": "png", "filename": f"projection_{display_name}", "height": 500, "width": 1200, "scale": 2}})
+
         st.markdown("#### 📊 **직전 시즌 실제 기록 vs 이적 첫 시즌 예측 데이터 비교표**")
         df_compare = pd.DataFrame({
             "FotMob 스탯 항목": [
@@ -1316,8 +1442,7 @@ with tab2:
         })
         st.table(df_compare)
 
-        # [핵심 기능] 2번 탭 블로그/카페용 성적 프로젝션 인포그래픽 원클릭 복사 (리그 환산 계수 비공개)
-        with st.expander("📋 [블로그/카페 업로드용] FotMob 첫 시즌 성적 예측 인포그래픽 복사 (환산계수 비공개)", expanded=False):
+        with st.expander("📋 [블로그/카페 본문용] FotMob 첫 시즌 성적 예측 텍스트 인포그래픽 복사 (환산계수 비공개)", expanded=False):
             tab2_infographic = (
                 f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                 f"📱 [FOTMOB PROJECTION] {display_name} 이적 첫 시즌 성적 예측\n"
@@ -1402,7 +1527,7 @@ with tab2:
         })
         st.table(df_gk_compare)
 
-        with st.expander("📋 [블로그/카페 업로드용] 골키퍼 첫 시즌 성적 예측 인포그래픽 복사", expanded=False):
+        with st.expander("📋 [블로그/카페 본문용] 골키퍼 첫 시즌 성적 예측 텍스트 인포그래픽 복사", expanded=False):
             tab2_gk_infographic = (
                 f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                 f"🧤 [GK PROJECTION] {display_name} 골키퍼 첫 시즌 성적 예측\n"
@@ -1613,7 +1738,44 @@ with tab3:
                 match_df = pd.DataFrame(valid_rows).sort_values(by="유사도(%)", ascending=False).head(10)
                 top5_df = match_df.head(5)
 
-                st.markdown(f"### 🎯 **가장 유사한 과거 이적 사례 TOP {len(top5_df)} 상세 리포트**")
+                st.markdown(f"### 🎯 **가장 유사한 과거 이적 사례 TOP {len(top5_df)} 비주얼 매칭 보드**")
+
+                # [신규 핵심 기능] 3번 탭 외부 업로드용 Comps 유사도 & 이적료 비교 비주얼 차트
+                fig_comps_vis = make_subplots(
+                    rows=1, cols=2,
+                    column_widths=[0.48, 0.52],
+                    subplot_titles=("<b>TOP 5 매칭 유사도 (%)</b>", "<b>산출 적정가 vs 실제 이적료 비교 (만 €)</b>")
+                )
+                c_names = [f"{i+1}위. {r['선수명']}" for i, (_, r) in enumerate(top5_df.iterrows())][::-1]
+                c_sims = list(top5_df["유사도(%)"])[::-1]
+                c_fees = list(top5_df["실제이적료(만€)"])[::-1]
+                c_fairs = list(top5_df["산출적정가(만€)"])[::-1]
+
+                fig_comps_vis.add_trace(go.Bar(
+                    y=c_names, x=c_sims, orientation="h",
+                    text=[f"{s:.1f}%" for s in c_sims], textposition="inside",
+                    marker=dict(color="#00D4FF"), name="유사도(%)"
+                ), row=1, col=1)
+
+                fig_comps_vis.add_trace(go.Bar(
+                    y=c_names, x=c_fairs, orientation="h",
+                    text=[f"€{v:,.0f}만" for v in c_fairs], textposition="outside",
+                    marker=dict(color="#00E676"), name="산출 적정가"
+                ), row=1, col=2)
+                fig_comps_vis.add_trace(go.Bar(
+                    y=c_names, x=c_fees, orientation="h",
+                    text=[f"€{v:,.0f}만" for v in c_fees], textposition="outside",
+                    marker=dict(color="#FF7043"), name="실제 이적료"
+                ), row=1, col=2)
+
+                fig_comps_vis.update_layout(
+                    title=dict(text=f"<b>🔍 '{display_name}' 과거 유사 이적 사례 TOP {len(top5_df)} 매칭</b>", font=dict(size=18, color="#FFFFFF"), x=0.02),
+                    barmode="group", paper_bgcolor="#0E1117", plot_bgcolor="#0E1117", font=dict(color="#ECEFF1"),
+                    height=350, margin=dict(l=35, r=55, t=75, b=35),
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=0.98)
+                )
+                fig_comps_vis.update_xaxes(gridcolor="#1E2530")
+                st.plotly_chart(fig_comps_vis, use_container_width=True)
 
                 for i in range(0, len(top5_df), 2):
                     cols = st.columns(2)
@@ -1631,8 +1793,7 @@ with tab3:
                                 st.write(f"- **평가율**: `{row_data['평가율(%)']:+.1f}%` (산출 적정가 €{row_data['산출적정가(만€)']:,.1f}만)")
                                 st.markdown("---")
 
-                # [핵심 기능] 3번 탭 유사 이적 사례 TOP 5 인포그래픽 원클릭 복사
-                with st.expander("📋 [블로그/카페 업로드용] 과거 유사 이적 사례 TOP 5 인포그래픽 복사", expanded=False):
+                with st.expander("📋 [블로그/카페 본문용] 과거 유사 이적 사례 TOP 5 텍스트 인포그래픽 복사", expanded=False):
                     comps_lines = [
                         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
                         f"🔍 [HISTORICAL COMPS] '{display_name}' 유사 이적 사례 TOP {len(top5_df)}",
@@ -1871,8 +2032,7 @@ with tab4:
                 comp_col4.metric("실제 실점", f"{act_gk_conceded_val}실점")
                 comp_col5.metric("실제 클린시트", f"{act_gk_cs_val}경기")
 
-            # [핵심 기능] 4번 탭 사후 검증 결과 인포그래픽 원클릭 복사
-            with st.expander("📋 [블로그/카페 업로드용] 사후 검증 결과 인포그래픽 리포트 복사", expanded=False):
+            with st.expander("📋 [블로그/카페 본문용] 사후 검증 결과 텍스트 인포그래픽 리포트 복사", expanded=False):
                 acc_bar = make_gauge_bar(rating_accuracy, 100.0, 10)
                 val_infographic = (
                     f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -2012,7 +2172,6 @@ with tab5:
             with b_c8: b_rating = st.number_input("후보 B 직전 FotMob 평점", 5.0, 10.0, value=7.25, step=0.01, key="sim_b_rating")
             with b_c9: b_p90 = st.number_input("후보 B 90분당 xG+xA", 0.0, 2.5, value=0.45, step=0.05, key="sim_b_p90")
 
-        # 후보 B 적정가 및 평점 실시간 계산 (동일 영입 구단 조건 적용)
         b_lw = LEAGUE_WEIGHTS[b_from_l]
         b_aw = get_positional_age_weight(b_age, b_pos_full)
         b_cw = CONTRACT_WEIGHTS[b_contract]
@@ -2039,6 +2198,69 @@ with tab5:
         else:
             winner_str = "⚖️ 두 후보의 종합 거래 평점이 완벽히 동률입니다."
             st.info(winner_str)
+
+        # [신규 핵심 기능] 5번 탭 외부 이미지 업로드용 후보 A vs B 비주얼 매치업 보드 (6각형 레이더 + 바 차트)
+        st.markdown("#### 🖼️ **[외부 이미지 업로드용] 영입 후보 A vs 후보 B 비주얼 매치업 보드**")
+        fig_ab_board = make_subplots(
+            rows=1, cols=2,
+            specs=[[{'type': 'polar'}, {'type': 'xy'}]],
+            column_widths=[0.48, 0.52],
+            subplot_titles=("<b>6각형 스카우팅 매치업</b>", "<b>적정가 vs 요구 이적료 비교 (만 €)</b>")
+        )
+
+        ab_cats = ['거래 평점', '가성비(저평가)', 'FotMob 평점', '90분당 생산력', '나이 포텐셜', '리그 경쟁력']
+        a_radar = [
+            p_curr_score * 10,
+            max(20, min(98, 75 - overpay_pct * 0.8)),
+            int(round(max(50, min(98, (p_curr_rating - 6.0) * 22 + 50)))),
+            min(98, max(35, p_curr_p90 * 110)),
+            to_public_index(age_w, 0.70, 1.05),
+            to_public_index(league_w, 0.45, 1.00)
+        ]
+        b_radar = [
+            b_score * 10,
+            max(20, min(98, 75 - b_overpay * 0.8)),
+            int(round(max(50, min(98, (b_rating - 6.0) * 22 + 50)))),
+            min(98, max(35, b_p90 * 110)),
+            to_public_index(b_aw, 0.70, 1.05),
+            to_public_index(b_lw, 0.45, 1.00)
+        ]
+
+        fig_ab_board.add_trace(go.Scatterpolar(
+            r=a_radar + [a_radar[0]], theta=ab_cats + [ab_cats[0]],
+            fill='toself', fillcolor='rgba(0, 212, 255, 0.25)',
+            name=f"후보 A: {p_curr_name} (★{p_curr_score:.2f})", line=dict(color='#00D4FF', width=2.5)
+        ), row=1, col=1)
+        fig_ab_board.add_trace(go.Scatterpolar(
+            r=b_radar + [b_radar[0]], theta=ab_cats + [ab_cats[0]],
+            fill='toself', fillcolor='rgba(255, 145, 0, 0.25)',
+            name=f"후보 B: {b_name} (★{b_score:.2f})", line=dict(color='#FF9100', width=2.5)
+        ), row=1, col=1)
+
+        val_cats = ["TM 시장가치", "산출 적정가", "요구 이적료"]
+        a_vals = [tm_market_value, round(fair_value, 0), p_curr_fee]
+        b_vals = [b_tm, round(b_fair, 0), b_fee]
+
+        fig_ab_board.add_trace(go.Bar(
+            x=val_cats, y=a_vals, name=f"후보 A: {p_curr_name}",
+            text=[f"€{v:,.0f}만" for v in a_vals], textposition="outside",
+            marker_color="#00D4FF", showlegend=False
+        ), row=1, col=2)
+        fig_ab_board.add_trace(go.Bar(
+            x=val_cats, y=b_vals, name=f"후보 B: {b_name}",
+            text=[f"€{v:,.0f}만" for v in b_vals], textposition="outside",
+            marker_color="#FF9100", showlegend=False
+        ), row=1, col=2)
+
+        fig_ab_board.update_layout(
+            title=dict(text=f"<b>⚔️ {p_curr_name} (만 {p_curr_age}세) vs {b_name} (만 {b_age}세)</b>  |  <span style='font-size:13px;color:#00E676'>{winner_str.replace('**','')}</span>", font=dict(size=17, color="#FFFFFF"), x=0.02),
+            barmode="group", paper_bgcolor="#0E1117", plot_bgcolor="#0E1117", font=dict(color="#ECEFF1"),
+            polar=dict(bgcolor="#161B22", radialaxis=dict(visible=True, range=[20, 100], gridcolor="#2D3748"), angularaxis=dict(gridcolor="#2D3748")),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=0.98),
+            height=410, margin=dict(l=35, r=35, t=85, b=35)
+        )
+        fig_ab_board.update_yaxes(gridcolor="#1E2530", range=[0, max(a_vals + b_vals + [1000]) * 1.25])
+        st.plotly_chart(fig_ab_board, use_container_width=True, config={"toImageButtonOptions": {"format": "png", "filename": f"matchup_{p_curr_name}_vs_{b_name}", "height": 500, "width": 1200, "scale": 2}})
 
         df_ab_comp = pd.DataFrame({
             "비교 항목": [
@@ -2072,18 +2294,7 @@ with tab5:
         })
         st.table(df_ab_comp)
 
-        ab_fig = go.Figure()
-        ab_cats = ['거래 평점', '가성비(저평가)', '직전 FotMob 평점', '90분당 생산력', '나이 포텐셜']
-        a_radar = [p_curr_score * 10, max(10, min(100, 70 - overpay_pct)), p_curr_rating * 10, min(100, p_curr_p90 * 100), max(20, (35 - p_curr_age) * 5)]
-        b_radar = [b_score * 10, max(10, min(100, 70 - b_overpay)), b_rating * 10, min(100, b_p90 * 100), max(20, (35 - b_age) * 5)]
-
-        ab_fig.add_trace(go.Scatterpolar(r=a_radar + [a_radar[0]], theta=ab_cats + [ab_cats[0]], fill='toself', name=f"후보 A: {p_curr_name}", line=dict(color='#1f77b4')))
-        ab_fig.add_trace(go.Scatterpolar(r=b_radar + [b_radar[0]], theta=ab_cats + [ab_cats[0]], fill='toself', name=f"후보 B: {b_name}", line=dict(color='#ff7f0e')))
-        ab_fig.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, 100])), height=360, margin=dict(l=40, r=40, t=30, b=30))
-        st.plotly_chart(ab_fig, use_container_width=True)
-
-        # [핵심 기능] 5번 탭 후보 A vs B 비교 인포그래픽 원클릭 복사
-        with st.expander("📋 [블로그/카페 업로드용] 영입 후보 A vs B 매치업 인포그래픽 복사 (가중치 비공개)", expanded=False):
+        with st.expander("📋 [블로그/카페 본문용] 영입 후보 A vs B 매치업 텍스트 인포그래픽 복사 (가중치 비공개)", expanded=False):
             ab_copy_txt = (
                 f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                 f"⚔️ [TARGET MATCHUP] {p_curr_name} vs {b_name} 영입 비교 분석\n"
@@ -2202,9 +2413,13 @@ with tab5:
                 p_val_scaled = [min(100, p_curr_fee/1000*10), final_deal_score*10, p_curr_rating*10, min(100, p_curr_p90*100), (35-p_curr_age)*5]
                 t_val_scaled = [min(100, t_fee/1000*10), t_score*10, t_rating*10, min(100, t_p90*100), (35-t_age)*5]
 
-                bench_fig.add_trace(go.Scatterpolar(r=p_val_scaled + [p_val_scaled[0]], theta=comp_categories + [comp_categories[0]], fill='toself', name=p_curr_name, line=dict(color='#1f77b4')))
-                bench_fig.add_trace(go.Scatterpolar(r=t_val_scaled + [t_val_scaled[0]], theta=comp_categories + [comp_categories[0]], fill='toself', name=f"{t_name} ({t_season})", line=dict(color='#ff7f0e')))
-                bench_fig.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, 100])), height=350, margin=dict(l=40, r=40, t=30, b=30))
+                bench_fig.add_trace(go.Scatterpolar(r=p_val_scaled + [p_val_scaled[0]], theta=comp_categories + [comp_categories[0]], fill='toself', name=p_curr_name, line=dict(color='#00D4FF')))
+                bench_fig.add_trace(go.Scatterpolar(r=t_val_scaled + [t_val_scaled[0]], theta=comp_categories + [comp_categories[0]], fill='toself', name=f"{t_name} ({t_season})", line=dict(color='#FF9100')))
+                bench_fig.update_layout(
+                    paper_bgcolor="#0E1117", plot_bgcolor="#0E1117", font=dict(color="#ECEFF1"),
+                    polar=dict(bgcolor="#161B22", radialaxis=dict(visible=True, range=[0, 100], gridcolor="#2D3748")),
+                    height=360, margin=dict(l=40, r=40, t=30, b=30)
+                )
                 st.plotly_chart(bench_fig, use_container_width=True)
 
 # ================= TAB 6: 이적시장 구단/리그별 종합 결산 & 데이터룸 =================
@@ -2287,8 +2502,45 @@ with tab6:
                 t_m4.metric("이적시장 가중 평점", f"★ {weighted_avg_score:.2f} / 10.00", club_grade.split(" ")[0])
                 st.caption(f"🏆 최종 구단 이적시장 종합 판정: **{club_grade}**")
 
-                # [핵심 기능] 6번 탭 구단별 이적시장 성적표 인포그래픽 원클릭 복사
-                with st.expander(f"📋 [블로그/카페 업로드용] '{sel_team_name}' 이적시장 성적표 인포그래픽 복사", expanded=False):
+                # [신규 핵심 기능] 6번 탭 구단별 성적표 비주얼 인포그래픽 보드 (평점 계기판 + 재정 수지 바)
+                fig_club_card = make_subplots(
+                    rows=1, cols=2,
+                    specs=[[{'type': 'indicator'}, {'type': 'xy'}]],
+                    column_widths=[0.42, 0.58],
+                    subplot_titles=("<b>구단 이적시장 가중 평점</b>", "<b>영입 지출 vs 방출 수익 vs 순지출 (만 €)</b>")
+                )
+                c_gauge_col = "#00E676" if weighted_avg_score >= 7.5 else ("#29B6F6" if weighted_avg_score >= 6.8 else "#FFA726")
+                fig_club_card.add_trace(go.Indicator(
+                    mode="gauge+number", value=weighted_avg_score,
+                    number={'suffix': " / 10", 'font': {'size': 28, 'color': '#FFFFFF'}},
+                    title={'text': f"<b>{club_grade}</b>", 'font': {'size': 15, 'color': c_gauge_col}},
+                    gauge={
+                        'axis': {'range': [0, 10]},
+                        'bar': {'color': c_gauge_col},
+                        'bgcolor': "#1E2530",
+                        'steps': [{'range': [0, 6.8], 'color': "rgba(255,167,38,0.18)"}, {'range': [6.8, 10], 'color': "rgba(0,230,118,0.18)"}]
+                    }
+                ), row=1, col=1)
+
+                fin_labels = [f"영입 지출 ({len(team_in_df)}명)", f"방출 수익 ({len(team_out_df)}명)", "순지출 (Net Spend)"]
+                fin_vals = [total_in_spent, total_out_income, net_spend]
+                fin_cols = ["#29B6F6", "#00E676", "#EF5350" if net_spend > 0 else "#AB47BC"]
+
+                fig_club_card.add_trace(go.Bar(
+                    x=fin_labels, y=fin_vals,
+                    text=[f"€{v:,.0f}만" for v in fin_vals], textposition="outside",
+                    marker_color=fin_cols
+                ), row=1, col=2)
+
+                fig_club_card.update_layout(
+                    title=dict(text=f"<b>🛡️ {sel_team_name} 이적시장 성적표 ({sel_season_club})</b>", font=dict(size=18, color="#FFFFFF"), x=0.02),
+                    paper_bgcolor="#0E1117", plot_bgcolor="#0E1117", font=dict(color="#ECEFF1"),
+                    showlegend=False, height=360, margin=dict(l=35, r=35, t=75, b=35)
+                )
+                fig_club_card.update_yaxes(gridcolor="#1E2530")
+                st.plotly_chart(fig_club_card, use_container_width=True)
+
+                with st.expander(f"📋 [블로그/카페 본문용] '{sel_team_name}' 이적시장 성적표 텍스트 인포그래픽 복사", expanded=False):
                     in_list_str = ", ".join([f"{r.get('선수명','')} (€{float(r.get('실제이적료(만€)',0)):,.0f}만/★{float(r.get('이적평점',7.5)):.2f})" for _, r in team_in_df.iterrows()]) if not team_in_df.empty else "없음"
                     out_list_str = ", ".join([f"{r.get('선수명','')} (€{float(r.get('실제이적료(만€)',0)):,.0f}만/★{float(r.get('이적평점',7.5)):.2f})" for _, r in team_out_df.iterrows()]) if not team_out_df.empty else "없음"
                     club_infographic = (
@@ -2415,7 +2667,7 @@ with tab6:
 
                     if len(ranked_df) >= 2:
                         st.markdown("---")
-                        st.markdown("##### 📈 **구단별 이적시장 효율성 매트릭스 (순지출 vs 가중 이적 평점 4분면)**")
+                        st.markdown("##### 📈 **[외부 이미지 업로드용] 구단별 이적시장 효율성 매트릭스 (순지출 vs 가중 평점 4분면)**")
                         st.caption("좌측 상단(순수익+고평점)에 위치할수록 거상 구단이며, 우측 하단(거액 순지출+저평점)에 위치할수록 고비용 저효율(패닉바이) 구단입니다.")
 
                         scatter_fig = go.Figure()
@@ -2425,22 +2677,26 @@ with tab6:
                             mode="markers+text",
                             text=ranked_df["이적팀명"],
                             textposition="top center",
+                            textfont=dict(color="#FFFFFF", size=12),
                             marker=dict(
-                                size=np.clip(ranked_df["총영입액(만€)"] / 1500 + 10, 10, 32),
+                                size=np.clip(ranked_df["총영입액(만€)"] / 1500 + 12, 12, 34),
                                 color=ranked_df["가중이적평점"],
                                 colorscale="RdYlGn",
                                 showscale=True,
+                                line=dict(color="#FFFFFF", width=1.5),
                                 colorbar=dict(title="가중평점")
                             ),
                             hovertemplate="<b>%{text}</b><br>순지출: €%{x:,.0f}만<br>가중평점: ★%{y:.2f}<extra></extra>"
                         ))
-                        scatter_fig.add_hline(y=7.50, line_dash="dash", line_color="gray", annotation_text="평점 기준선 (★7.50)")
-                        scatter_fig.add_vline(x=0, line_dash="dash", line_color="gray", annotation_text="손익분기 (Net Spend €0)")
+                        scatter_fig.add_hline(y=7.50, line_dash="dash", line_color="#90A4AE", annotation_text="평점 기준선 (★7.50)", annotation_font_color="#00D4FF")
+                        scatter_fig.add_vline(x=0, line_dash="dash", line_color="#90A4AE", annotation_text="손익분기 (Net Spend €0)", annotation_font_color="#00E676")
                         scatter_fig.update_layout(
-                            xaxis_title="순지출 (Net Spend, 만 €) [음수(-) = 판매 흑자 / 양수(+) = 영입 지출]",
-                            yaxis_title="가중 이적 평점 (★ 1~10)",
-                            height=450,
-                            margin=dict(l=40, r=40, t=30, b=40)
+                            title=dict(text=f"<b>🌍 {title_prefix} 구단별 순지출 vs 이적 평점 매트릭스 ({sel_season_rk})</b>", font=dict(size=18, color="#FFFFFF"), x=0.02),
+                            paper_bgcolor="#0E1117", plot_bgcolor="#0E1117", font=dict(color="#ECEFF1"),
+                            xaxis=dict(title="순지출 (Net Spend, 만 €) [음수(-) = 판매 흑자 / 양수(+) = 영입 지출]", gridcolor="#1E2530"),
+                            yaxis=dict(title="가중 이적 평점 (★ 1~10)", gridcolor="#1E2530"),
+                            height=460,
+                            margin=dict(l=40, r=40, t=70, b=40)
                         )
                         st.plotly_chart(scatter_fig, use_container_width=True)
 
@@ -2477,8 +2733,7 @@ with tab6:
                         - 거래액: `€{float(worst_deal_row.get('실제이적료(만€)', 0)):,.0f}만` | 평점: `★ {float(worst_deal_row.get('이적평점', 0)):,.2f}`
                         """)
 
-                    # [핵심 기능] 6번 탭 파워 랭킹 인포그래픽 원클릭 복사
-                    with st.expander(f"📋 [블로그/카페 업로드용] {title_prefix} 파워 랭킹 TOP 10 인포그래픽 복사", expanded=False):
+                    with st.expander(f"📋 [블로그/카페 본문용] {title_prefix} 파워 랭킹 TOP 10 텍스트 인포그래픽 복사", expanded=False):
                         rk_lines = [
                             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
                             f"🏆 [POWER RANKINGS] {title_prefix} 이적시장 랭킹 ({sel_season_rk})",
