@@ -292,7 +292,7 @@ def resolve_club_logo(team_name, manual_url=""):
     return url_to_base64_img(raw_u) if raw_u else ""
 
 # =========================================================================
-# [V8 FM 스카우팅 그래픽 엔진: 미니 포지션 피치 + 선호 플레이(PPM) + 장단점(Pros/Cons)]
+# [V8 Pro FM 스카우팅 그래픽 엔진: 미니 포지션 피치 + 90종 정밀 스카우팅 프리셋]
 # =========================================================================
 SUB_POS_OPTIONS = [
     "ST (스트라이커)", "LW (좌측 윙어)", "RW (우측 윙어)", "CAM (공격형 미드필더)",
@@ -339,7 +339,6 @@ def build_fm_mini_pitch_svg(main_pos_str, versatility_str, manual_sub_list, stat
                 if code in nodes and code not in primary_nodes:
                     secondary_nodes.add(code)
         else:
-            # 하이브리드 자동 추론: 수동 선택이 비어 있으면 스탯 성향으로 인접 서브 포지션 자동 점등
             is_utility_3 = "3개" in versatility_str
             p_pass = stats_dict.get("pass_pct", 85.0)
             p_drib = stats_dict.get("p90_drib", 0.5)
@@ -396,85 +395,253 @@ def build_fm_mini_pitch_svg(main_pos_str, versatility_str, manual_sub_list, stat
     """
 
 def generate_fm_scouting_features(
-    main_pos, age, rating, goals, xg, assists, xa, shots, chances, dribbles, box_touches,
-    tackles, pass_pct, duels_pct, aerial_pct, gk_saves, gk_prev, gk_cs, gk_errors,
-    mins, overpay_pct, stage_str, inj_str, reg_str, vers_str, contract_str, league_w
+    main_pos, age, rating, goals, xg, assists, xa, shots, sot, chances, big_chances,
+    dribbles, box_touches, tackles, pass_pct, duels_pct, aerial_pct, pk_goals,
+    gk_saves, gk_conceded, gk_prev, gk_cs, gk_errors, gk_claims,
+    matches, starts, mins, overpay_pct, stage_str, inj_str, reg_str, vers_str, contract_str, urg_str, league_w
 ):
-    """FotMob 스탯 & 12대 가중치 조건을 분석하여 FM 스타일 선호 플레이(PPM) 태그 및 장단점(Pros/Cons) 자동 추출"""
+    """
+    [90종 풀버전 FM 스카우팅 인텔리전스 엔진]
+    - 스탯 상호 비율(슈팅 정확도, 빅찬스 순도, PK 비중, 선발 신뢰도, 지상/공중 편차 등)과
+      포지션별 전술 아키타입(포처, 컴플리트 포워드, 인사이드 포워드, 딥라잉 플레이메이커, 볼 플레잉 CB 등)을 교차 분석
+    """
     p90 = max(1.0, mins / 90.0)
+    p90_g = goals / p90
+    p90_xg = xg / p90
+    p90_xa = xa / p90
     p90_xg_xa = (xg + xa) / p90
     p90_shots = shots / p90
+    p90_sot = sot / p90
     p90_chances = chances / p90
+    p90_bc = big_chances / p90
     p90_drib = dribbles / p90
     p90_box = box_touches / p90
     p90_tkl = tackles / p90
+    sot_ratio = (sot / shots * 100.0) if shots > 0 else 0.0
+    bc_ratio = (big_chances / chances * 100.0) if chances > 0 else 0.0
+    start_ratio = (starts / matches * 100.0) if matches > 0 else 80.0
+    non_pk_goals = max(0, goals - pk_goals)
+    pk_share = (pk_goals / goals * 100.0) if goals > 0 else 0.0
     duels_avg = (duels_pct + aerial_pct) / 2.0
-    is_gk = "GK" in main_pos
-    is_def_mid = any(k in main_pos for k in ["CB", "RB/LB", "CM/CDM"])
 
-    # 1) FM 선호 플레이 (Player Traits / PPM) 추출
+    is_st = "ST/CF" in main_pos
+    is_wg_cam = "WG/CAM" in main_pos
+    is_cm_cdm = "CM/CDM" in main_pos
+    is_fb = "RB/LB/WB" in main_pos
+    is_cb = "CB" in main_pos
+    is_gk = "GK" in main_pos
+    is_def_mid = is_cm_cdm or is_fb or is_cb
+
+    # =========================================================================
+    # 1) FM 전술 롤 아키타입 & 선호 플레이 (Player Traits / PPM) — 약 35종 분기
+    # =========================================================================
     traits = []
     if is_gk:
-        if gk_prev >= 2.0: traits.append("🧤 동물적인 반사신경 & 슈퍼세이브 선호")
-        if gk_cs >= 10: traits.append("🧱 수비진 조율 및 클린시트 통솔")
-        if pass_pct >= 80.0: traits.append("🎯 후방 스위퍼 키퍼 빌드업 관여")
-        if not traits: traits.append("🧤 안정적인 기본기 중심 골키핑")
-    else:
-        if p90_box >= 4.2: traits.append("⚡ 상대 페널티 박스 안 침투 선호")
-        if goals >= 8 and xg > 0 and (goals / xg) >= 1.15: traits.append("🎯 침착한 골문 구석 마무리 (결정력 특화)")
-        if p90_drib >= 1.2: traits.append("🏃‍♂️ 측면/중앙 드리블 돌파를 자주 시도함")
-        if p90_chances >= 1.5 or (xa / p90) >= 0.22: traits.append("🔑 킬패스 및 결정적 기회 창출 시도")
-        if pass_pct >= 89.0: traits.append("📐 후방 템포 조절 및 짧은 패스 빌드업 선호")
-        if p90_tkl >= 1.6 or duels_pct >= 63.0: traits.append("🛡️ 적극적인 대인 압박 및 태클 시도")
-        if aerial_pct >= 64.0: traits.append("🗼 공중볼 경합 및 제공권 타겟 플레이")
-        if p90_shots >= 2.8: traits.append("🚀 과감한 중거리 및 슈팅 볼륨 가져감")
-        if "만능" in vers_str or "듀얼" in vers_str: traits.append("🔄 전술 변화에 따른 스위칭 플레이 능숙")
-        if not traits:
-            traits.append("⚖️ 전술 지시를 충실히 이행하는 밸런스형 플레이어")
+        if gk_prev >= 2.5: traits.append("🧤 동물적인 반사신경 & 슈퍼세이브형 수문장 (Shot-Stopper)")
+        elif gk_prev >= 1.0: traits.append("🧤 안정적인 선방 위치선정 및 골문 방어")
+        if gk_claims >= 16: traits.append("🗼 크로스 및 공중볼 직접 처리 선호 (박스 지배자)")
+        if gk_cs >= 12: traits.append("🧱 수비 라인 통솔 및 클린시트 메이커")
+        if pass_pct >= 82.0: traits.append("📐 후방 빌드업에 적극 관여하는 스위퍼 키퍼 (Sweeper Keeper)")
+        if gk_errors == 0 and mins >= 1800: traits.append("🛡️ 잔실수가 없는 침착한 핸들링 및 안정감")
+        if not traits: traits.append("🧤 기본기에 충실한 클래식 골키퍼")
+    elif is_st:
+        if p90_g >= 0.45 and p90_chances >= 1.2 and aerial_pct >= 58.0:
+            traits.append("👑 연계·제공권·마무리를 겸비한 만능형 스트라이커 (Complete Forward)")
+        elif p90_box >= 5.0 and p90_chances < 1.0 and goals >= 10:
+            traits.append("🦊 박스 안 위치선정 및 원터치 피니시 특화 (포처 / Poacher)")
+        elif p90_chances >= 1.4 or p90_xa >= 0.18:
+            traits.append("🔗 2선으로 내려와 공격을 연결하는 연계형 포워드 (Deep-Lying Forward)")
+        elif aerial_pct >= 62.0:
+            traits.append("🗼 포스트 플레이 및 공중볼 경합을 즐기는 타겟맨 (Target Forward)")
+        elif p90_drib >= 1.1 and p90_box >= 4.0:
+            traits.append("⚡ 뒷공간 침투 및 드리블 돌파를 즐기는 전진형 포워드 (Advanced Forward)")
+        if goals >= 8 and xg > 0 and (goals / xg) >= 1.15:
+            traits.append("🎯 골키퍼와의 1대1에서 침착한 구석 마무리 선호")
+        if p90_shots >= 3.2:
+            traits.append("🚀 거리와 각도를 가리지 않는 과감한 슈팅 시도")
+        if p90_tkl >= 0.8 or duels_pct >= 55.0:
+            traits.append("🐕 최전방에서 상대 수비진을 괴롭히는 압박형 포워드")
+    elif is_wg_cam:
+        if p90_shots >= 2.3 and p90_box >= 4.2:
+            traits.append("🏹 측면에서 중앙으로 접고 들어와 직접 득점 노림 (인사이드 포워드)")
+        elif p90_xa >= 0.25 or p90_chances >= 2.0:
+            traits.append("🎩 창의적인 스루패스로 수비 라인을 허무는 플레이메이커 (AP)")
+        elif p90_drib >= 1.8 and p90_shots < 2.0:
+            traits.append("⚡ 터치라인을 따라 폭발적인 드리블 돌파 후 컷백/크로스 선호 (클래식 윙어)")
+        elif p90_box >= 4.5 and goals >= 8:
+            traits.append("👻 하프스페이스 빈 공간을 찾아 침투하는 섀도우 스트라이커 (라움도이터)")
+        if p90_drib >= 1.5:
+            traits.append("🏃‍♂️ 1대1 대인 돌파를 자주 시도하며 파울을 유도함")
+        if bc_ratio >= 22.0 and big_chances >= 5:
+            traits.append("🔑 결정적 1대1 빅찬스를 창출하는 킬패스 선호")
+        if pass_pct >= 88.0:
+            traits.append("📐 좁은 공간에서 볼을 잃지 않는 탈압박 및 볼 키핑")
+    elif is_cm_cdm:
+        if pass_pct >= 89.5 and p90_chances >= 1.2 and p90_box < 2.0:
+            traits.append("🎼 3선 후방에서 장단패스로 경기 템포를 조율하는 사령관 (레지스타 / DLP)")
+        elif p90_tkl >= 1.8 and p90_box >= 2.0:
+            traits.append("🔋 공수 양면 박스부터 박스까지 종횡무진하는 활동량 (Box-to-Box)")
+        elif p90_tkl >= 2.0 and duels_pct >= 60.0 and p90_box < 1.5:
+            traits.append("🛡️ 포백 앞을 철저히 보호하고 상대 맥을 끊는 앵커맨 (Ball-Winning Midfielder)")
+        elif p90_chances >= 1.5 and p90_drib >= 1.0:
+            traits.append("⚡ 중원 하프스페이스를 파고들며 공격을 전개하는 메짤라 (Mezzala)")
+        if pass_pct >= 90.0:
+            traits.append("📐 위험 부담 없는 안전한 볼 순환 및 점유율 유지 선호")
+        if duels_avg >= 62.0:
+            traits.append("🧱 중원 몸싸움과 세컨드볼 경합에 적극적으로 뛰어듦")
+    elif is_fb:
+        if p90_chances >= 1.3 or p90_xa >= 0.15 or p90_drib >= 1.2:
+            traits.append("⚡ 과감한 오버래핑으로 측면 공격 숫자를 늘리는 공격형 풀백/윙백")
+        elif pass_pct >= 88.0 and p90_tkl >= 1.4:
+            traits.append("🧠 중앙으로 좁혀 들어와 3선 빌드업을 돕는 인버티드 풀백 (Inverted FB)")
+        elif duels_pct >= 62.0 and p90_tkl >= 1.8:
+            traits.append("🔒 상대 윙어와의 1대1 측면 수비 봉쇄에 집중하는 수비형 풀백")
+        if p90_box >= 1.8:
+            traits.append("🏃‍♂️ 상대 페널티 박스 근처까지 깊숙이 언더래핑 침투 시도")
+    elif is_cb:
+        if pass_pct >= 89.5 and duels_pct >= 60.0:
+            traits.append("📐 정교한 전진 패스로 후방 빌드업의 시발점이 되는 볼 플레잉 디펜더 (BPD)")
+        elif aerial_pct >= 66.0 and p90_tkl >= 1.4:
+            traits.append("🧱 압도적 제공권과 거친 대인 방어로 상대를 제압하는 파이터형 스토퍼")
+        elif duels_pct >= 64.0 and pass_pct >= 87.0:
+            traits.append("🛡️ 빠른 커버 플레이와 침착한 라인 컨트롤을 겸비한 커맨더형 센터백")
+        if aerial_pct >= 68.0 and goals >= 2:
+            traits.append("🗼 공격 세트피스(코너킥) 상황에서 위협적인 헤더 타겟")
 
-    # 2) FM 스카우팅 강점 (Pros - 초록색 배지)
+    if "만능" in vers_str:
+        traits.append("🔄 경기 중 전술 변화에 맞춰 3개 이상 포지션 스위칭 가능")
+    elif "듀얼" in vers_str:
+        traits.append("🔄 주 포지션과 서브 포지션을 오가는 멀티 롤 소화")
+    if pk_goals >= 3:
+        traits.append(f"🎯 팀 내 전담 페널티킥(PK) 키커 수행 ({pk_goals}골 성공)")
+    if not traits:
+        traits.append("⚖️ 감독의 전술적 지시를 충실히 수행하는 팀 플레이어")
+
+    # =========================================================================
+    # 2) FM 스카우팅 핵심 강점 (PROS) — 약 30종 분기
+    # =========================================================================
     pros = []
-    if rating >= 7.30: pros.append(f"직전 시즌 최정상급 퍼포먼스 검증 (★{rating:.2f})")
-    elif rating >= 7.08: pros.append(f"일관성 있는 주전급 경기력 유지 (★{rating:.2f})")
+    if rating >= 7.40: pros.append(f"직전 시즌 리그 최정상급(월드클래스급) 퍼포먼스 입증 (★{rating:.2f})")
+    elif rating >= 7.18: pros.append(f"직전 시즌 상위권 주전으로서 뛰어난 경기 영향력 발휘 (★{rating:.2f})")
+    elif rating >= 7.02: pros.append(f"기복 없이 안정적인 시즌 평균 평점 유지 (★{rating:.2f})")
 
     if is_gk:
-        if gk_prev >= 1.5: pros.append(f"기대 실점 대비 뛰어난 선방 방어력 ({gk_prev:+.2f}골 차단)")
-        if gk_cs >= 10: pros.append(f"검증된 무실점 경기 운영 능력 (클린시트 {gk_cs}회)")
+        if gk_prev >= 2.5: pros.append(f"패배를 승점으로 바꾸는 엘리트급 선방 능력 (기대실점 대비 {gk_prev:+.2f}골 차단)")
+        elif gk_prev >= 1.0: pros.append(f"기대 실점보다 적은 실점을 허용하는 안정적 방어력 ({gk_prev:+.2f}골 차단)")
+        if gk_cs >= 12: pros.append(f"검증된 무실점 경기 조율 능력 (시즌 클린시트 {gk_cs}회)")
+        if gk_claims >= 15: pros.append(f"골문 앞 공중볼 크로스 직접 차단 능력 우수 (공중볼 처리 {gk_claims}회)")
+        if gk_errors == 0 and mins >= 1500: pros.append("시즌 내내 실점으로 직결된 치명적 실책(Error) 0회 기록")
     elif is_def_mid:
-        if duels_avg >= 60.0: pros.append(f"탄탄한 지상·공중 대인 경합 지배력 (평균 {duels_avg:.1f}%)")
-        if pass_pct >= 87.5: pros.append(f"안정적인 패스 공급 및 탈압박 빌드업 ({pass_pct:.1f}%)")
-        if p90_tkl >= 1.4: pros.append(f"높은 수비 기여도 및 볼 탈취 능력 (90분당 태클 {p90_tkl:.2f}회)")
+        if duels_pct >= 63.0 and aerial_pct >= 63.0:
+            pros.append(f"지상({duels_pct:.1f}%)과 공중({aerial_pct:.1f}%) 모두 빈틈없는 완성형 경합 지배력")
+        elif duels_pct >= 63.0:
+            pros.append(f"1대1 지상 대인 방어 및 발밑 경합에서 매우 강한 면모 ({duels_pct:.1f}%)")
+        elif aerial_pct >= 64.0:
+            pros.append(f"세트피스 수비 및 롱볼 대응에 탁월한 공중볼 장악력 ({aerial_pct:.1f}%)")
+        if pass_pct >= 90.0:
+            pros.append(f"상대 압박 속에서도 흔들리지 않는 최상위권 패스 성공률 ({pass_pct:.1f}%)")
+        elif pass_pct >= 87.0:
+            pros.append(f"후방에서 안정적으로 볼을 배급하는 빌드업 정확도 ({pass_pct:.1f}%)")
+        if p90_tkl >= 1.8:
+            pros.append(f"왕성한 수비 범위와 뛰어난 볼 탈취 생산성 (90분당 태클 {p90_tkl:.2f}회)")
+        if goals + assists >= 5:
+            pros.append(f"수비/중원 자원임에도 쏠쏠한 공격 포인트 생산 가담 ({goals}골 {assists}도움)")
     else:
-        if p90_xg_xa >= 0.55: pros.append(f"최상위권 공격 포인트 생산성 (90분당 xG+xA {p90_xg_xa:.2f})")
-        if goals > xg * 1.1 and goals >= 5: pros.append(f"기대득점(xG {xg:.1f})을 상회하는 골 결정력 ({goals}골)")
-        if p90_chances >= 1.4: pros.append(f"동료에게 기회를 열어주는 찬스 메이킹 (총 {chances}회)")
+        if p90_xg_xa >= 0.65:
+            pros.append(f"유럽 정상급 기대 공격포인트 생산력 (90분당 xG+xA {p90_xg_xa:.2f})")
+        elif p90_xg_xa >= 0.45:
+            pros.append(f"주전 공격 자원으로서 준수한 기회 생산성 (90분당 xG+xA {p90_xg_xa:.2f})")
+        if goals >= 6 and xg > 0 and (goals / xg) >= 1.15:
+            pros.append(f"기대득점(xG {xg:.1f})을 뛰어넘는 순도 높은 결정력 (실제 {goals}골)")
+        if pk_goals == 0 and goals >= 8:
+            pros.append(f"페널티킥(PK) 없이 100% 오픈플레이로만 만들어낸 순수 {goals}골 기록")
+        if sot_ratio >= 48.0 and shots >= 25:
+            pros.append(f"난사 없이 골문 안으로 꽂아 넣는 뛰어난 슈팅 영점 조준 (유효슈팅률 {sot_ratio:.1f}%)")
+        if big_chances >= 8 or (p90_chances >= 1.6):
+            pros.append(f"동료에게 결정적 1대1 찬스를 열어주는 기회 창출 능력 (기회창출 {chances}회 · 빅찬스 {big_chances}회)")
+        if p90_drib >= 1.5:
+            pros.append(f"밀집 수비를 균열내는 개인 전술 및 드리블 돌파력 (성공 {dribbles}회)")
 
-    if overpay_pct <= -5.0: pros.append(f"적정가 대비 뛰어난 가성비 영입 ({overpay_pct:.1f}% 절감)")
-    if "철강왕" in inj_str or mins >= 2600: pros.append(f"뛰어난 피지컬 내구성 및 풀타임 소화력 ({mins:,}분)")
-    if "UCL" in stage_str or "UEL" in stage_str: pros.append("유럽대항전 및 메이저 빅매치 큰 경기 검증 완료")
-    if "홈그로운" in reg_str or "유스" in reg_str: pros.append("구단 스쿼드 등록에 유리한 홈그로운(HG) 쿼터 충족")
-    if age <= 23: pros.append(f"향후 성장 잠재력 및 높은 리세일 밸류 기대 (만 {age}세)")
+    if start_ratio >= 85.0 and mins >= 2300:
+        pros.append(f"직전 소속팀에서 검증된 붙박이 주전 신뢰도 및 풀타임 체력 ({mins:,}분 · 선발률 {start_ratio:.0f}%)")
+    elif "철강왕" in inj_str:
+        pros.append("최근 2년간 부상 공백이 거의 없는 뛰어난 메디컬 내구성 (철강왕)")
+    if overpay_pct <= -8.0:
+        pros.append(f"모델 산출 적정가 대비 매우 유리한 조건에 타결된 가성비 딜 ({overpay_pct:.1f}%)")
+    elif abs(overpay_pct) <= 5.0:
+        pros.append("거품 없는 합리적 시장 적정가 수준에서 성사된 영입")
+    if "UCL" in stage_str:
+        pros.append("챔피언스리그(UCL) 토너먼트 및 메이저 A매치 큰 무대 검증 완료")
+    if "홈그로운" in reg_str or "유스" in reg_str:
+        pros.append("구단 스쿼드 등록 및 엔트리 운영에 필수적인 홈그로운(HG) 프리미엄 보유")
+    if age <= 22:
+        pros.append(f"성장 포텐셜이 열려 있으며 향후 재판매(Resale) 가치 상승이 기대되는 연령대 (만 {age}세)")
+    elif 24 <= age <= 27:
+        pros.append(f"신체 능력과 경험이 정점에 달하는 전성기(Peak Age) 구간 진입 (만 {age}세)")
 
     if not pros:
-        pros.append("팀 스쿼드 뎁스 및 로테이션 운영에 보탬이 되는 자원")
+        pros.append("팀 전술 운용 및 스쿼드 뎁스 강화에 즉시 활용 가능한 자원")
 
-    # 3) FM 스카우팅 약점/리스크 (Cons - 주황/빨간색 배지)
+    # =========================================================================
+    # 3) FM 스카우팅 약점 및 리스크 (CONS) — 약 25종 분기
+    # =========================================================================
     cons = []
-    if overpay_pct >= 12.0: cons.append(f"모델 적정가 대비 높은 이적료 프리미엄 지출 (+{overpay_pct:.1f}%)")
-    if "장기 부상" in inj_str or "잔부상" in inj_str: cons.append("과거 부상 이력에 따른 메디컬 관리 및 내구성 주의")
-    if age >= 30: cons.append(f"에이징 커브 진입 구간으로 향후 이적료 회수율 낮음 (만 {age}세)")
-    if league_w <= 0.78: cons.append("빅리그 상위 템포 및 강한 압박 적응 기간 필요")
-    if not is_gk and not is_def_mid and xg >= 5.0 and goals < xg * 0.80:
-        cons.append(f"기대득점(xG {xg:.1f}) 대비 다소 아쉬운 골 결정력 ({goals}골)")
-    if not is_gk and duels_avg < 50.0:
-        cons.append(f"거친 피지컬 경합 상황에서의 열세 ({duels_avg:.1f}%)")
+    if overpay_pct >= 20.0:
+        cons.append(f"적정 가치 대비 과도한 오버페이 지출로 인한 재정적 부담 (+{overpay_pct:.1f}%)")
+    elif overpay_pct >= 10.0:
+        cons.append(f"셀링 클럽의 협상 우위로 인해 적정가 대비 다소 높은 프리미엄 지불 (+{overpay_pct:.1f}%)")
+
+    if "장기 부상" in inj_str:
+        cons.append("최근 2년 내 장기 부상 이력이 존재하여 철저한 메디컬 및 출전 시간 관리가 필수적임")
+    elif "잔부상" in inj_str:
+        cons.append("시즌 중 간헐적인 근육/잔부상 결장 패턴이 있어 로테이션 백업 대비 필요")
+
+    if age >= 31:
+        cons.append(f"에이징 커브 하락세 진입 구간으로 계약 만료 시 이적료 회수(리세일)가 사실상 어려움 (만 {age}세)")
+    elif age >= 29 and not is_gk and not is_cb:
+        cons.append(f"기동력이 요구되는 포지션 특성상 2~3년 내 에이징 커브 도래 가능성 염두 (만 {age}세)")
+
+    if league_w <= 0.70:
+        cons.append("원소속 리그와의 템포·피지컬 격차가 커서 빅리그 압박 속도에 적응할 시간이 필요함")
+    elif league_w <= 0.80:
+        cons.append("상위 빅리그 스텝업에 따른 초기 공수 전환 템포 적응 변수 존재")
+
+    if is_gk:
+        if gk_errors >= 2:
+            cons.append(f"간헐적으로 실점으로 직결되는 치명적인 미스 노출 이력 (골 실수 {gk_errors}회)")
+        if gk_prev < -1.0:
+            cons.append(f"기대 실점 대비 실제 실점이 많아 선방 안정감 개선 필요 ({gk_prev:+.2f})")
+    elif is_def_mid:
+        if duels_pct >= 60.0 and aerial_pct < 52.0:
+            cons.append(f"지상 수비는 준수하나 공중볼 경합({aerial_pct:.1f}%)에서 약점을 보여 타겟맨 상대 시 주의 필요")
+        elif aerial_pct >= 60.0 and duels_pct < 52.0:
+            cons.append(f"제공권은 좋으나 발 빠른 드리블러 상대 지상 1대1 경합({duels_pct:.1f}%)에서 고전 경향")
+        elif duels_avg < 51.0:
+            cons.append(f"거친 중원·수비 몸싸움 및 대인 경합 승률 보완 필요 (평균 {duels_avg:.1f}%)")
+        if pass_pct < 80.0:
+            cons.append(f"강한 전방 압박을 받을 때 후방 패스 미스 리스크 존재 (패스 성공률 {pass_pct:.1f}%)")
+    else:
+        if xg >= 5.0 and (goals / xg) < 0.78:
+            cons.append(f"좋은 위치선정으로 찬스(xG {xg:.1f})는 많이 잡으나 마무리 골 결정력({goals}골)에서 아쉬움 노출")
+        if shots >= 35 and sot_ratio < 32.0:
+            cons.append(f"슈팅 볼륨({shots}회) 대비 유효슈팅 연결 비율({sot_ratio:.1f}%)이 낮아 영점 조준 개선 필요")
+        if pk_share >= 35.0 and pk_goals >= 4:
+            cons.append(f"전체 득점({goals}골) 중 페널티킥 비중({pk_goals}골, {pk_share:.0f}%)이 높아 오픈플레이 득점력 검증 필요")
+        if duels_avg < 45.0:
+            cons.append(f"상대 수비수의 강한 피지컬 견제 시 볼 간수 및 경합 열세 ({duels_avg:.1f}%)")
+
+    if mins < 1400:
+        cons.append(f"직전 시즌 실전 출전 시간({mins:,}분)이 적어 풀타임 경기 감각 및 체력 검증 필요")
+    elif start_ratio < 60.0 and matches >= 15:
+        cons.append(f"붙박이 선발보다는 교체/로테이션 비중(선발률 {start_ratio:.0f}%)이 높았던 이력")
+
     if "비EU" in reg_str:
-        cons.append("스쿼드 내 제한된 비EU 외국인 쿼터 소모")
-    if "패닉바이" in contract_str or mins < 1400:
-        cons.append(f"직전 시즌 다소 부족했던 실전 출전 시간 ({mins:,}분)")
+        cons.append("구단 내 제한된 비EU(Non-EU) 외국인 등록 쿼터를 1장 소모함")
+    if "패닉바이" in urg_str:
+        cons.append("구단의 급박한 상황에서 추진된 영입으로 오버페이 및 전술 융화 리스크 내포")
 
     if not cons:
-        cons.append("뚜렷한 치명적 단점 없는 육각형 안정형 영입")
+        cons.append("스탯과 계약 조건 모두 뚜렷한 결격 사유가 없는 로우 리스크(Low-Risk) 영입")
 
     return traits[:4], pros[:4], cons[:3]
 
@@ -1227,7 +1394,6 @@ with tab1:
             vers_init = cf.get("vers", list(VERSATILITY_WEIGHTS.keys())[0])
             versatility = st.selectbox("멀티 포지션 소화 능력", list(VERSATILITY_WEIGHTS.keys()), index=list(VERSATILITY_WEIGHTS.keys()).index(vers_init) if vers_init in VERSATILITY_WEIGHTS else 0, key=f"vers_{k_id}")
 
-        # [FM 하이브리드 서브 포지션 선택기] 듀얼 롤 / 만능 유틸리티 선택 시에만 활성화 (비워두면 스탯 기반 자동 추론)
         if "단일" not in versatility:
             manual_sub_positions = st.multiselect(
                 "🟡 서브 포지션 선택 (클릭 시 미니 축구장에 노란불 점등 · 비워두면 스탯 기반 자동 추론)",
@@ -1447,7 +1613,7 @@ with tab1:
     pj_rating_t1 = round(max(6.0, cur_rating - (1.0 - final_lf_t1) * 0.9), 2)
 
     with col2:
-        st.subheader("🖼️ [V8 FM Scouting Edition] 초고화질 스카우팅 인포그래픽 보드")
+        st.subheader("🖼️ [V8 Pro FM Scouting Edition] 초고화질 스카우팅 인포그래픽 보드")
         display_name = player_name.strip() if player_name.strip() else "선수명 미입력"
         display_nat = f"({player_nat.strip()})" if player_nat.strip() else ""
         pos_short = main_position.split(" (")[0]
@@ -1500,7 +1666,7 @@ with tab1:
             f"골키퍼 첫 시즌 예상 FotMob 평점 <b style='color:#FBBF24;'>★{pj_rating_t1:.2f}</b> (직전 선방 {st.session_state.get('f_gk_saves', 78)}회 · 클린시트 {st.session_state.get('f_gk_cs', 10)}회)"
         )
 
-        # [FM 스카우팅 리포트 생성] 미니 포지션 맵 + 선호 플레이(PPM) + 장단점(Pros/Cons)
+        # [90종 FM 스카우팅 리포트 생성]
         fm_mini_pitch_svg = build_fm_mini_pitch_svg(
             main_position, versatility, manual_sub_positions,
             {
@@ -1514,14 +1680,18 @@ with tab1:
             main_position, player_age, cur_rating,
             st.session_state["f_goals"], st.session_state["f_xg"],
             st.session_state["f_assists"], st.session_state["f_xa"],
-            st.session_state["f_shots"], st.session_state["f_chances"],
+            st.session_state["f_shots"], st.session_state["f_sot"],
+            st.session_state["f_chances"], st.session_state.get("f_big_chances", 2),
             st.session_state["f_dribbles"], st.session_state["f_touches_box"],
             st.session_state["f_tackles"], st.session_state.get("f_pass_pct", 88.2),
             st.session_state.get("f_duels_pct", 62.4), st.session_state.get("f_aerial_pct", 65.8),
-            st.session_state.get("f_gk_saves", 78), st.session_state.get("f_gk_prevented", 2.45),
-            st.session_state.get("f_gk_cs", 10), st.session_state.get("f_gk_errors", 0),
+            st.session_state.get("f_pk", 0),
+            st.session_state.get("f_gk_saves", 78), st.session_state.get("f_gk_conceded", 28),
+            st.session_state.get("f_gk_prevented", 2.45), st.session_state.get("f_gk_cs", 10),
+            st.session_state.get("f_gk_errors", 0), st.session_state.get("f_gk_claims", 18),
+            st.session_state["f_matches"], st.session_state.get("f_starts", 25),
             st.session_state["f_mins"], overpay_pct, big_stage, injury_status,
-            reg_status, versatility, remaining_contract, league_w
+            reg_status, versatility, remaining_contract, urgency_status, league_w
         )
 
         traits_badges_html = "".join([
@@ -1624,10 +1794,10 @@ with tab1:
             </div>
         </div>
 
-        <!-- [신규 추가] FM 스타일 스카우팅 리포트 패널 (미니 포지션 숙련도 피치 + 선호 플레이 태그 + 장단점 배지) -->
+        <!-- [90종 FM 스카우팅 리포트 패널] 미니 포지션 숙련도 피치 + 전술 아키타입/선호 플레이 + 장단점 배지 -->
         <div class="glass-panel" style="padding:16px 18px; margin-bottom:16px;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-                <div style="font-size:13px; font-weight:900; color:#34D399; letter-spacing:0.3px;">🎮 FM SCOUTING INTELLIGENCE · 포지션 숙련도 & 플레이스타일 & 장단점 리포트</div>
+                <div style="font-size:13px; font-weight:900; color:#34D399; letter-spacing:0.3px;">🎮 FM SCOUTING INTELLIGENCE · 포지션 숙련도 & 전술 아키타입 & 장단점 리포트</div>
                 <div style="font-size:11px; color:#94A3B8; font-weight:700;"><span style="color:#10B981;">●</span> 천연(주포지션) &nbsp;<span style="color:#FBBF24;">●</span> 능숙(서브포지션)</div>
             </div>
             <div style="display:grid; grid-template-columns: 165px 1fr; gap:16px; align-items:center;">
@@ -1636,7 +1806,7 @@ with tab1:
                 </div>
                 <div style="display:flex; flex-direction:column; gap:10px;">
                     <div style="background:#090D16; border:1px solid #1E293B; border-radius:10px; padding:10px 12px;">
-                        <div style="font-size:11px; font-weight:800; color:#38BDF8; margin-bottom:6px;">🧬 선호하는 플레이 & 전술 성향 (Player Traits / PPM)</div>
+                        <div style="font-size:11px; font-weight:800; color:#38BDF8; margin-bottom:6px;">🧬 전술 롤 아키타입 & 선호하는 플레이 (Tactical Role & Player Traits)</div>
                         <div style="display:flex; flex-wrap:wrap; gap:6px;">{traits_badges_html}</div>
                     </div>
                     <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
@@ -2079,7 +2249,7 @@ with tab3:
             st.dataframe(match_df, use_container_width=True)
 
 _part1_end = True
-    # ================= TAB 4: 이적 첫 시즌 최종 성적 입력 & 모델 검증 =================
+   # ================= TAB 4: 이적 첫 시즌 최종 성적 입력 & 모델 검증 =================
 with tab4:
     st.subheader("🎯 시즌 종료 후 최종 실제 성적 입력 & 모델 예측 정확도 사후 검증")
 
@@ -2877,4 +3047,4 @@ with tab7:
             st.markdown("---")
             csv_backup = history_df.to_csv(index=False).encode("utf-8-sig")
             st.download_button("📥 전체 DB 엑셀(CSV) 백업 다운로드", data=csv_backup, file_name=f"transfer_scouting_db_{datetime.now().strftime('%Y%m%d_%H%M')}.csv", mime="text/csv", use_container_width=True)
-            st.dataframe(history_df, use_container_width=True)
+            st.dataframe(history_df, use_container_width=True) 
