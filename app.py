@@ -28,6 +28,80 @@ if "form_key_id" not in st.session_state:
 if "last_saved_msg" not in st.session_state:
     st.session_state["last_saved_msg"] = None
 
+# =========================================================================
+# [구단 로고 자동 매칭 시스템]
+# 1) 유럽 주요 구단 기본 내장 사전 (FotMob 공식 CDN - 캡처 호환 100%)
+# 2) 구글 시트 저장 이력에서 로고 URL 자동 추출 및 병합
+# 3) 사이드바에서 언제든 구단 로고 추가/수정 가능
+# =========================================================================
+DEFAULT_CLUB_LOGOS = {
+    "아스날": "https://images.fotmob.com/image_resources/logo/teamlogo/9825.png",
+    "아스널": "https://images.fotmob.com/image_resources/logo/teamlogo/9825.png",
+    "맨시티": "https://images.fotmob.com/image_resources/logo/teamlogo/8456.png",
+    "맨체스터 시티": "https://images.fotmob.com/image_resources/logo/teamlogo/8456.png",
+    "리버풀": "https://images.fotmob.com/image_resources/logo/teamlogo/8650.png",
+    "첼시": "https://images.fotmob.com/image_resources/logo/teamlogo/8455.png",
+    "토트넘": "https://images.fotmob.com/image_resources/logo/teamlogo/8586.png",
+    "맨유": "https://images.fotmob.com/image_resources/logo/teamlogo/10260.png",
+    "맨체스터 유나이티드": "https://images.fotmob.com/image_resources/logo/teamlogo/10260.png",
+    "뉴캐슬": "https://images.fotmob.com/image_resources/logo/teamlogo/10261.png",
+    "아스톤 빌라": "https://images.fotmob.com/image_resources/logo/teamlogo/10252.png",
+    "애스턴 빌라": "https://images.fotmob.com/image_resources/logo/teamlogo/10252.png",
+    "브라이튼": "https://images.fotmob.com/image_resources/logo/teamlogo/10204.png",
+    "웨스트햄": "https://images.fotmob.com/image_resources/logo/teamlogo/8654.png",
+    "본머스": "https://images.fotmob.com/image_resources/logo/teamlogo/8678.png",
+    "풀럼": "https://images.fotmob.com/image_resources/logo/teamlogo/9879.png",
+    "울버햄튼": "https://images.fotmob.com/image_resources/logo/teamlogo/8602.png",
+    "크리스탈 팰리스": "https://images.fotmob.com/image_resources/logo/teamlogo/9826.png",
+    "브렌트포드": "https://images.fotmob.com/image_resources/logo/teamlogo/9937.png",
+    "에버턴": "https://images.fotmob.com/image_resources/logo/teamlogo/8668.png",
+    "노팅엄": "https://images.fotmob.com/image_resources/logo/teamlogo/10203.png",
+    "노팅엄 포레스트": "https://images.fotmob.com/image_resources/logo/teamlogo/10203.png",
+    "레알 마드리드": "https://images.fotmob.com/image_resources/logo/teamlogo/8633.png",
+    "바르셀로나": "https://images.fotmob.com/image_resources/logo/teamlogo/8634.png",
+    "AT 마드리드": "https://images.fotmob.com/image_resources/logo/teamlogo/9906.png",
+    "아틀레티코 마드리드": "https://images.fotmob.com/image_resources/logo/teamlogo/9906.png",
+    "바이에른 뮌헨": "https://images.fotmob.com/image_resources/logo/teamlogo/9823.png",
+    "뮌헨": "https://images.fotmob.com/image_resources/logo/teamlogo/9823.png",
+    "레버쿠젠": "https://images.fotmob.com/image_resources/logo/teamlogo/8178.png",
+    "도르트문트": "https://images.fotmob.com/image_resources/logo/teamlogo/9789.png",
+    "라이프치히": "https://images.fotmob.com/image_resources/logo/teamlogo/178475.png",
+    "인터밀란": "https://images.fotmob.com/image_resources/logo/teamlogo/8636.png",
+    "인테르": "https://images.fotmob.com/image_resources/logo/teamlogo/8636.png",
+    "유벤투스": "https://images.fotmob.com/image_resources/logo/teamlogo/9885.png",
+    "AC밀란": "https://images.fotmob.com/image_resources/logo/teamlogo/8564.png",
+    "나폴리": "https://images.fotmob.com/image_resources/logo/teamlogo/9875.png",
+    "AS로마": "https://images.fotmob.com/image_resources/logo/teamlogo/8686.png",
+    "아탈란타": "https://images.fotmob.com/image_resources/logo/teamlogo/8524.png",
+    "PSG": "https://images.fotmob.com/image_resources/logo/teamlogo/9847.png",
+    "파리 생제르맹": "https://images.fotmob.com/image_resources/logo/teamlogo/9847.png",
+    "스포르팅": "https://images.fotmob.com/image_resources/logo/teamlogo/9768.png",
+    "벤피카": "https://images.fotmob.com/image_resources/logo/teamlogo/9772.png",
+    "포르투": "https://images.fotmob.com/image_resources/logo/teamlogo/9773.png",
+    "아약스": "https://images.fotmob.com/image_resources/logo/teamlogo/8593.png",
+    "PSV": "https://images.fotmob.com/image_resources/logo/teamlogo/8640.png",
+    "페예노르트": "https://images.fotmob.com/image_resources/logo/teamlogo/10235.png"
+}
+
+if "custom_club_logos" not in st.session_state:
+    st.session_state["custom_club_logos"] = DEFAULT_CLUB_LOGOS.copy()
+
+def extract_logos_from_notes(notes_str):
+    if not isinstance(notes_str, str):
+        return "", ""
+    m_from = re.search(r"\|\|LOGO_FROM:(.*?)\|\|", notes_str)
+    m_to = re.search(r"\|\|LOGO_TO:(.*?)\|\|", notes_str)
+    f_url = m_from.group(1).strip() if m_from else ""
+    t_url = m_to.group(1).strip() if m_to else ""
+    return f_url, t_url
+
+def clean_notes_display(notes_str):
+    if not isinstance(notes_str, str):
+        return ""
+    cleaned = re.sub(r"\|\|LOGO_FROM:.*?\|\|", "", notes_str)
+    cleaned = re.sub(r"\|\|LOGO_TO:.*?\|\|", "", cleaned)
+    return cleaned.strip(" |")
+
 default_stats = {
     "f_mins": 2206, "f_goals": 16, "f_xg": 17.44, "f_assists": 4, "f_xa": 3.33,
     "f_rating": 7.32, "f_matches": 28, "f_starts": 25, "f_shots": 88, "f_sot": 43,
@@ -40,12 +114,44 @@ for k, v in default_stats.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
+@st.cache_data(ttl=60)
+def fetch_sheet_history():
+    try:
+        df = pd.read_csv(SHEET_CSV_URL)
+        return df
+    except Exception:
+        return pd.DataFrame()
+
+history_df = fetch_sheet_history()
+
+# 구글 시트에 저장된 과거 로고 태그들을 자동으로 읽어와 로고 사전에 영구 병합
+if not history_df.empty and "스카우팅메모" in history_df.columns:
+    for _, r_hist in history_df.iterrows():
+        nt_raw = str(r_hist.get("스카우팅메모", ""))
+        f_team_h = str(r_hist.get("원소속팀명", "")).strip()
+        t_team_h = str(r_hist.get("이적팀명", "")).strip()
+        f_logo_h, t_logo_h = extract_logos_from_notes(nt_raw)
+        if f_team_h and f_logo_h:
+            st.session_state["custom_club_logos"][f_team_h] = f_logo_h
+        if t_team_h and t_logo_h:
+            st.session_state["custom_club_logos"][t_team_h] = t_logo_h
+
+def resolve_club_logo(team_name, manual_url=""):
+    if manual_url and str(manual_url).strip():
+        return str(manual_url).strip()
+    t_clean = str(team_name).strip()
+    if not t_clean:
+        return ""
+    logo_dict = st.session_state["custom_club_logos"]
+    if t_clean in logo_dict:
+        return logo_dict[t_clean]
+    for k_club, v_url in logo_dict.items():
+        if k_club in t_clean or t_clean in k_club:
+            return v_url
+    return ""
+
 # =========================================================================
-# [V6 하이엔드 그래픽 엔진]
-# 1) SVG 원형 도넛 게이지 (Broadcast Circular Ring)
-# 2) SVG 네온 글로우 + 캡슐 배지 6각형 레이더 (word-break 완벽 보호)
-# 3) 축구장 피치(Tactical Pitch) 포지션 자동 배치도
-# 4) 3배율(Scale 3.0) 초고해상도 클립보드 이미지 원클릭 복사기
+# [V7 하이엔드 그래픽 엔진]
 # =========================================================================
 def build_svg_donut_ring(score, max_score=10.0, color="#10B981", sub_label="DEAL SCORE", size=112):
     r = 44
@@ -333,7 +439,7 @@ def render_copyable_infographic(card_inner_html, filename="scouting_infographic"
     components.html(full_doc, height=height, scrolling=True)
 
 
-# 사이드바: 실시간 환율 설정 및 파운드/원화 ➔ 만 유로 즉시 변환기
+# 사이드바: 실시간 환율 설정 + 영국/국내 금액 변환기 + 구단 로고 사전 관리/수정
 with st.sidebar:
     st.markdown("### 💱 실시간 환율 기준 설정")
     st.caption("이적시장 시점의 실제 환율에 맞게 조정할 수 있습니다.")
@@ -341,9 +447,24 @@ with st.sidebar:
     rate_gbp = st.number_input("1 유로(€) 당 파운드(£) 환율", min_value=0.50, max_value=1.20, value=0.86, step=0.01, format="%.2f", key="sb_rate_gbp")
 
     st.markdown("---")
-    st.markdown("### 🧮 영국/국내 보도 금액 변환기")
-    st.caption("파운드(£)나 원화(억원) 기사를 만 유로(€)로 즉시 환산합니다.")
+    st.markdown("### 🛡️ 구단 로고 사전 조회 & 수정")
+    st.caption("한 번 등록/수정한 구단 로고는 팀 이름만 입력해도 인포그래픽에 자동 적용됩니다.")
+    with st.expander("구단 로고 추가 / 변경하기", expanded=False):
+        known_clubs = sorted(list(st.session_state["custom_club_logos"].keys()))
+        sel_club_edit = st.selectbox("등록된 구단 확인 (또는 아래에 직접 입력)", ["+ 새 구단 직접 입력"] + known_clubs, key="sb_logo_sel")
+        target_club_key = st.text_input("구단명 입력", value="" if sel_club_edit == "+ 새 구단 직접 입력" else sel_club_edit, placeholder="예: 뉴캐슬", key="sb_logo_name")
+        curr_logo_val = st.session_state["custom_club_logos"].get(target_club_key.strip(), "")
+        new_logo_val = st.text_input("구단 로고 이미지 URL", value=curr_logo_val, placeholder="https://... 로고 이미지 주소", key="sb_logo_url")
+        if curr_logo_val:
+            st.markdown(f"<div style='text-align:center; padding:6px; background:#0F172A; border-radius:8px;'><img src='{curr_logo_val}' style='height:42px; object-fit:contain;'/></div>", unsafe_allow_html=True)
+        if st.button("💾 구단 로고 사전에 저장/수정", use_container_width=True, key="sb_logo_save_btn"):
+            if target_club_key.strip() and new_logo_val.strip():
+                st.session_state["custom_club_logos"][target_club_key.strip()] = new_logo_val.strip()
+                st.success(f"✅ '{target_club_key.strip()}' 로고가 업데이트되었습니다!")
+                st.rerun()
 
+    st.markdown("---")
+    st.markdown("### 🧮 영국/국내 보도 금액 변환기")
     conv_gbp_m = st.number_input("파운드 이적료 (£m, 백만 파운드)", min_value=0.0, value=0.0, step=1.0, key="sb_conv_gbp_m")
     if conv_gbp_m > 0:
         eur_man_from_gbp = int(round((conv_gbp_m * 100.0) / rate_gbp))
@@ -517,16 +638,6 @@ def to_public_index(weight_val, min_w=0.65, max_w=1.08):
     norm = (weight_val - min_w) / (max_w - min_w) if max_w > min_w else 0.5
     return int(round(max(55, min(98, 60 + norm * 38))))
 
-@st.cache_data(ttl=60)
-def fetch_sheet_history():
-    try:
-        df = pd.read_csv(SHEET_CSV_URL)
-        return df
-    except Exception:
-        return pd.DataFrame()
-
-history_df = fetch_sheet_history()
-
 def find_val(row_dict, candidates, default=0):
     for c in candidates:
         for k in row_dict.keys():
@@ -539,7 +650,7 @@ def find_val(row_dict, candidates, default=0):
                         return val
     return default
 
-# 3. 메인 7개 탭 구성 (시즌 중 라운드별 중간 점검 탭 신규 추가)
+# 3. 메인 7개 탭 구성
 tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "💰 적정 이적료 평가", 
     "📱 FotMob 시즌 성적 & 이적 예측",
@@ -558,7 +669,8 @@ with tab1:
 
     default_form_template = {
         "name": "", "nat": "", "age": 28, "from_team": "", "to_team": "",
-        "tm": 4500, "fee": 5960, "wage": 0.0, "notes": "", "photo_url": "",
+        "from_logo": "", "to_logo": "",
+        "tm": 4500, "fee": 5960, "wage": 0.0, "notes": "",
         "season": "26/27 여름 (Summer)",
         "pos": list(POSITION_WEIGHTS.keys())[4],
         "from_league": list(LEAGUE_WEIGHTS.keys())[0],
@@ -582,11 +694,10 @@ with tab1:
 
     c_mode1, c_mode2 = st.columns([1, 1])
     with c_mode1:
-        edit_toggle = st.toggle("✏️ 기존 저장된 선수 불러와서 수정/주급 추가 모드", value=False)
+        edit_toggle = st.toggle("✏️ 기존 저장된 선수 불러와서 수정/주급·로고 변경 모드", value=False)
     with c_mode2:
         ai_paste_toggle = st.toggle("🤖 제미나이(AI) 텍스트 ➔ 1초 자동 입력기 열기", value=False)
 
-    # [신규 기능 1] 제미나이(AI) 텍스트 1초 자동 파서
     if ai_paste_toggle:
         with st.expander("🤖 제미나이 데이터 한 번에 붙여넣기 (1·2번 탭 20여 개 항목 자동 입력)", expanded=True):
             st.caption("제미나이에게 아래 프롬프트를 복사해 질문한 뒤, 답변을 그대로 아래 칸에 붙여넣고 버튼을 누르세요!")
@@ -598,7 +709,7 @@ with tab1:
                         json_match = re.search(r'\{.*\}', ai_raw_txt, re.DOTALL)
                         parsed = json.loads(json_match.group(0)) if json_match else {}
                         cf_now = st.session_state["current_form"]
-                        for k_p in ["name", "nat", "from_team", "to_team", "photo_url"]:
+                        for k_p in ["name", "nat", "from_team", "to_team", "from_logo", "to_logo"]:
                             if k_p in parsed: cf_now[k_p] = str(parsed[k_p])
                         for k_i in ["age", "tm", "fee"]:
                             if k_i in parsed: cf_now[k_i] = int(float(parsed[k_i]))
@@ -651,6 +762,9 @@ with tab1:
                         to_l_match = next((l_k for l_k in LEAGUE_WEIGHTS.keys() if tl_saved and tl_saved in l_k), list(LEAGUE_WEIGHTS.keys())[0])
 
                         notes_val = str(rd.get("스카우팅메모", ""))
+                        saved_from_logo, saved_to_logo = extract_logos_from_notes(notes_val)
+                        cleaned_notes_val = clean_notes_display(notes_val)
+
                         tier_saved = str(rd.get("영입구단규모", ""))
                         tier_match = next((t_k for t_k in CLUB_TIERS.keys() if tier_saved and tier_saved in t_k), list(CLUB_TIERS.keys())[1])
                         contract_match = next((c_k for c_k in CONTRACT_WEIGHTS.keys() if c_k.split(" (")[0] in notes_val), list(CONTRACT_WEIGHTS.keys())[2])
@@ -665,11 +779,12 @@ with tab1:
                             "age": int(find_val(rd, ["나이"], 28)),
                             "from_team": str(rd.get("원소속팀명", "")),
                             "to_team": str(rd.get("이적팀명", "")),
+                            "from_logo": saved_from_logo,
+                            "to_logo": saved_to_logo,
                             "tm": int(find_val(rd, ["시장가치", "tm"], 4500)),
                             "fee": int(find_val(rd, ["실제이적료", "이적료", "fee"], 0)),
                             "wage": float(find_val(rd, ["선수주급", "주급", "wage"], 0.0)),
-                            "notes": notes_val,
-                            "photo_url": "",
+                            "notes": cleaned_notes_val,
                             "season": sel_e_season,
                             "pos": pos_match,
                             "from_league": from_l_match,
@@ -735,9 +850,6 @@ with tab1:
         with c_n2: player_nat = st.text_input("국적", value=cf.get("nat", ""), placeholder="예: 잉글랜드", key=f"nat_{k_id}")
         with c_n3: player_age = st.number_input("나이(만)", min_value=15, max_value=45, value=cf.get("age", 28), key=f"age_{k_id}")
 
-        # [신규 기능 2] 선수 프로필 사진 URL 입력칸 (선택 사항)
-        player_photo_url = st.text_input("🖼️ 선수 프로필 사진 이미지 URL (선택 · 넣으면 인포그래픽 상단에 표시)", value=cf.get("photo_url", ""), placeholder="FotMob/TM 선수 사진 우클릭 ➔ 이미지 주소 복사 후 붙여넣기 (비워두면 기본 아이콘)", key=f"photo_{k_id}")
-
         if not edit_toggle and player_name.strip() and not history_df.empty and "선수명" in history_df.columns:
             dup_matches = history_df[
                 (history_df["선수명"].astype(str).str.strip().str.lower() == player_name.strip().lower()) & 
@@ -748,9 +860,24 @@ with tab1:
                 st.warning(f"⚠️ **중복 등록 알림**: **'{player_name.strip()}'** 선수는 이미 `{season_val}` 시즌에 등록된 내역이 있습니다! (`[{last_dup.get('원소속팀명', '미상')} ➔ {last_dup.get('이적팀명', '미상')}]`)")
 
         c_t1, c_t2, c_t3 = st.columns(3)
-        with c_t1: in_from_team = st.text_input("원소속팀명 (보내는 팀)", value=cf.get("from_team", ""), placeholder="예: 아스톤 빌라", key=f"from_team_{k_id}")
+        with c_t1: in_from_team = st.text_input("원소속팀명 (보내는 팀)", value=cf.get("from_team", ""), placeholder="예: 뉴캐슬", key=f"from_team_{k_id}")
         with c_t2: in_to_team = st.text_input("이적팀명 (영입 구단)", value=cf.get("to_team", ""), placeholder="예: 아스날", key=f"to_team_{k_id}")
         with c_t3: in_to_league_choice = st.selectbox("이적팀 리그", list(LEAGUE_WEIGHTS.keys()), index=list(LEAGUE_WEIGHTS.keys()).index(cf.get("to_league", list(LEAGUE_WEIGHTS.keys())[0])) if cf.get("to_league", "") in LEAGUE_WEIGHTS else 0, key=f"to_league_choice_{k_id}")
+
+        # 구단 로고 자동 매칭 및 수동 입력/수정 Expander
+        auto_from_logo = resolve_club_logo(in_from_team, cf.get("from_logo", ""))
+        auto_to_logo = resolve_club_logo(in_to_team, cf.get("to_logo", ""))
+
+        with st.expander("🛡️ 구단 로고 URL 확인 & 수정 (1회 입력 시 시트 자동 저장 · 주요 구단 자동 완성)", expanded=False):
+            st.caption("비워두셔도 내장 사전 및 과거 시트 저장 기록에서 구단 로고를 자동으로 찾아 매칭합니다. 새 구단이거나 로고를 바꿀 때만 입력하세요.")
+            lg_c1, lg_c2 = st.columns(2)
+            with lg_c1:
+                in_from_logo_manual = st.text_input("원소속팀 로고 URL", value=auto_from_logo, placeholder="자동 매칭됨 (직접 입력 시 덮어씀)", key=f"from_logo_{k_id}")
+            with lg_c2:
+                in_to_logo_manual = st.text_input("이적팀(영입구단) 로고 URL", value=auto_to_logo, placeholder="자동 매칭됨 (직접 입력 시 덮어씀)", key=f"to_logo_{k_id}")
+
+        final_from_logo = resolve_club_logo(in_from_team, in_from_logo_manual)
+        final_to_logo = resolve_club_logo(in_to_team, in_to_logo_manual)
 
         is_tracked_target = any(k in in_to_league_choice for k in TRACKED_LEAGUE_NAMES)
         st.caption("✅ **10대 핵심 리그 이적**: 시즌 종료 후 4번 탭 사후 검증 대상에 **자동 등록**됩니다." if is_tracked_target else "ℹ️ **기타 리그 이적**: 메인 결산 장부에만 기록됩니다.")
@@ -968,7 +1095,7 @@ with tab1:
     pj_rating_t1 = round(max(6.0, cur_rating - (1.0 - final_lf_t1) * 0.9), 2)
 
     with col2:
-        st.subheader("🖼️ [V6 Broadcast Edition] 초고화질 스카우팅 인포그래픽 보드")
+        st.subheader("🖼️ [V7 Club Logo Edition] 초고화질 스카우팅 인포그래픽 보드")
         display_name = player_name.strip() if player_name.strip() else "선수명 미입력"
         display_nat = f"({player_nat.strip()})" if player_nat.strip() else ""
         pos_short = main_position.split(" (")[0]
@@ -976,7 +1103,8 @@ with tab1:
         reg_short = reg_status.split(" (")[0]
         urg_short = urgency_status.split(" (")[0]
 
-        route_str = f"{in_from_team.strip()} ➔ {in_to_team.strip()}" if in_from_team.strip() or in_to_team.strip() else "구단 미입력"
+        from_t_disp = in_from_team.strip() if in_from_team.strip() else "원소속팀"
+        to_t_disp = in_to_team.strip() if in_to_team.strip() else "영입구단"
         tag_badge_txt = "TRANSFER OUT · 방출/매각" if is_out_trade else "TRANSFER IN · 영입/보강"
         badge_bg = "linear-gradient(90deg, #E11D48, #BE123C)" if is_out_trade else "linear-gradient(90deg, #2563EB, #4F46E5)"
         fee_display = "비공개 (추정)" if is_undisclosed else (f"€{calc_actual_fee:,.1f}만" if not is_fa else "FA (€0)")
@@ -1001,10 +1129,18 @@ with tab1:
         w_act = min(100, int(calc_actual_fee / max_v_ref * 100))
         w_3yr = min(100, int(proj_3yr_val / max_v_ref * 100))
 
-        avatar_html = (
-            f"<img src='{player_photo_url.strip()}' crossorigin='anonymous' style='width:74px; height:74px; border-radius:50%; object-fit:cover; border:3px solid #38BDF8; box-shadow:0 0 15px rgba(56,189,248,0.5); margin-right:16px;'/>"
-            if player_photo_url.strip() else
-            f"<div style='width:68px; height:68px; border-radius:50%; background:linear-gradient(135deg, #1E293B, #0F172A); border:2px solid #38BDF8; display:flex; align-items:center; justify-content:center; font-size:26px; font-weight:900; color:#38BDF8; margin-right:16px; flex-shrink:0;'>⚽</div>"
+        # 상단 이적 경로 미니 구단 로고 HTML 조립
+        mini_from_img = f"<img src='{final_from_logo}' crossorigin='anonymous' style='width:20px; height:20px; object-fit:contain; vertical-align:middle; margin-right:5px;'/>" if final_from_logo else "🏟️ "
+        mini_to_img = f"<img src='{final_to_logo}' crossorigin='anonymous' style='width:20px; height:20px; object-fit:contain; vertical-align:middle; margin-right:5px;'/>" if final_to_logo else "🛡️ "
+        route_with_logos_html = f"<span style='display:inline-flex; align-items:center;'>{mini_from_img}<b>{from_t_disp}</b> &nbsp;➔&nbsp; {mini_to_img}<b style='color:#FFFFFF;'>{to_t_disp}</b> &nbsp;<span style='font-size:11.5px; color:#93C5FD;'>({in_to_league_choice.split(' (')[0]})</span></span>"
+
+        # 메인 프로필 액자: 영입 구단(이적팀)의 큼직한 공식 로고 표시 (없으면 원소속팀 로고 또는 방패 아이콘)
+        hero_logo_url = final_to_logo if final_to_logo else final_from_logo
+        hero_club_emblem_html = (
+            f"<div style='width:78px; height:78px; border-radius:18px; background:radial-gradient(circle, rgba(30,41,59,0.95) 0%, rgba(9,13,22,0.98) 100%); border:2px solid #38BDF8; box-shadow:0 0 18px rgba(56,189,248,0.45); display:flex; align-items:center; justify-content:center; padding:8px; margin-right:18px; flex-shrink:0;'>"
+            f"<img src='{hero_logo_url}' crossorigin='anonymous' style='width:100%; height:100%; object-fit:contain;'/></div>"
+            if hero_logo_url else
+            f"<div style='width:74px; height:74px; border-radius:18px; background:linear-gradient(135deg, #1E293B, #0F172A); border:2px solid #38BDF8; display:flex; align-items:center; justify-content:center; font-size:30px; font-weight:900; color:#38BDF8; margin-right:18px; flex-shrink:0;'>🛡️</div>"
         )
 
         act_bar_bg = "linear-gradient(90deg, #0284C7, #38BDF8)" if overpay_pct <= 5 else "linear-gradient(90deg, #E11D48, #FB7185)"
@@ -1014,21 +1150,20 @@ with tab1:
             f"골키퍼 첫 시즌 예상 FotMob 평점 <b style='color:#FBBF24;'>★{pj_rating_t1:.2f}</b> (직전 선방 {st.session_state.get('f_gk_saves', 78)}회 · 클린시트 {st.session_state.get('f_gk_cs', 10)}회)"
         )
 
-        # 1번 탭 인포그래픽 보드 (하단 스카우팅 코멘트 미표시 적용 완료)
         tab1_board_html = f"""
         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:18px; padding-bottom:12px; border-bottom:1px solid rgba(148,163,184,0.18);">
             <div style="display:flex; align-items:center; gap:10px;">
                 <span style="background:{badge_bg}; color:#FFFFFF; font-size:11px; font-weight:900; padding:5px 12px; border-radius:20px; letter-spacing:0.5px;">{tag_badge_txt}</span>
                 <span style="background:rgba(30,41,59,0.9); border:1px solid #475569; color:#E2E8F0; font-size:12px; font-weight:700; padding:4px 11px; border-radius:20px;">{season_val.split(' (')[0]} · {ttype_short}</span>
             </div>
-            <div style="background:rgba(14,165,233,0.12); border:1px solid rgba(56,189,248,0.4); color:#38BDF8; font-size:13px; font-weight:800; padding:5px 14px; border-radius:20px;">
-                📍 {route_str} ({in_to_league_choice.split(' (')[0]})
+            <div style="background:rgba(14,165,233,0.14); border:1px solid rgba(56,189,248,0.45); color:#38BDF8; font-size:13.5px; font-weight:800; padding:6px 15px; border-radius:20px;">
+                {route_with_logos_html}
             </div>
         </div>
 
         <div class="glass-panel" style="padding:18px 22px; margin-bottom:18px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px;">
             <div style="display:flex; align-items:center; flex:1; min-width:260px;">
-                {avatar_html}
+                {hero_club_emblem_html}
                 <div>
                     <div style="font-size:11px; font-weight:800; color:#38BDF8; letter-spacing:1px; margin-bottom:3px;">OFFICIAL TRANSFER SCOUTING REPORT</div>
                     <div style="font-size:30px; font-weight:900; color:#FFFFFF; letter-spacing:-0.8px; line-height:1.15;">
@@ -1151,7 +1286,7 @@ with tab1:
     st.markdown("---")
     display_pname_t1 = player_name.strip() if player_name.strip() else "선수명 미입력"
     tag_btn_name_t1 = "🔴 방출(OUT) 데이터" if is_out_trade else "🔵 영입(IN) 데이터"
-    btn_label_t1 = f"🔄 '{display_pname_t1}' 수정된 데이터 구글 시트에 업데이트(덮어쓰기)" if edit_toggle else f"💾 {tag_btn_name_t1} 구글 시트에 바로 저장하기 (총 48개 항목 동기화)"
+    btn_label_t1 = f"🔄 '{display_pname_t1}' 수정된 데이터 구글 시트에 업데이트(덮어쓰기)" if edit_toggle else f"💾 {tag_btn_name_t1} 구글 시트에 바로 저장하기 (구단 로고 자동 학습 포함)"
 
     if st.button(btn_label_t1, type="primary", use_container_width=True, key="save_btn_tab1"):
         if not player_name.strip():
@@ -1159,11 +1294,19 @@ with tab1:
         else:
             action_type = "update_existing" if edit_toggle else "save_all"
             with st.spinner("구글 시트에 데이터를 기록 중입니다..."):
+                if in_from_team.strip() and final_from_logo:
+                    st.session_state["custom_club_logos"][in_from_team.strip()] = final_from_logo
+                if in_to_team.strip() and final_to_logo:
+                    st.session_state["custom_club_logos"][in_to_team.strip()] = final_to_logo
+
                 contract_desc = remaining_contract.split(" (")[0]
                 nat_str = player_nat if player_nat.strip() else "미상"
+                clean_user_note = clean_notes_display(player_notes)
                 detailed_notes = f"[{'방출' if is_out_trade else '영입'}|{ttype_short}|{reg_short}|{urg_short}|UCL:{stage_w:.2f}|메디컬:{inj_w:.2f}] 계약:{contract_desc}"
-                if player_notes.strip(): detailed_notes += f" | {player_notes.strip()}"
+                if clean_user_note: detailed_notes += f" | {clean_user_note}"
                 if is_gk: detailed_notes += f" | GK[선방:{st.session_state.get('f_gk_saves', 78)}|실점:{st.session_state.get('f_gk_conceded', 28)}]"
+                if final_from_logo: detailed_notes += f" ||LOGO_FROM:{final_from_logo}||"
+                if final_to_logo: detailed_notes += f" ||LOGO_TO:{final_to_logo}||"
 
                 payload = {
                     "action": action_type, "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
@@ -1205,7 +1348,7 @@ with tab1:
                     res = requests.post(GOOGLE_SHEET_WEBAPP_URL, data=json.dumps(payload), headers={"Content-Type": "text/plain;charset=utf-8"}, timeout=30, allow_redirects=True)
                     res_json = res.json()
                     if res.status_code in [200, 302] and res_json.get("status") == "success":
-                        st.session_state["last_saved_msg"] = f"✅ '{player_name}' 선수의 데이터가 성공적으로 {'수정' if edit_toggle else '저장'}되었습니다!"
+                        st.session_state["last_saved_msg"] = f"✅ '{player_name}' 선수의 데이터와 구단 로고가 성공적으로 {'수정' if edit_toggle else '저장'}되었습니다!"
                         st.cache_data.clear()
                         st.session_state["current_form"] = default_form_template.copy()
                         st.session_state["form_key_id"] += 1
@@ -1370,10 +1513,13 @@ with tab2:
 
         tab2_board_html = f"""
         <div class="glass-panel" style="padding:16px 20px; margin-bottom:16px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
-            <div>
-                <div style="font-size:11px; font-weight:800; color:#38BDF8; letter-spacing:1px;">FOTMOB FIRST-SEASON STATISTICAL PROJECTION</div>
-                <div style="font-size:26px; font-weight:900; color:#FFFFFF; margin-top:2px;">📱 {display_name} · 이적 첫 시즌 성적 예측 리포트</div>
-                <div style="font-size:13px; color:#94A3B8; margin-top:4px;">{f_from_l.split(' (')[0]} ➔ <b style="color:#38BDF8;">{f_to_l.split(' (')[0]}</b> ({adapt_desc}) &nbsp;|&nbsp; 예상 출전: <b>{f_target_mins:,}분 (약 {target_p90:.0f}경기)</b></div>
+            <div style="display:flex; align-items:center;">
+                {hero_club_emblem_html}
+                <div>
+                    <div style="font-size:11px; font-weight:800; color:#38BDF8; letter-spacing:1px;">FOTMOB FIRST-SEASON STATISTICAL PROJECTION</div>
+                    <div style="font-size:26px; font-weight:900; color:#FFFFFF; margin-top:2px;">📱 {display_name} · 이적 첫 시즌 성적 예측 리포트</div>
+                    <div style="font-size:13px; color:#94A3B8; margin-top:4px;">{route_with_logos_html} &nbsp;|&nbsp; 예상 출전: <b>{f_target_mins:,}분 (약 {target_p90:.0f}경기)</b></div>
+                </div>
             </div>
             <div>{donut_t2_rat}</div>
         </div>
@@ -1412,7 +1558,7 @@ with tab2:
         gk_board_html = f"""
         <div class="glass-panel" style="padding:16px 20px; margin-bottom:16px; display:flex; justify-content:space-between; align-items:center;">
             <div style="font-size:22px; font-weight:900; color:#FFFFFF;">🧤 {display_name} · 골키퍼 첫 시즌 성적 예측 ({season_type_desc})</div>
-            <div style="font-size:13px; color:#34D399; font-weight:700;">{f_from_l.split(' (')[0]} ➔ {f_to_l.split(' (')[0]} | 예상 {f_target_mins:,}분</div>
+            <div style="font-size:13px; color:#34D399; font-weight:700;">{route_with_logos_html} | 예상 {f_target_mins:,}분</div>
         </div>
         <div style="display:grid; grid-template-columns:repeat(5, 1fr); gap:10px; text-align:center;">
             <div class="kpi-card" style="border-top:3px solid #38BDF8;"><div style="font-size:11px; color:#94A3B8;">예상 평점</div><div style="font-size:22px; font-weight:900; color:#38BDF8; margin-top:4px;">★ {proj_rating:.2f}</div><div style="font-size:11px; color:#64748B;">직전 ★{in_rating:.2f}</div></div>
@@ -1476,7 +1622,7 @@ with tab3:
                 valid_rows.append({
                     "시즌": p_season, "선수명": p_name, "포지션": p_pos, "원소속리그": p_league,
                     "실제이적료(만€)": p_fee, "산출적정가(만€)": p_fair, "평가율(%)": round(p_overpay, 1),
-                    "이적평점": round(p_score, 2), "유사도(%)": sim_pct, "스카우팅메모": str(row.get("스카우팅메모", ""))
+                    "이적평점": round(p_score, 2), "유사도(%)": sim_pct, "스카우팅메모": clean_notes_display(str(row.get("스카우팅메모", "")))
                 })
             except Exception: continue
 
@@ -1514,17 +1660,17 @@ with tab3:
             """
             render_copyable_infographic(tab3_board_html, filename=f"comps_{display_name}", height=580)
             st.dataframe(match_df, use_container_width=True)
-
-# ================= TAB 4: 이적 첫 시즌 최종 성적 입력 & 모델 검증 =================
-with tab4:
+    with tab4:
     st.subheader("🎯 시즌 종료 후 최종 실제 성적 입력 & 모델 예측 정확도 사후 검증")
 
     @st.cache_data(ttl=60)
     def fetch_validation_data():
         try:
             df = pd.read_csv(VAL_SHEET_CSV_URL)
-            if not df.empty and "선수명" in df.columns: return df
-        except Exception: pass
+            if not df.empty and "선수명" in df.columns:
+                return df
+        except Exception:
+            pass
         return pd.DataFrame()
 
     val_df = fetch_validation_data()
@@ -1532,7 +1678,14 @@ with tab4:
     if val_df.empty or "이적시즌" not in val_df.columns:
         st.info("💡 아직 [검증데이터] 시트에 저장된 데이터가 없습니다.")
     else:
-        val_df["입력상태"] = val_df.apply(lambda r: "✅ 검증 완료" if str(r.get("실제평점", "")).strip() not in ["", "nan"] and str(r.get("실제출전시간", "")).strip() not in ["", "nan", "0"] else "⏳ 검증 대기", axis=1)
+        def check_val_status(r):
+            r_str = str(r.get("실제평점", "")).strip()
+            m_str = str(r.get("실제출전시간", "")).strip()
+            if r_str not in ["", "nan"] and m_str not in ["", "nan", "0"]:
+                return "✅ 검증 완료"
+            return "⏳ 검증 대기"
+
+        val_df["입력상태"] = val_df.apply(check_val_status, axis=1)
         available_seasons = list(val_df["이적시즌"].dropna().unique())
         v_top1, v_top2 = st.columns([1, 1])
         with v_top1:
@@ -1585,45 +1738,54 @@ with tab4:
             exist_act_notes = str(target_row.get("검증메모", "")) if pd.notnull(target_row.get("검증메모")) else ""
             is_gk_target = "GK" in p_pos or "골키퍼" in p_pos
 
-            def_get_int = lambda col, def_v: int(target_row.get(col, def_v)) if pd.notnull(target_row.get(col)) and str(target_row.get(col)).strip() not in ["", "nan"] else def_v
-            def_get_flt = lambda col, def_v: float(target_row.get(col, def_v)) if pd.notnull(target_row.get(col)) and str(target_row.get(col)).strip() not in ["", "nan"] else def_v
+            def get_int_val(col, def_v):
+                v = target_row.get(col, def_v)
+                if pd.notnull(v) and str(v).strip() not in ["", "nan"]:
+                    return int(float(v))
+                return def_v
+
+            def get_flt_val(col, def_v):
+                v = target_row.get(col, def_v)
+                if pd.notnull(v) and str(v).strip() not in ["", "nan"]:
+                    return float(v)
+                return def_v
 
             if not is_gk_target:
                 in_ac1, in_ac2, in_ac3, in_ac4, in_ac5, in_ac6 = st.columns(6)
                 with in_ac1: act_mins_val = st.number_input("실제 출전 시간(분)", 0, 4500, value=exist_act_mins, step=90, key=f"val_act_mins_{v_ukey}")
-                with in_ac2: act_goals_val = st.number_input("실제 득점(Goals)", 0, 60, value=def_get_int("실제득점", int(round(proj_g))), step=1, key=f"val_act_goals_{v_ukey}")
-                with in_ac3: act_xg_val = st.number_input("실제 기대득점(xG)", 0.0, 50.0, value=def_get_flt("실제xG", float(proj_xg)), step=0.01, key=f"val_act_xg_{v_ukey}")
-                with in_ac4: act_assists_val = st.number_input("실제 도움(Assists)", 0, 40, value=def_get_int("실제도움", int(round(proj_a))), step=1, key=f"val_act_assists_{v_ukey}")
-                with in_ac5: act_xa_val = st.number_input("실제 기대도움(xA)", 0.0, 30.0, value=def_get_flt("실제xA", float(proj_xa)), step=0.01, key=f"val_act_xa_{v_ukey}")
+                with in_ac2: act_goals_val = st.number_input("실제 득점(Goals)", 0, 60, value=get_int_val("실제득점", int(round(proj_g))), step=1, key=f"val_act_goals_{v_ukey}")
+                with in_ac3: act_xg_val = st.number_input("실제 기대득점(xG)", 0.0, 50.0, value=get_flt_val("실제xG", float(proj_xg)), step=0.01, key=f"val_act_xg_{v_ukey}")
+                with in_ac4: act_assists_val = st.number_input("실제 도움(Assists)", 0, 40, value=get_int_val("실제도움", int(round(proj_a))), step=1, key=f"val_act_assists_{v_ukey}")
+                with in_ac5: act_xa_val = st.number_input("실제 기대도움(xA)", 0.0, 30.0, value=get_flt_val("실제xA", float(proj_xa)), step=0.01, key=f"val_act_xa_{v_ukey}")
                 with in_ac6: act_rating_val = st.number_input("실제 FotMob 평점", 4.0, 10.0, value=exist_act_rating, step=0.01, key=f"val_act_rating_{v_ukey}")
 
                 in_bc1, in_bc2, in_bc3, in_bc4, in_bc5, in_bc6 = st.columns(6)
-                with in_bc1: act_shots_val = st.number_input("실제 총 슈팅", 0, 200, value=def_get_int("실제총슈팅", 40), key=f"val_act_shots_{v_ukey}")
-                with in_bc2: act_sot_val = st.number_input("실제 유효 슈팅", 0, 100, value=def_get_int("실제유효슈팅", 15), key=f"val_act_sot_{v_ukey}")
-                with in_bc3: act_chances_val = st.number_input("실제 기회 창출", 0, 150, value=def_get_int("실제기회창출", 20), key=f"val_act_chances_{v_ukey}")
-                with in_bc4: act_dribbles_val = st.number_input("실제 성공 드리블", 0, 100, value=def_get_int("실제성공드리블", 15), key=f"val_act_dribbles_{v_ukey}")
-                with in_bc5: act_box_val = st.number_input("실제 박스 터치", 0, 300, value=def_get_int("실제박스터치", 50), key=f"val_act_box_{v_ukey}")
-                with in_bc6: act_tackles_val = st.number_input("실제 태클 성공", 0, 150, value=def_get_int("실제태클성공", 25), key=f"val_act_tackles_{v_ukey}")
+                with in_bc1: act_shots_val = st.number_input("실제 총 슈팅", 0, 200, value=get_int_val("실제총슈팅", 40), key=f"val_act_shots_{v_ukey}")
+                with in_bc2: act_sot_val = st.number_input("실제 유효 슈팅", 0, 100, value=get_int_val("실제유효슈팅", 15), key=f"val_act_sot_{v_ukey}")
+                with in_bc3: act_chances_val = st.number_input("실제 기회 창출", 0, 150, value=get_int_val("실제기회창출", 20), key=f"val_act_chances_{v_ukey}")
+                with in_bc4: act_dribbles_val = st.number_input("실제 성공 드리블", 0, 100, value=get_int_val("실제성공드리블", 15), key=f"val_act_dribbles_{v_ukey}")
+                with in_bc5: act_box_val = st.number_input("실제 박스 터치", 0, 300, value=get_int_val("실제박스터치", 50), key=f"val_act_box_{v_ukey}")
+                with in_bc6: act_tackles_val = st.number_input("실제 태클 성공", 0, 150, value=get_int_val("실제태클성공", 25), key=f"val_act_tackles_{v_ukey}")
 
                 in_cc1, in_cc2, in_cc3, in_cc4, in_cc5 = st.columns(5)
-                with in_cc1: act_big_chances_val = st.number_input("실제 빅찬스 메이킹", 0, 50, value=def_get_int("실제빅찬스메이킹", 5), key=f"val_act_bc_{v_ukey}")
-                with in_cc2: act_pk_val = st.number_input("실제 PK 득점", 0, 20, value=def_get_int("실제PK득점", 0), key=f"val_act_pk_{v_ukey}")
-                with in_cc3: act_pass_pct_val = st.number_input("실제 패스 성공률(%)", 30.0, 100.0, value=def_get_flt("실제패스성공률", 85.0), step=0.1, key=f"val_act_pass_{v_ukey}")
-                with in_cc4: act_duels_pct_val = st.number_input("실제 지상경합승률(%)", 20.0, 100.0, value=def_get_flt("실제지상경합승률", 60.0), step=0.1, key=f"val_act_duels_{v_ukey}")
-                with in_cc5: act_aerial_pct_val = st.number_input("실제 공중볼승률(%)", 20.0, 100.0, value=def_get_flt("실제공중볼승률", 55.0), step=0.1, key=f"val_act_aerial_{v_ukey}")
+                with in_cc1: act_big_chances_val = st.number_input("실제 빅찬스 메이킹", 0, 50, value=get_int_val("실제빅찬스메이킹", 5), key=f"val_act_bc_{v_ukey}")
+                with in_cc2: act_pk_val = st.number_input("실제 PK 득점", 0, 20, value=get_int_val("실제PK득점", 0), key=f"val_act_pk_{v_ukey}")
+                with in_cc3: act_pass_pct_val = st.number_input("실제 패스 성공률(%)", 30.0, 100.0, value=get_flt_val("실제패스성공률", 85.0), step=0.1, key=f"val_act_pass_{v_ukey}")
+                with in_cc4: act_duels_pct_val = st.number_input("실제 지상경합승률(%)", 20.0, 100.0, value=get_flt_val("실제지상경합승률", 60.0), step=0.1, key=f"val_act_duels_{v_ukey}")
+                with in_cc5: act_aerial_pct_val = st.number_input("실제 공중볼승률(%)", 20.0, 100.0, value=get_flt_val("실제공중볼승률", 55.0), step=0.1, key=f"val_act_aerial_{v_ukey}")
                 act_gk_saves_val = act_gk_conceded_val = act_gk_cs_val = act_gk_errors_val = act_gk_claims_val = 0
                 act_gk_prevented_val = 0.0
             else:
                 gk_c1, gk_c2, gk_c3, gk_c4 = st.columns(4)
                 with gk_c1: act_mins_val = st.number_input("실제 출전 시간(분)", 0, 4500, value=exist_act_mins, step=90, key=f"val_act_mins_gk_{v_ukey}")
                 with gk_c2: act_rating_val = st.number_input("실제 FotMob 평점", 4.0, 10.0, value=exist_act_rating, step=0.01, key=f"val_act_rating_gk_{v_ukey}")
-                with gk_c3: act_gk_saves_val = st.number_input("실제 선방", 0, 250, value=def_get_int("실제선방", 80), key=f"val_act_gksaves_{v_ukey}")
-                with gk_c4: act_gk_conceded_val = st.number_input("실제 실점 수", 0, 120, value=def_get_int("실제실점", 35), key=f"val_act_gkconc_{v_ukey}")
+                with gk_c3: act_gk_saves_val = st.number_input("실제 선방", 0, 250, value=get_int_val("실제선방", 80), key=f"val_act_gksaves_{v_ukey}")
+                with gk_c4: act_gk_conceded_val = st.number_input("실제 실점 수", 0, 120, value=get_int_val("실제실점", 35), key=f"val_act_gkconc_{v_ukey}")
                 gk_c5, gk_c6, gk_c7, gk_c8 = st.columns(4)
-                with gk_c5: act_gk_prevented_val = st.number_input("실제 득점 차단", -20.0, 30.0, value=def_get_flt("실제득점차단", 1.5), step=0.01, key=f"val_act_gkprev_{v_ukey}")
-                with gk_c6: act_gk_cs_val = st.number_input("실제 클린 시트", 0, 35, value=def_get_int("실제클린시트", 10), key=f"val_act_gkcs_{v_ukey}")
-                with gk_c7: act_gk_errors_val = st.number_input("실제 골 실수", 0, 15, value=def_get_int("실제실수", 0), key=f"val_act_gkerr_{v_ukey}")
-                with gk_c8: act_gk_claims_val = st.number_input("실제 공중볼 잡기", 0, 80, value=def_get_int("실제공중볼", 15), key=f"val_act_gkclaims_{v_ukey}")
+                with gk_c5: act_gk_prevented_val = st.number_input("실제 득점 차단", -20.0, 30.0, value=get_flt_val("실제득점차단", 1.5), step=0.01, key=f"val_act_gkprev_{v_ukey}")
+                with gk_c6: act_gk_cs_val = st.number_input("실제 클린 시트", 0, 35, value=get_int_val("실제클린시트", 10), key=f"val_act_gkcs_{v_ukey}")
+                with gk_c7: act_gk_errors_val = st.number_input("실제 골 실수", 0, 15, value=get_int_val("실제실수", 0), key=f"val_act_gkerr_{v_ukey}")
+                with gk_c8: act_gk_claims_val = st.number_input("실제 공중볼 잡기", 0, 80, value=get_int_val("실제공중볼", 15), key=f"val_act_gkclaims_{v_ukey}")
                 act_goals_val = act_assists_val = act_shots_val = act_sot_val = act_chances_val = act_dribbles_val = act_box_val = act_tackles_val = act_big_chances_val = act_pk_val = 0
                 act_xg_val = act_xa_val = act_pass_pct_val = act_duels_pct_val = act_aerial_pct_val = 0.0
 
@@ -1675,10 +1837,10 @@ with tab4:
         st.markdown("---")
         st.dataframe(val_df, use_container_width=True)
 
-# ================= TAB 5: [신규] 시즌 중 라운드별 중간 점검 시뮬레이터 (시트 미저장 · 메모장) =================
+# ================= TAB 5: 시즌 중 라운드별 중간 점검 시뮬레이터 (시트 미저장 · 메모장) =================
 with tab5:
     st.subheader("⏱️ 시즌 중 라운드별 중간 점검 시뮬레이터 (In-Season Pace Tracker · 시트 미저장)")
-    st.info("💡 **구글 시트에 저장하지 않고** 시즌 도중(예: 10R, 19R 반환점, 25R 등)에 선수의 현재 기록을 넣으면, **현재 라운드 기준 기대 목표치 대비 달성도**와 **시즌 완주 시 최종 예상 페이스(Pace)**를 즉석 계산하여 인포그래픽 이미지 및 메모장으로 뽑아줍니다.")
+    st.info("💡 **구글 시트에 저장하지 않고** 시즌 도중(예: 10R, 19R 반환점, 25R 등)에 선수의 현재 기록을 넣으면, **현재 라운드 기준 기대 목표치 대비 달성도**와 **시즌 완주 시 최종 예상 페이스(Pace)**를 즉석 계산하여 구단 로고가 포함된 인포그래픽 이미지 및 메모장으로 뽑아줍니다.")
 
     use_sheet_player = st.toggle("📂 시트에 저장된 기존 선수 목표치 불러오기", value=True if not history_df.empty else False)
     
@@ -1746,12 +1908,22 @@ with tab5:
     donut_ms = build_svg_donut_ring(in_season_score, 10.0, ms_col, f"{ms_curr_r}R 중간평점", size=110)
     donut_prog = build_svg_donut_ring(prog_ratio * 100.0, 100.0, "#38BDF8", f"{ms_curr_r}/{ms_total_r}R 진행률", size=110)
 
+    ms_logo_url = resolve_club_logo(ms_team_def)
+    ms_emblem_html = (
+        f"<div style='width:68px; height:68px; border-radius:16px; background:#0F172A; border:2px solid #38BDF8; display:flex; align-items:center; justify-content:center; padding:7px; margin-right:16px; flex-shrink:0;'>"
+        f"<img src='{ms_logo_url}' crossorigin='anonymous' style='width:100%; height:100%; object-fit:contain;'/></div>"
+        if ms_logo_url else ""
+    )
+
     ms_board_html = f"""
     <div class="glass-panel" style="padding:18px 22px; margin-bottom:16px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:14px;">
-        <div>
-            <div style="font-size:11px; font-weight:900; color:#38BDF8; letter-spacing:1px;">IN-SEASON PACE & PERFORMANCE TRACKER ({ms_curr_r}R / {ms_total_r}R)</div>
-            <div style="font-size:28px; font-weight:900; color:#FFFFFF; margin-top:3px;">⏱️ {ms_name} <span style="font-size:15px; color:#94A3B8;">({ms_team_def} · {ms_pos_def} · 이적료 €{ms_fee_def:,.0f}만)</span></div>
-            <div style="font-size:14px; font-weight:800; color:{ms_col}; margin-top:6px;">중간 진단: {ms_verdict}</div>
+        <div style="display:flex; align-items:center;">
+            {ms_emblem_html}
+            <div>
+                <div style="font-size:11px; font-weight:900; color:#38BDF8; letter-spacing:1px;">IN-SEASON PACE & PERFORMANCE TRACKER ({ms_curr_r}R / {ms_total_r}R)</div>
+                <div style="font-size:28px; font-weight:900; color:#FFFFFF; margin-top:3px;">⏱️ {ms_name} <span style="font-size:15px; color:#94A3B8;">({ms_team_def} · {ms_pos_def} · 이적료 €{ms_fee_def:,.0f}만)</span></div>
+                <div style="font-size:14px; font-weight:800; color:{ms_col}; margin-top:6px;">중간 진단: {ms_verdict}</div>
+            </div>
         </div>
         <div style="display:flex; gap:14px;">
             <div>{donut_prog}</div>
@@ -2015,6 +2187,13 @@ with tab7:
 
                 donut_club = build_svg_donut_ring(weighted_avg_score, 10.0, cg_col, "CLUB RATING", size=108)
                 pitch_html = build_tactical_pitch_html(team_in_df)
+                club_rep_logo = resolve_club_logo(sel_team_name)
+                club_rep_emblem_html = (
+                    f"<div style='width:72px; height:72px; border-radius:16px; background:#0F172A; border:2px solid #38BDF8; display:flex; align-items:center; justify-content:center; padding:8px; margin-right:16px; flex-shrink:0;'>"
+                    f"<img src='{club_rep_logo}' crossorigin='anonymous' style='width:100%; height:100%; object-fit:contain;'/></div>"
+                    if club_rep_logo else
+                    f"<div style='width:68px; height:68px; border-radius:16px; background:#0F172A; border:2px solid #38BDF8; display:flex; align-items:center; justify-content:center; font-size:28px; margin-right:16px; flex-shrink:0;'>🛡️</div>"
+                )
 
                 in_badges_html = ""
                 if not team_in_df.empty:
@@ -2042,10 +2221,13 @@ with tab7:
 
                 html_club_board = f"""
                 <div class="glass-panel" style="padding:16px 22px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; margin-bottom:16px;">
-                    <div>
-                        <div style="font-size:11px; color:#38BDF8; font-weight:800; letter-spacing:1px;">CLUB TRANSFER WINDOW & TACTICAL PITCH REPORT</div>
-                        <div style="font-size:28px; font-weight:900; color:#FFFFFF; margin-top:2px;">🛡️ {sel_team_name} <span style="font-size:15px; color:#94A3B8;">({sel_season_club})</span></div>
-                        <div style="font-size:13px; font-weight:800; color:{cg_col}; margin-top:4px;">종합 판정: {club_grade}</div>
+                    <div style="display:flex; align-items:center;">
+                        {club_rep_emblem_html}
+                        <div>
+                            <div style="font-size:11px; color:#38BDF8; font-weight:800; letter-spacing:1px;">CLUB TRANSFER WINDOW & TACTICAL PITCH REPORT</div>
+                            <div style="font-size:28px; font-weight:900; color:#FFFFFF; margin-top:2px;">{sel_team_name} <span style="font-size:15px; color:#94A3B8;">({sel_season_club})</span></div>
+                            <div style="font-size:13px; font-weight:800; color:{cg_col}; margin-top:4px;">종합 판정: {club_grade}</div>
+                        </div>
                     </div>
                     <div>{donut_club}</div>
                 </div>
@@ -2124,7 +2306,6 @@ with tab7:
                     best_deal_row = l_target_df.sort_values(by="이적평점", ascending=False).iloc[0]
                     worst_deal_row = l_target_df.sort_values(by="이적평점", ascending=True).iloc[0]
 
-                    # [버그 완전 해결] 역슬래시 없는 안전한 일반 for 루프로 HTML 행 조립
                     rk_rows_html = ""
                     for rk_i, (_, rk_r) in enumerate(ranked_df.head(10).iterrows(), start=1):
                         w_bar = int(min(100, max(20, rk_r["가중이적평점"] * 10)))
@@ -2134,10 +2315,12 @@ with tab7:
                         out_c = rk_r["방출(OUT)"]
                         net_v = rk_r["순지출(만€)"]
                         w_sc = rk_r["가중이적평점"]
+                        rk_logo = resolve_club_logo(t_nm)
+                        rk_logo_img = f"<img src='{rk_logo}' crossorigin='anonymous' style='width:18px; height:18px; object-fit:contain; vertical-align:middle; margin-right:6px;'/>" if rk_logo else ""
                         rk_rows_html += (
                             f"<div style='background:#090D16; border:1px solid #1E293B; padding:9px 14px; border-radius:10px; margin-bottom:7px;'>"
                             f"<div style='display:flex; justify-content:space-between; align-items:center; font-size:13px; margin-bottom:4px;'>"
-                            f"<span><b style='color:#38BDF8;'>{rk_i:02d}위. {t_nm}</b> <span style='font-size:11px; color:#94A3B8;'>({l_nm})</span></span>"
+                            f"<span><b style='color:#38BDF8;'>{rk_i:02d}위.</b> {rk_logo_img}<b style='color:#FFFFFF;'>{t_nm}</b> <span style='font-size:11px; color:#94A3B8;'>({l_nm})</span></span>"
                             f"<span>IN {in_c} · OUT {out_c} &nbsp;|&nbsp; 순지출 €{net_v:+,.0f}만 &nbsp;|&nbsp; <b style='color:#10B981;'>★ {w_sc:.2f}</b></span></div>"
                             f"<div style='background:#1E293B; height:5px; border-radius:3px; overflow:hidden;'><div style='width:{w_bar}%; background:linear-gradient(90deg, #0284C7, #10B981); height:100%;'></div></div></div>"
                         )
