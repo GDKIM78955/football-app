@@ -20,7 +20,7 @@ st.set_page_config(
 )
 
 # 새로 발급받은 구글 시트 웹앱 URL 완벽 반영
-GOOGLE_SHEET_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbweYk_uWkBVXOAgRfY_k3MRz9ItZiMRsfsCYy-mrnMPxBaLrdr0GEG7C0CTZ0nZEuCt/exec"
+GOOGLE_SHEET_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwmxL1KAuMav1KpXsRQpsa-p18i_-nkWVG-4MkTR7c6jI7FRqNvUaTLSuC7lGFivYvD/exec"
 SPREADSHEET_ID = "16CeAQp1-xqc-mhtvlP0vLlQu5k1pg8DW5A-m29WCFdw"
 SHEET_CSV_URL = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/gviz/tq?tqx=out:csv"
 
@@ -36,8 +36,8 @@ if "last_saved_msg" not in st.session_state:
 # [구글 드라이브 폴더 자동 스캔 & HD 로고 화질/여백/테두리 자동 보정 엔진]
 # - 아래 DRIVE_LOGO_FOLDER_URL에 아까 보내주신 '축구구단_로고' 폴더 링크를 넣어주세요!
 # =========================================================================
-DRIVE_LOGO_FOLDER_URL = "여기에_구글드라이브_로고폴더_공유링크를_붙여넣으세요"
-https://script.google.com/macros/s/AKfycbwmxL1KAuMav1KpXsRQpsa-p18i_-nkWVG-4MkTR7c6jI7FRqNvUaTLSuC7lGFivYvD/exec
+DRIVE_LOGO_FOLDER_URL = "https://script.google.com/macros/s/AKfycbwmxL1KAuMav1KpXsRQpsa-p18i_-nkWVG-4MkTR7c6jI7FRqNvUaTLSuC7lGFivYvD/exec"
+
 DEFAULT_CLUB_LOGOS = {
     "아스날": "https://crests.football-data.org/57.png",
     "아스널": "https://crests.football-data.org/57.png",
