@@ -8,7 +8,7 @@ import math
 import re
 import base64
 from io import BytesIO
-from PIL import Image, ImageFilter
+from PIL import Image
 import plotly.graph_objects as go
 from datetime import datetime
 
@@ -19,7 +19,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# 새로 발급받은 구글 시트 웹앱 URL 완벽 반영
+# 최신 구글 시트 웹앱 URL 반영 완료
 GOOGLE_SHEET_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwmxL1KAuMav1KpXsRQpsa-p18i_-nkWVG-4MkTR7c6jI7FRqNvUaTLSuC7lGFivYvD/exec"
 SPREADSHEET_ID = "16CeAQp1-xqc-mhtvlP0vLlQu5k1pg8DW5A-m29WCFdw"
 SHEET_CSV_URL = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/gviz/tq?tqx=out:csv"
@@ -33,10 +33,10 @@ if "last_saved_msg" not in st.session_state:
     st.session_state["last_saved_msg"] = None
 
 # =========================================================================
-# [구글 드라이브 폴더 자동 스캔 & HD 로고 화질/여백/테두리 자동 보정 엔진]
-# - 아래 DRIVE_LOGO_FOLDER_URL에 아까 보내주신 '축구구단_로고' 폴더 링크를 넣어주세요!
+# [구글 드라이브 폴더 자동 스캔 & 체크무늬/흰배경 완벽 제거 엔진]
+# - 아래 큰따옴표(" ") 안에 구글 드라이브 '축구구단_로고' 폴더 공유 링크를 넣어주세요!
 # =========================================================================
-DRIVE_LOGO_FOLDER_URL = "https://script.google.com/macros/s/AKfycbwmxL1KAuMav1KpXsRQpsa-p18i_-nkWVG-4MkTR7c6jI7FRqNvUaTLSuC7lGFivYvD/exec"
+DRIVE_LOGO_FOLDER_URL = "여기에_구글드라이브_로고폴더_공유링크를_넣으세요"
 
 DEFAULT_CLUB_LOGOS = {
     "아스날": "https://crests.football-data.org/57.png",
@@ -146,11 +146,9 @@ def extract_drive_id(url_str):
 @st.cache_data(ttl=3600, show_spinner=False)
 def url_to_base64_img(img_url):
     """
-    [HD 로고 화질 보정 엔진]
-    1) 구글 드라이브 원본 파일 다운로드
-    2) 외곽 흰색/연회색 배경 Flood-Fill 투명화 + 경계면 소프트 페더링(계단현상 제거)
-    3) 상하좌우 불필요한 투명 여백 자동 크롭(getbbox)으로 로고 크기 극대화
-    4) LANCZOS 고해상도 리사이징 & 미세 샤프닝(UnsharpMask)으로 쨍한 화질 구현
+    [체크무늬 & 흰 배경 완벽 제거 엔진]
+    - 외곽의 흰색 배경뿐만 아니라 가짜 투명 체크무늬(회색+흰색 격자)까지 100% 깨끗하게 제거
+    - 아스널 방패(금색/빨간색/파란색 테두리) 안쪽의 흰색 글씨와 문양은 완벽 보호
     """
     if not img_url or not str(img_url).strip():
         return ""
@@ -185,13 +183,19 @@ def url_to_base64_img(img_url):
                 width, height = img.size
                 pixels = img.load()
 
-                # 1. 외곽 배경 투명화 + 소프트 테두리 페더링 (내부 흰색은 100% 보호)
+                # 네 모서리가 이미 투명한지 확인
                 corners = [pixels[0, 0], pixels[width - 1, 0], pixels[0, height - 1], pixels[width - 1, height - 1]]
-                has_solid_white_corner = any(c[3] > 200 and c[0] >= 215 and c[1] >= 215 and c[2] >= 215 for c in corners)
+                needs_bg_removal = any(c[3] > 50 for c in corners)
 
-                if has_solid_white_corner:
+                if needs_bg_removal:
                     visited = set()
-                    queue = [(0, 0), (width - 1, 0), (0, height - 1), (width - 1, height - 1)]
+                    # 테두리 전체 픽셀에서 출발하여 외곽의 흰색 + 회색 체크무늬 격자를 모두 탐색
+                    queue = (
+                        [(x, 0) for x in range(width)] +
+                        [(x, height - 1) for x in range(width)] +
+                        [(0, y) for y in range(height)] +
+                        [(width - 1, y) for y in range(height)]
+                    )
                     while queue:
                         x, y = queue.pop()
                         if (x, y) in visited or x < 0 or x >= width or y < 0 or y >= height:
@@ -199,40 +203,20 @@ def url_to_base64_img(img_url):
                         visited.add((x, y))
                         r, g, b, a = pixels[x, y]
                         lum = (r + g + b) / 3.0
-                        sat = max(r, g, b) - min(r, g, b)
+                        sat = max(r, g, b) - min(r, g, b)  # 채도 (무채색일수록 0에 가까움)
 
-                        if a == 0 or (lum >= 232 and sat <= 25):
-                            pixels[x, y] = (255, 255, 255, 0)
+                        # 1) 투명 픽셀이거나, 2) 채도가 낮은 무채색(흰색~중간 회색 체크무늬: 밝기 135 이상, 채도 30 이하)이면 100% 투명화!
+                        if a == 0 or (lum >= 135 and sat <= 30):
+                            pixels[x, y] = (0, 0, 0, 0)
                             queue.extend([(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)])
-                        elif lum >= 195 and sat <= 38:
-                            # 경계면 안티앨리어싱(소프트 페더링): 하얀 테두리 끼를 부드럽게 반투명 처리
-                            new_a = int(max(0, min(255, (232.0 - lum) / 37.0 * a)))
-                            pixels[x, y] = (r, g, b, new_a)
 
-                # 2. 상하좌우 빈 여백 자동 크롭 (로고가 액자에 꽉 차게 확대됨)
+                # 상하좌우 빈 여백 자동 크롭 (로고가 액자에 꽉 차게 정렬)
                 bbox = img.getbbox()
                 if bbox:
                     img = img.crop(bbox)
 
-                # 3. 정방형 캔버스(240x240) 중앙 정렬 & LANCZOS 리사이징 + 샤프닝 필터
-                target_box = 240
-                cw, ch = img.size
-                if cw > 0 and ch > 0:
-                    scale = min((target_box - 12) / cw, (target_box - 12) / ch)
-                    nw, nh = max(1, int(round(cw * scale))), max(1, int(round(ch * scale)))
-                    img_resized = img.resize((nw, nh), Image.Resampling.LANCZOS)
-                    # RGB 채널에만 미세 샤프닝을 적용해 뭉개짐 없이 쨍한 벡터 느낌 부여
-                    r_ch, g_ch, b_ch, a_ch = img_resized.split()
-                    rgb_sharp = Image.merge("RGB", (r_ch, g_ch, b_ch)).filter(
-                        ImageFilter.UnsharpMask(radius=1.0, percent=115, threshold=2)
-                    )
-                    r_s, g_s, b_s = rgb_sharp.split()
-                    img_final = Image.new("RGBA", (target_box, target_box), (0, 0, 0, 0))
-                    img_final.paste(Image.merge("RGBA", (r_s, g_s, b_s, a_ch)), ((target_box - nw) // 2, (target_box - nh) // 2))
-                    img = img_final
-
                 out_buf = BytesIO()
-                img.save(out_buf, format="PNG", optimize=True)
+                img.save(out_buf, format="PNG")
                 b64 = base64.b64encode(out_buf.getvalue()).decode("utf-8")
                 return f"data:image/png;base64,{b64}"
         except Exception:
@@ -596,7 +580,7 @@ def render_copyable_infographic(card_inner_html, filename="scouting_infographic"
     components.html(full_doc, height=height, scrolling=True)
 
 
-# 사이드바: 실시간 환율 설정 + 구단 로고 사전 관리/수정 (구글 드라이브 폴더 동기화 포함) + 영국/국내 금액 변환기
+# 사이드바: 실시간 환율 설정 + 구단 로고 사전 관리/수정 + 영국/국내 금액 변환기
 with st.sidebar:
     st.markdown("### 💱 실시간 환율 기준 설정")
     st.caption("이적시장 시점의 실제 환율에 맞게 조정할 수 있습니다.")
@@ -1303,7 +1287,7 @@ with tab1:
         # 메인 프로필 액자: 영입 구단(이적팀)의 큼직한 공식 로고 표시
         hero_logo_url = final_to_logo if final_to_logo else final_from_logo
         hero_club_emblem_html = (
-            f"<div style='width:80px; height:80px; border-radius:18px; background:radial-gradient(circle, rgba(30,41,59,0.95) 0%, rgba(9,13,22,0.98) 100%); border:2px solid #38BDF8; box-shadow:0 0 18px rgba(56,189,248,0.45); display:flex; align-items:center; justify-content:center; padding:7px; margin-right:18px; flex-shrink:0;'>"
+            f"<div style='width:80px; height:80px; border-radius:18px; background:radial-gradient(circle, rgba(30,41,59,0.95) 0%, rgba(9,13,22,0.98) 100%); border:2px solid #38BDF8; box-shadow:0 0 18px rgba(56,189,248,0.45); display:flex; align-items:center; justify-content:center; padding:8px; margin-right:18px; flex-shrink:0;'>"
             f"<img src='{hero_logo_url}' style='width:100%; height:100%; object-fit:contain; filter:drop-shadow(0 2px 4px rgba(0,0,0,0.65));'/></div>"
             if hero_logo_url else
             f"<div style='width:74px; height:74px; border-radius:18px; background:linear-gradient(135deg, #1E293B, #0F172A); border:2px solid #38BDF8; display:flex; align-items:center; justify-content:center; font-size:30px; font-weight:900; color:#38BDF8; margin-right:18px; flex-shrink:0;'>🛡️</div>"
