@@ -2249,7 +2249,7 @@ with tab3:
             st.dataframe(match_df, use_container_width=True)
 
 _part1_end = True
-   # ================= TAB 4: 이적 첫 시즌 최종 성적 입력 & 모델 검증 =================
+# ================= TAB 4: 이적 첫 시즌 최종 성적 입력 & 모델 검증 =================
 with tab4:
     st.subheader("🎯 시즌 종료 후 최종 실제 성적 입력 & 모델 예측 정확도 사후 검증")
 
@@ -2427,58 +2427,103 @@ with tab4:
         st.markdown("---")
         st.dataframe(val_df, use_container_width=True)
 
-# ================= TAB 5: 시즌 중 라운드별 중간 점검 시뮬레이터 (시트 미저장 · 메모장) =================
+# ================= TAB 5: 시즌 중 라운드별 중간 점검 시뮬레이터 (2번 탭 급 고화질 듀얼 인포그래픽 탑재) =================
 with tab5:
     st.subheader("⏱️ 시즌 중 라운드별 중간 점검 시뮬레이터 (In-Season Pace Tracker · 시트 미저장)")
-    st.info("💡 **구글 시트에 저장하지 않고** 시즌 도중(예: 10R, 19R 반환점, 25R 등)에 선수의 현재 기록을 넣으면, **현재 라운드 기준 기대 목표치 대비 달성도**와 **시즌 완주 시 최종 예상 페이스(Pace)**를 즉석 계산하여 구단 로고가 포함된 인포그래픽 이미지 및 메모장으로 뽑아줍니다.")
+    st.info("💡 **구글 시트에 저장하지 않고** 시즌 도중(예: 10R, 19R 반환점, 25R 등)에 선수의 현재 기록을 넣으면, **2번 탭처럼 [좌측: 현재 라운드 기대 목표치 vs 우측: 현재 실제 기록] 듀얼 비교 바 & 6각형 레이더 차트**가 장착된 초고화질 인포그래픽을 생성합니다.")
 
     use_sheet_player = st.toggle("📂 시트에 저장된 기존 선수 목표치 불러오기", value=True if not history_df.empty else False)
-    
+
     if use_sheet_player and not history_df.empty and "선수명" in history_df.columns:
         p_list_ms = [str(x).strip() for x in history_df["선수명"].dropna().unique() if str(x).strip() not in ["", "nan"]]
         sel_ms_p = st.selectbox("점검할 선수 선택", p_list_ms, key="ms_sel_p")
         ms_row = history_df[history_df["선수명"] == sel_ms_p].iloc[-1].to_dict()
+        ms_ukey = f"sheet_{sel_ms_p}"
         ms_name_def = str(ms_row.get("선수명", "선수"))
         ms_team_def = str(ms_row.get("이적팀명", "소속팀"))
+        ms_from_def = str(ms_row.get("원소속팀명", "원소속팀"))
         ms_pos_def = str(ms_row.get("포지션", "ST"))
         ms_fee_def = float(find_val(ms_row, ["실제이적료", "이적료"], 5000.0))
         ms_proj_m_def = int(find_val(ms_row, ["예측출전시간", "proj_mins"], 3000))
         ms_proj_g_def = float(find_val(ms_row, ["예측득점", "proj_goals"], 12.0))
+        ms_proj_xg_def = float(find_val(ms_row, ["예측xg", "proj_xg"], ms_proj_g_def))
         ms_proj_a_def = float(find_val(ms_row, ["예측도움", "proj_assists"], 5.0))
+        ms_proj_xa_def = float(find_val(ms_row, ["예측xa", "proj_xa"], ms_proj_a_def))
+        ms_proj_sh_def = int(find_val(ms_row, ["예측총슈팅", "예측슈팅", "proj_shots"], 65))
+        ms_proj_sot_def = int(find_val(ms_row, ["예측유효슈팅", "proj_sot"], 28))
+        ms_proj_ch_def = int(find_val(ms_row, ["예측기회창출", "proj_chances"], 35))
+        ms_proj_dr_def = int(find_val(ms_row, ["예측성공드리블", "예측드리블", "proj_dribbles"], 22))
+        ms_proj_bx_def = int(find_val(ms_row, ["예측박스터치", "proj_box"], 110))
+        ms_proj_tk_def = int(find_val(ms_row, ["예측태클성공", "예측태클", "proj_tackles"], 32))
         ms_proj_r_def = float(find_val(ms_row, ["예측평점", "proj_rating"], 7.15))
     else:
+        ms_ukey = f"tab1_{k_id}"
         ms_name_def = player_name.strip() if player_name.strip() else "중간점검 선수"
         ms_team_def = in_to_team.strip() if in_to_team.strip() else "영입 구단"
+        ms_from_def = in_from_team.strip() if in_from_team.strip() else "원소속팀"
         ms_pos_def = pos_short
         ms_fee_def = float(calc_actual_fee)
         ms_proj_m_def = int(f_target_mins_t1)
         ms_proj_g_def = float(pj_goals_t1)
+        ms_proj_xg_def = float(pj_xg_t1)
         ms_proj_a_def = float(pj_assists_t1)
+        ms_proj_xa_def = float(pj_xa_t1)
+        ms_proj_sh_def = int(pj_shots_t1)
+        ms_proj_sot_def = int(pj_sot_t1)
+        ms_proj_ch_def = int(pj_chances_t1)
+        ms_proj_dr_def = int(pj_dribbles_t1)
+        ms_proj_bx_def = int(pj_box_t1)
+        ms_proj_tk_def = int(pj_tackles_t1)
         ms_proj_r_def = float(pj_rating_t1)
 
-    st.markdown("##### 1️⃣ 시즌 진행 라운드 및 1시즌 전체 목표치(기준점) 설정")
+    st.markdown("##### 1️⃣ 시즌 진행 라운드 및 1시즌 전체 예측 목표치(기준점) 설정")
     r_col1, r_col2, r_col3, r_col4, r_col5, r_col6 = st.columns(6)
-    with r_col1: ms_name = st.text_input("선수명", value=ms_name_def, key="ms_in_name")
-    with r_col2: ms_total_r = st.number_input("리그 총 라운드", 20, 46, value=38, step=2, key="ms_tot_r")
-    with r_col3: ms_curr_r = st.number_input("현재 진행 라운드(R)", 1, 46, value=15, step=1, key="ms_cur_r")
-    with r_col4: ms_full_m = st.number_input("1시즌 목표 출전(분)", 300, 4500, value=ms_proj_m_def, step=90, key="ms_fm")
-    with r_col5: ms_full_g = st.number_input("1시즌 목표 득점", 0.0, 50.0, value=ms_proj_g_def, step=0.5, key="ms_fg")
-    with r_col6: ms_full_a = st.number_input("1시즌 목표 도움", 0.0, 40.0, value=ms_proj_a_def, step=0.5, key="ms_fa")
+    with r_col1: ms_name = st.text_input("선수명", value=ms_name_def, key=f"ms_in_name_{ms_ukey}")
+    with r_col2: ms_total_r = st.number_input("리그 총 라운드", 20, 46, value=38, step=2, key=f"ms_tot_r_{ms_ukey}")
+    with r_col3: ms_curr_r = st.number_input("현재 진행 라운드(R)", 1, 46, value=19, step=1, key=f"ms_cur_r_{ms_ukey}")
+    with r_col4: ms_full_m = st.number_input("1시즌 목표 출전(분)", 300, 4500, value=max(300, ms_proj_m_def), step=90, key=f"ms_fm_{ms_ukey}")
+    with r_col5: ms_full_g = st.number_input("1시즌 목표 득점", 0.0, 50.0, value=ms_proj_g_def, step=0.5, key=f"ms_fg_{ms_ukey}")
+    with r_col6: ms_full_a = st.number_input("1시즌 목표 도움", 0.0, 40.0, value=ms_proj_a_def, step=0.5, key=f"ms_fa_{ms_ukey}")
 
-    st.markdown("##### 2️⃣ 현재 라운드까지의 실제 기록 입력 (FotMob 기준)")
-    a_col1, a_col2, a_col3, a_col4, a_col5, a_col6 = st.columns(6)
+    with st.expander("⚙️ 세부 스탯(슈팅·기회창출·드리블·박스터치·태클) 1시즌 목표치 확인 / 수정 (시트·2번탭 자동 연동됨)", expanded=False):
+        sub_c1, sub_c2, sub_c3, sub_c4, sub_c5, sub_c6 = st.columns(6)
+        with sub_c1: ms_full_sh = st.number_input("1시즌 목표 총슈팅", 0, 200, value=ms_proj_sh_def, key=f"ms_fsh_{ms_ukey}")
+        with sub_c2: ms_full_sot = st.number_input("1시즌 목표 유효슈팅", 0, 120, value=ms_proj_sot_def, key=f"ms_fsot_{ms_ukey}")
+        with sub_c3: ms_full_ch = st.number_input("1시즌 목표 기회창출", 0, 150, value=ms_proj_ch_def, key=f"ms_fch_{ms_ukey}")
+        with sub_c4: ms_full_dr = st.number_input("1시즌 목표 드리블", 0, 120, value=ms_proj_dr_def, key=f"ms_fdr_{ms_ukey}")
+        with sub_c5: ms_full_bx = st.number_input("1시즌 목표 박스터치", 0, 300, value=ms_proj_bx_def, key=f"ms_fbx_{ms_ukey}")
+        with sub_c6: ms_full_tk = st.number_input("1시즌 목표 태클성공", 0, 150, value=ms_proj_tk_def, key=f"ms_ftk_{ms_ukey}")
+
     prog_ratio = min(1.0, ms_curr_r / ms_total_r) if ms_total_r > 0 else 0.5
-    with a_col1: ms_act_m = st.number_input("현재 실제 출전(분)", 0, 4500, value=int(round(ms_full_m * prog_ratio)), step=45, key="ms_am")
-    with a_col2: ms_act_g = st.number_input("현재 실제 득점", 0, 50, value=int(round(ms_full_g * prog_ratio)), step=1, key="ms_ag")
-    with a_col3: ms_act_xg = st.number_input("현재 실제 xG", 0.0, 50.0, value=round(ms_full_g * prog_ratio, 2), step=0.1, key="ms_axg")
-    with a_col4: ms_act_a = st.number_input("현재 실제 도움", 0, 40, value=int(round(ms_full_a * prog_ratio)), step=1, key="ms_aa")
-    with a_col5: ms_act_xa = st.number_input("현재 실제 xA", 0.0, 40.0, value=round(ms_full_a * prog_ratio, 2), step=0.1, key="ms_axa")
-    with a_col6: ms_act_r = st.number_input("현재 FotMob 평점", 4.0, 10.0, value=ms_proj_r_def, step=0.01, key="ms_ar")
-
     exp_now_m = round(ms_full_m * prog_ratio, 0)
     exp_now_g = round(ms_full_g * prog_ratio, 1)
+    exp_now_xg = round(ms_proj_xg_def * prog_ratio, 2)
     exp_now_a = round(ms_full_a * prog_ratio, 1)
+    exp_now_xa = round(ms_proj_xa_def * prog_ratio, 2)
     exp_now_p = round(exp_now_g + exp_now_a, 1)
+    exp_now_sh = round(ms_full_sh * prog_ratio, 1)
+    exp_now_sot = round(ms_full_sot * prog_ratio, 1)
+    exp_now_ch = round(ms_full_ch * prog_ratio, 1)
+    exp_now_dr = round(ms_full_dr * prog_ratio, 1)
+    exp_now_bx = round(ms_full_bx * prog_ratio, 1)
+    exp_now_tk = round(ms_full_tk * prog_ratio, 1)
+
+    st.markdown(f"##### 2️⃣ 현재 {ms_curr_r}라운드까지의 실제 기록 입력 (FotMob 기준 · 우측 인포그래픽 실시간 반영)")
+    a_col1, a_col2, a_col3, a_col4, a_col5, a_col6 = st.columns(6)
+    with a_col1: ms_act_m = st.number_input("현재 실제 출전(분)", 0, 4500, value=int(exp_now_m), step=45, key=f"ms_am_{ms_ukey}_{ms_curr_r}")
+    with a_col2: ms_act_g = st.number_input("현재 실제 득점", 0, 50, value=int(round(exp_now_g)), step=1, key=f"ms_ag_{ms_ukey}_{ms_curr_r}")
+    with a_col3: ms_act_xg = st.number_input("현재 실제 xG", 0.0, 50.0, value=float(exp_now_xg), step=0.1, key=f"ms_axg_{ms_ukey}_{ms_curr_r}")
+    with a_col4: ms_act_a = st.number_input("현재 실제 도움", 0, 40, value=int(round(exp_now_a)), step=1, key=f"ms_aa_{ms_ukey}_{ms_curr_r}")
+    with a_col5: ms_act_xa = st.number_input("현재 실제 xA", 0.0, 40.0, value=float(exp_now_xa), step=0.1, key=f"ms_axa_{ms_ukey}_{ms_curr_r}")
+    with a_col6: ms_act_r = st.number_input("현재 FotMob 평점", 4.0, 10.0, value=ms_proj_r_def, step=0.01, key=f"ms_ar_{ms_ukey}_{ms_curr_r}")
+
+    b_col1, b_col2, b_col3, b_col4, b_col5, b_col6 = st.columns(6)
+    with b_col1: ms_act_sh = st.number_input("현재 총 슈팅", 0, 200, value=int(round(exp_now_sh)), step=1, key=f"ms_ash_{ms_ukey}_{ms_curr_r}")
+    with b_col2: ms_act_sot = st.number_input("현재 유효 슈팅", 0, 120, value=int(round(exp_now_sot)), step=1, key=f"ms_asot_{ms_ukey}_{ms_curr_r}")
+    with b_col3: ms_act_ch = st.number_input("현재 기회 창출", 0, 150, value=int(round(exp_now_ch)), step=1, key=f"ms_ach_{ms_ukey}_{ms_curr_r}")
+    with b_col4: ms_act_dr = st.number_input("현재 성공 드리블", 0, 120, value=int(round(exp_now_dr)), step=1, key=f"ms_adr_{ms_ukey}_{ms_curr_r}")
+    with b_col5: ms_act_bx = st.number_input("현재 박스 안 터치", 0, 300, value=int(round(exp_now_bx)), step=1, key=f"ms_abx_{ms_ukey}_{ms_curr_r}")
+    with b_col6: ms_act_tk = st.number_input("현재 태클 성공", 0, 150, value=int(round(exp_now_tk)), step=1, key=f"ms_atk_{ms_ukey}_{ms_curr_r}")
 
     pace_full_m = int(round(ms_act_m / prog_ratio)) if prog_ratio > 0 else 0
     pace_full_g = round(ms_act_g / prog_ratio, 1) if prog_ratio > 0 else 0.0
@@ -2495,27 +2540,73 @@ with tab5:
     elif in_season_score >= 6.2: ms_verdict, ms_col = "⚠️ 적응기 지연 (분발 필요)", "#FBBF24"
     else: ms_verdict, ms_col = "🚨 심각한 부진 / 먹튀 경보", "#EF4444"
 
-    donut_ms = build_svg_donut_ring(in_season_score, 10.0, ms_col, f"{ms_curr_r}R 중간평점", size=110)
-    donut_prog = build_svg_donut_ring(prog_ratio * 100.0, 100.0, "#38BDF8", f"{ms_curr_r}/{ms_total_r}R 진행률", size=110)
+    donut_ms = build_svg_donut_ring(in_season_score, 10.0, ms_col, f"{ms_curr_r}R 중간평점", size=105)
+    donut_prog = build_svg_donut_ring(prog_ratio * 100.0, 100.0, "#38BDF8", f"{ms_curr_r}/{ms_total_r}R 진행률", size=105)
 
     ms_logo_url = resolve_club_logo(ms_team_def)
     ms_emblem_html = (
-        f"<div style='width:70px; height:70px; border-radius:16px; background:#0F172A; border:2px solid #38BDF8; display:flex; align-items:center; justify-content:center; padding:6px; margin-right:16px; flex-shrink:0;'>"
+        f"<div style='width:72px; height:72px; border-radius:16px; background:radial-gradient(circle, rgba(30,41,59,0.95) 0%, rgba(9,13,22,0.98) 100%); border:2px solid #38BDF8; box-shadow:0 0 16px rgba(56,189,248,0.4); display:flex; align-items:center; justify-content:center; padding:7px; margin-right:16px; flex-shrink:0;'>"
         f"<img src='{ms_logo_url}' style='width:100%; height:100%; object-fit:contain; filter:drop-shadow(0 2px 4px rgba(0,0,0,0.65));'/></div>"
-        if ms_logo_url else ""
+        if ms_logo_url else
+        f"<div style='width:68px; height:68px; border-radius:16px; background:#0F172A; border:2px solid #38BDF8; display:flex; align-items:center; justify-content:center; font-size:28px; margin-right:16px; flex-shrink:0;'>⏱️</div>"
     )
 
+    # 2번 탭과 동일한 6각형 레이더 차트 계산 (현재 실제 90분당 페이스 vs 시즌 전 예측 90분당 기대치)
+    exp_p90_div = max(1.0, ms_full_m / 90.0)
+    act_p90_div = max(1.0, ms_act_m / 90.0)
+
+    ms_rad_cats = ['FotMob 평점', '득점력(xG)', '기회창출(xA)', '슈팅 볼륨', '돌파/박스터치', '수비/경합']
+    ms_exp_rad = [
+        int(min(98, max(50, (ms_proj_r_def - 6.0) * 22 + 52))),
+        int(min(98, max(45, (ms_proj_xg_def / exp_p90_div) * 115 + 45))),
+        int(min(98, max(45, (ms_proj_xa_def / exp_p90_div) * 140 + 45))),
+        int(min(98, max(45, (ms_full_sh / exp_p90_div) * 22 + 40))),
+        int(min(98, max(45, ((ms_full_dr + ms_full_bx * 0.3) / exp_p90_div) * 18 + 45))),
+        int(min(98, max(45, (ms_full_tk / exp_p90_div) * 25 + 48)))
+    ]
+    ms_act_rad = [
+        int(min(98, max(50, (ms_act_r - 6.0) * 22 + 52))),
+        int(min(98, max(45, (ms_act_xg / act_p90_div) * 115 + 45))),
+        int(min(98, max(45, (ms_act_xa / act_p90_div) * 140 + 45))),
+        int(min(98, max(45, (ms_act_sh / act_p90_div) * 22 + 40))),
+        int(min(98, max(45, ((ms_act_dr + ms_act_bx * 0.3) / act_p90_div) * 18 + 45))),
+        int(min(98, max(45, (ms_act_tk / act_p90_div) * 25 + 48)))
+    ]
+    svg_ms_radar = build_svg_radar(ms_rad_cats, ms_act_rad, color_a="#38BDF8", values_b=ms_exp_rad, color_b="#64748B", size=310)
+
+    # 2번 탭 스타일의 좌(현재 라운드 기대 목표치) vs 우(현재 실제 기록) 듀얼 게이지 바 생성 함수
+    def make_ms_comp_bar_row(label, exp_v, act_v, full_max_v, unit=""):
+        scaled_max = max(3.0, full_max_v * prog_ratio * 1.35, float(exp_v) * 1.25, float(act_v) * 1.25)
+        w_exp = min(100, int((float(exp_v) / scaled_max) * 100)) if scaled_max > 0 else 10
+        w_act = min(100, int((float(act_v) / scaled_max) * 100)) if scaled_max > 0 else 10
+        diff_v = float(act_v) - float(exp_v)
+        diff_str = f"{diff_v:+.1f}" if isinstance(exp_v, float) or isinstance(act_v, float) else f"{int(diff_v):+d}"
+        right_bar_grad = "linear-gradient(90deg, #059669, #10B981)" if diff_v >= 0 else "linear-gradient(90deg, #0284C7, #38BDF8)"
+        val_col = "#34D399" if diff_v >= 0 else "#38BDF8"
+        return f"""
+        <div style="margin-bottom:10px;">
+            <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px;">
+                <span style="color:#E2E8F0; font-weight:700;">{label}</span>
+                <span><span style="color:#94A3B8;">{ms_curr_r}R 목표 {exp_v}{unit}</span> &nbsp;➔&nbsp; <b style="color:{val_col};">현재 실제 {act_v}{unit} ({diff_str})</b></span>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+                <div style="background:#090D16; height:9px; border-radius:5px; overflow:hidden; border:1px solid #1E293B;"><div style="width:{w_exp}%; background:linear-gradient(90deg, #475569, #94A3B8); height:100%;"></div></div>
+                <div style="background:#090D16; height:9px; border-radius:5px; overflow:hidden; border:1px solid #1E293B;"><div style="width:{w_act}%; background:{right_bar_grad}; height:100%;"></div></div>
+            </div>
+        </div>
+        """
+
     ms_board_html = f"""
-    <div class="glass-panel" style="padding:18px 22px; margin-bottom:16px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:14px;">
+    <div class="glass-panel" style="padding:16px 20px; margin-bottom:16px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
         <div style="display:flex; align-items:center;">
             {ms_emblem_html}
             <div>
-                <div style="font-size:11px; font-weight:900; color:#38BDF8; letter-spacing:1px;">IN-SEASON PACE & PERFORMANCE TRACKER ({ms_curr_r}R / {ms_total_r}R)</div>
-                <div style="font-size:28px; font-weight:900; color:#FFFFFF; margin-top:3px;">⏱️ {ms_name} <span style="font-size:15px; color:#94A3B8;">({ms_team_def} · {ms_pos_def} · 이적료 €{ms_fee_def:,.0f}만)</span></div>
-                <div style="font-size:14px; font-weight:800; color:{ms_col}; margin-top:6px;">중간 진단: {ms_verdict}</div>
+                <div style="font-size:11px; font-weight:900; color:#38BDF8; letter-spacing:1px;">IN-SEASON PACE & PERFORMANCE TRACKER ({ms_curr_r}R / {ms_total_r}R · 진행률 {prog_ratio*100:.1f}%)</div>
+                <div style="font-size:26px; font-weight:900; color:#FFFFFF; margin-top:2px;">⏱️ {ms_name} · {ms_curr_r}라운드 중간 점검 리포트</div>
+                <div style="font-size:13px; color:#94A3B8; margin-top:4px;">소속: <b style="color:#F8FAFC;">{ms_team_def}</b> ({ms_pos_def} · 이적료 €{ms_fee_def:,.0f}만) &nbsp;|&nbsp; 판정: <b style="color:{ms_col};">{ms_verdict}</b></div>
             </div>
         </div>
-        <div style="display:flex; gap:14px;">
+        <div style="display:flex; gap:12px;">
             <div>{donut_prog}</div>
             <div>{donut_ms}</div>
         </div>
@@ -2523,45 +2614,63 @@ with tab5:
 
     <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:12px; margin-bottom:16px;">
         <div class="kpi-card" style="border-top:3px solid #38BDF8;">
-            <div style="font-size:11px; color:#94A3B8;">출전 시간 (현재 vs 기대)</div>
-            <div style="font-size:21px; font-weight:900; color:#38BDF8; margin-top:4px;">{ms_act_m:,}분</div>
-            <div style="font-size:11px; color:#CBD5E1;">{ms_curr_r}R 기대치: {int(exp_now_m):,}분 ({ms_act_m - int(exp_now_m):+,}분)</div>
+            <div style="font-size:11px; color:#94A3B8;">출전 시간 (현재 vs {ms_curr_r}R 목표)</div>
+            <div style="font-size:22px; font-weight:900; color:#38BDF8; margin-top:4px;">{ms_act_m:,} 분</div>
+            <div style="font-size:11px; color:#64748B;">{ms_curr_r}R 기대치 {int(exp_now_m):,}분 ({ms_act_m - int(exp_now_m):+,}분)</div>
         </div>
         <div class="kpi-card" style="border-top:3px solid #10B981;">
-            <div style="font-size:11px; color:#94A3B8;">현재 득점 (실제 vs 기대)</div>
-            <div style="font-size:21px; font-weight:900; color:#10B981; margin-top:4px;">{ms_act_g}골 <span style="font-size:12px; color:#6EE7B7;">(xG {ms_act_xg:.2f})</span></div>
-            <div style="font-size:11px; color:#CBD5E1;">{ms_curr_r}R 기대치: {exp_now_g:.1f}골 ({ms_act_g - exp_now_g:+.1f})</div>
+            <div style="font-size:11px; color:#94A3B8;">현재 득점 (실제 vs {ms_curr_r}R 목표)</div>
+            <div style="font-size:22px; font-weight:900; color:#10B981; margin-top:4px;">{ms_act_g} 골 <span style="font-size:12px; color:#6EE7B7;">(xG {ms_act_xg:.2f})</span></div>
+            <div style="font-size:11px; color:#64748B;">{ms_curr_r}R 기대치 {exp_now_g:.1f}골 ({ms_act_g - exp_now_g:+.1f})</div>
         </div>
         <div class="kpi-card" style="border-top:3px solid #A855F7;">
-            <div style="font-size:11px; color:#94A3B8;">현재 도움 (실제 vs 기대)</div>
-            <div style="font-size:21px; font-weight:900; color:#C084FC; margin-top:4px;">{ms_act_a}도움 <span style="font-size:12px; color:#D8B4FE;">(xA {ms_act_xa:.2f})</span></div>
-            <div style="font-size:11px; color:#CBD5E1;">{ms_curr_r}R 기대치: {exp_now_a:.1f}도움 ({ms_act_a - exp_now_a:+.1f})</div>
+            <div style="font-size:11px; color:#94A3B8;">현재 도움 (실제 vs {ms_curr_r}R 목표)</div>
+            <div style="font-size:22px; font-weight:900; color:#C084FC; margin-top:4px;">{ms_act_a} 도움 <span style="font-size:12px; color:#D8B4FE;">(xA {ms_act_xa:.2f})</span></div>
+            <div style="font-size:11px; color:#64748B;">{ms_curr_r}R 기대치 {exp_now_a:.1f}도움 ({ms_act_a - exp_now_a:+.1f})</div>
         </div>
         <div class="kpi-card" style="border-top:3px solid #F59E0B;">
-            <div style="font-size:11px; color:#94A3B8;">FotMob 평점 (실제 vs 예상)</div>
-            <div style="font-size:21px; font-weight:900; color:#FBBF24; margin-top:4px;">★ {ms_act_r:.2f}</div>
-            <div style="font-size:11px; color:#CBD5E1;">시즌전 예상: ★{ms_proj_r_def:.2f} ({r_diff_now:+.2f})</div>
+            <div style="font-size:11px; color:#94A3B8;">FotMob 평점 (현재 vs 예상)</div>
+            <div style="font-size:22px; font-weight:900; color:#FBBF24; margin-top:4px;">★ {ms_act_r:.2f}</div>
+            <div style="font-size:11px; color:#64748B;">시즌전 예상 ★{ms_proj_r_def:.2f} ({r_diff_now:+.2f})</div>
         </div>
     </div>
 
-    <div class="glass-panel" style="padding:16px 20px;">
-        <div style="font-size:13.5px; font-weight:900; color:#34D399; margin-bottom:10px;">🚀 현재 페이스 유지 시 {ms_total_r}라운드 완주 최종 예상 성적 (Full-Season On-Pace Projection)</div>
-        <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; background:#090D16; padding:12px; border-radius:12px; text-align:center; font-size:13px;">
-            <div><span style="color:#94A3B8; font-size:11px;">최종 출전 페이스</span><br><b style="font-size:16px; color:#F8FAFC;">{pace_full_m:,}분</b> <span style="font-size:11px; color:#64748B;">(목표 {ms_full_m:,}분)</span></div>
-            <div><span style="color:#94A3B8; font-size:11px;">최종 득점 페이스</span><br><b style="font-size:16px; color:#10B981;">{pace_full_g:.1f}골</b> <span style="font-size:11px; color:#64748B;">(목표 {ms_full_g:.1f}골)</span></div>
-            <div><span style="color:#94A3B8; font-size:11px;">최종 도움 페이스</span><br><b style="font-size:16px; color:#C084FC;">{pace_full_a:.1f}도움</b> <span style="font-size:11px; color:#64748B;">(목표 {ms_full_a:.1f}도움)</span></div>
-            <div><span style="color:#94A3B8; font-size:11px;">최종 공포 페이스</span><br><b style="font-size:16px; color:#FBBF24;">{pace_full_p:.1f} P</b> <span style="font-size:11px; color:#64748B;">(목표 {ms_full_g+ms_full_a:.1f}P)</span></div>
+    <div style="display:grid; grid-template-columns: 0.95fr 1.15fr; gap:14px; margin-bottom:16px; align-items:stretch;">
+        <div class="glass-panel" style="padding:14px; text-align:center; display:flex; flex-direction:column; justify-content:center;">
+            <div style="font-size:13px; font-weight:900; color:#38BDF8; margin-bottom:4px;">💠 현재 실제 페이스(청색) vs 시즌전 예측(회색)</div>
+            {svg_ms_radar}
+        </div>
+        <div class="glass-panel" style="padding:16px;">
+            <div style="font-size:13px; font-weight:900; color:#10B981; margin-bottom:12px;">📊 {ms_curr_r}R 시점 기대 목표치(좌·회색) vs 현재 실제 기록(우·컬러)</div>
+            {make_ms_comp_bar_row("출전 시간 (Minutes)", int(exp_now_m), ms_act_m, ms_full_m, "분")}
+            {make_ms_comp_bar_row("득점 (Goals)", exp_now_g, ms_act_g, max(15.0, ms_full_g), "골")}
+            {make_ms_comp_bar_row("기대 득점 (xG)", round(exp_now_xg, 1), round(ms_act_xg, 1), max(15.0, ms_proj_xg_def), "")}
+            {make_ms_comp_bar_row("도움 (Assists)", exp_now_a, ms_act_a, max(12.0, ms_full_a), "도움")}
+            {make_ms_comp_bar_row("총 슈팅 (Shots)", exp_now_sh, ms_act_sh, max(60, ms_full_sh), "회")}
+            {make_ms_comp_bar_row("기회 창출 (Chances)", exp_now_ch, ms_act_ch, max(50, ms_full_ch), "회")}
+            {make_ms_comp_bar_row("박스 안 터치 (Box Touches)", exp_now_bx, ms_act_bx, max(100, ms_full_bx), "회")}
+            {make_ms_comp_bar_row("태클 성공 (Tackles Won)", exp_now_tk, ms_act_tk, max(50, ms_full_tk), "회")}
+        </div>
+    </div>
+
+    <div class="glass-panel" style="padding:14px 18px;">
+        <div style="font-size:13px; font-weight:900; color:#34D399; margin-bottom:8px;">🚀 현재 페이스 유지 시 {ms_total_r}라운드 완주 최종 예상 성적 (Full-Season On-Pace Projection)</div>
+        <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; background:#090D16; padding:10px 12px; border-radius:10px; text-align:center; font-size:12.5px;">
+            <div><span style="color:#94A3B8; font-size:11px;">최종 출전 페이스</span><br><b style="font-size:15.5px; color:#F8FAFC;">{pace_full_m:,}분</b> <span style="font-size:11px; color:#64748B;">(목표 {ms_full_m:,}분)</span></div>
+            <div><span style="color:#94A3B8; font-size:11px;">최종 득점 페이스</span><br><b style="font-size:15.5px; color:#10B981;">{pace_full_g:.1f}골</b> <span style="font-size:11px; color:#64748B;">(목표 {ms_full_g:.1f}골)</span></div>
+            <div><span style="color:#94A3B8; font-size:11px;">최종 도움 페이스</span><br><b style="font-size:15.5px; color:#C084FC;">{pace_full_a:.1f}도움</b> <span style="font-size:11px; color:#64748B;">(목표 {ms_full_a:.1f}도움)</span></div>
+            <div><span style="color:#94A3B8; font-size:11px;">최종 공포 페이스</span><br><b style="font-size:15.5px; color:#FBBF24;">{pace_full_p:.1f} P</b> <span style="font-size:11px; color:#64748B;">(목표 {ms_full_g+ms_full_a:.1f}P)</span></div>
         </div>
     </div>
     """
-    render_copyable_infographic(ms_board_html, filename=f"midseason_{ms_name}_{ms_curr_r}R", height=520)
+    render_copyable_infographic(ms_board_html, filename=f"midseason_{ms_name}_{ms_curr_r}R", height=900)
 
     with st.expander("📋 [블로그/카페 본문용] 시즌 중 라운드별 중간 점검 텍스트 메모장 복사", expanded=True):
         memo_txt = (
             f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
             f"⏱️ [{ms_curr_r}R / {ms_total_r}R 중간 점검] {ms_name} ({ms_team_def} · 진행률 {prog_ratio*100:.1f}%)\n"
             f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"• 현재 라운드 성적 : {ms_act_m:,}분 출전 | {ms_act_g}골(xG {ms_act_xg:.2f}) · {ms_act_a}도움(xA {ms_act_xa:.2f}) | 평점 ★{ms_act_r:.2f}\n"
+            f"• 현재 라운드 성적 : {ms_act_m:,}분 출전 | {ms_act_g}골(xG {ms_act_xg:.2f}) · {ms_act_a}도움(xA {ms_act_xa:.2f}) | 슈팅 {ms_act_sh}회 · 기회창출 {ms_act_ch}회 | 평점 ★{ms_act_r:.2f}\n"
             f"• {ms_curr_r}R 시점 기대치 : {int(exp_now_m):,}분 출전 | {exp_now_g:.1f}골 · {exp_now_a:.1f}도움 (공격P {p_diff_now:+.1f}P 격차)\n"
             f"• {ms_total_r}R 완주 환산 페이스 : 최종 {pace_full_m:,}분 · {pace_full_g:.1f}골 {pace_full_a:.1f}도움 ({pace_full_p:.1f}P) 페이스\n"
             f"• 중간 점검 평점 : ★ {in_season_score:.2f} / 10.00 ({ms_verdict})\n"
@@ -3047,4 +3156,4 @@ with tab7:
             st.markdown("---")
             csv_backup = history_df.to_csv(index=False).encode("utf-8-sig")
             st.download_button("📥 전체 DB 엑셀(CSV) 백업 다운로드", data=csv_backup, file_name=f"transfer_scouting_db_{datetime.now().strftime('%Y%m%d_%H%M')}.csv", mime="text/csv", use_container_width=True)
-            st.dataframe(history_df, use_container_width=True) 
+            st.dataframe(history_df, use_container_width=True)
