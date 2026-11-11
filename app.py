@@ -37,7 +37,7 @@ if "last_saved_msg" not in st.session_state:
 # - 아래 DRIVE_LOGO_FOLDER_URL에 아까 보내주신 '축구구단_로고' 폴더 링크를 넣어주세요!
 # =========================================================================
 DRIVE_LOGO_FOLDER_URL = "여기에_구글드라이브_로고폴더_공유링크를_붙여넣으세요"
-https://script.google.com/macros/s/AKfycbweYk_uWkBVXOAgRfY_k3MRz9ItZiMRsfsCYy-mrnMPxBaLrdr0GEG7C0CTZ0nZEuCt/exec
+https://script.google.com/macros/s/AKfycbwmxL1KAuMav1KpXsRQpsa-p18i_-nkWVG-4MkTR7c6jI7FRqNvUaTLSuC7lGFivYvD/exec
 DEFAULT_CLUB_LOGOS = {
     "아스날": "https://crests.football-data.org/57.png",
     "아스널": "https://crests.football-data.org/57.png",
