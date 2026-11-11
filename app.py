@@ -6,6 +6,7 @@ import requests
 import json
 import math
 import re
+import base64
 import plotly.graph_objects as go
 from datetime import datetime
 
@@ -29,62 +30,118 @@ if "last_saved_msg" not in st.session_state:
     st.session_state["last_saved_msg"] = None
 
 # =========================================================================
-# [구단 로고 자동 매칭 시스템]
-# 1) 유럽 주요 구단 기본 내장 사전 (FotMob 공식 CDN - 캡처 호환 100%)
-# 2) 구글 시트 저장 이력에서 로고 URL 자동 추출 및 병합
-# 3) 사이드바에서 언제든 구단 로고 추가/수정 가능
+# [구글 드라이브 전용 구단 로고 자동 매칭 & Base64 무결점 변환 엔진]
+# - 테스트해주신 아스널/아스날 구글 드라이브 링크 기본 탑재 완료
+# - 새 구단은 1번 탭 또는 좌측 사이드바에서 구글 드라이브 공유 링크를 1번만 입력해
+#   저장하면 시트에 영구 기록되어 다음부터 구단 이름만 쳐도 자동 매칭됩니다!
 # =========================================================================
+ARSENAL_DRIVE_URL = "https://drive.google.com/file/d/1XPF14Ucu-_6y-Vapoad2xiyXvzBa4-uR/view?usp=drive_link"
+
 DEFAULT_CLUB_LOGOS = {
-    "아스날": "https://images.fotmob.com/image_resources/logo/teamlogo/9825.png",
-    "아스널": "https://images.fotmob.com/image_resources/logo/teamlogo/9825.png",
-    "맨시티": "https://images.fotmob.com/image_resources/logo/teamlogo/8456.png",
-    "맨체스터 시티": "https://images.fotmob.com/image_resources/logo/teamlogo/8456.png",
-    "리버풀": "https://images.fotmob.com/image_resources/logo/teamlogo/8650.png",
-    "첼시": "https://images.fotmob.com/image_resources/logo/teamlogo/8455.png",
-    "토트넘": "https://images.fotmob.com/image_resources/logo/teamlogo/8586.png",
-    "맨유": "https://images.fotmob.com/image_resources/logo/teamlogo/10260.png",
-    "맨체스터 유나이티드": "https://images.fotmob.com/image_resources/logo/teamlogo/10260.png",
-    "뉴캐슬": "https://images.fotmob.com/image_resources/logo/teamlogo/10261.png",
-    "아스톤 빌라": "https://images.fotmob.com/image_resources/logo/teamlogo/10252.png",
-    "애스턴 빌라": "https://images.fotmob.com/image_resources/logo/teamlogo/10252.png",
-    "브라이튼": "https://images.fotmob.com/image_resources/logo/teamlogo/10204.png",
-    "웨스트햄": "https://images.fotmob.com/image_resources/logo/teamlogo/8654.png",
-    "본머스": "https://images.fotmob.com/image_resources/logo/teamlogo/8678.png",
-    "풀럼": "https://images.fotmob.com/image_resources/logo/teamlogo/9879.png",
-    "울버햄튼": "https://images.fotmob.com/image_resources/logo/teamlogo/8602.png",
-    "크리스탈 팰리스": "https://images.fotmob.com/image_resources/logo/teamlogo/9826.png",
-    "브렌트포드": "https://images.fotmob.com/image_resources/logo/teamlogo/9937.png",
-    "에버턴": "https://images.fotmob.com/image_resources/logo/teamlogo/8668.png",
-    "노팅엄": "https://images.fotmob.com/image_resources/logo/teamlogo/10203.png",
-    "노팅엄 포레스트": "https://images.fotmob.com/image_resources/logo/teamlogo/10203.png",
-    "레알 마드리드": "https://images.fotmob.com/image_resources/logo/teamlogo/8633.png",
-    "바르셀로나": "https://images.fotmob.com/image_resources/logo/teamlogo/8634.png",
-    "AT 마드리드": "https://images.fotmob.com/image_resources/logo/teamlogo/9906.png",
-    "아틀레티코 마드리드": "https://images.fotmob.com/image_resources/logo/teamlogo/9906.png",
-    "바이에른 뮌헨": "https://images.fotmob.com/image_resources/logo/teamlogo/9823.png",
-    "뮌헨": "https://images.fotmob.com/image_resources/logo/teamlogo/9823.png",
-    "레버쿠젠": "https://images.fotmob.com/image_resources/logo/teamlogo/8178.png",
-    "도르트문트": "https://images.fotmob.com/image_resources/logo/teamlogo/9789.png",
-    "라이프치히": "https://images.fotmob.com/image_resources/logo/teamlogo/178475.png",
-    "인터밀란": "https://images.fotmob.com/image_resources/logo/teamlogo/8636.png",
-    "인테르": "https://images.fotmob.com/image_resources/logo/teamlogo/8636.png",
-    "유벤투스": "https://images.fotmob.com/image_resources/logo/teamlogo/9885.png",
-    "AC밀란": "https://images.fotmob.com/image_resources/logo/teamlogo/8564.png",
-    "나폴리": "https://images.fotmob.com/image_resources/logo/teamlogo/9875.png",
-    "AS로마": "https://images.fotmob.com/image_resources/logo/teamlogo/8686.png",
-    "아탈란타": "https://images.fotmob.com/image_resources/logo/teamlogo/8524.png",
-    "PSG": "https://images.fotmob.com/image_resources/logo/teamlogo/9847.png",
-    "파리 생제르맹": "https://images.fotmob.com/image_resources/logo/teamlogo/9847.png",
-    "스포르팅": "https://images.fotmob.com/image_resources/logo/teamlogo/9768.png",
-    "벤피카": "https://images.fotmob.com/image_resources/logo/teamlogo/9772.png",
-    "포르투": "https://images.fotmob.com/image_resources/logo/teamlogo/9773.png",
-    "아약스": "https://images.fotmob.com/image_resources/logo/teamlogo/8593.png",
-    "PSV": "https://images.fotmob.com/image_resources/logo/teamlogo/8640.png",
-    "페예노르트": "https://images.fotmob.com/image_resources/logo/teamlogo/10235.png"
+    "아스날": ARSENAL_DRIVE_URL,
+    "아스널": ARSENAL_DRIVE_URL,
+    "Arsenal": ARSENAL_DRIVE_URL,
+    "맨시티": "https://crests.football-data.org/65.png",
+    "맨체스터 시티": "https://crests.football-data.org/65.png",
+    "리버풀": "https://crests.football-data.org/64.png",
+    "첼시": "https://crests.football-data.org/61.png",
+    "토트넘": "https://crests.football-data.org/73.png",
+    "맨유": "https://crests.football-data.org/66.png",
+    "맨체스터 유나이티드": "https://crests.football-data.org/66.png",
+    "뉴캐슬": "https://crests.football-data.org/67.png",
+    "아스톤 빌라": "https://crests.football-data.org/58.png",
+    "애스턴 빌라": "https://crests.football-data.org/58.png",
+    "브라이튼": "https://crests.football-data.org/397.png",
+    "웨스트햄": "https://crests.football-data.org/563.png",
+    "본머스": "https://crests.football-data.org/1044.png",
+    "풀럼": "https://crests.football-data.org/63.png",
+    "울버햄튼": "https://crests.football-data.org/76.png",
+    "크리스탈 팰리스": "https://crests.football-data.org/354.png",
+    "브렌트포드": "https://crests.football-data.org/402.png",
+    "에버턴": "https://crests.football-data.org/62.png",
+    "노팅엄": "https://crests.football-data.org/351.png",
+    "노팅엄 포레스트": "https://crests.football-data.org/351.png",
+    "레알 마드리드": "https://crests.football-data.org/86.png",
+    "바르셀로나": "https://crests.football-data.org/81.png",
+    "AT 마드리드": "https://crests.football-data.org/78.png",
+    "아틀레티코 마드리드": "https://crests.football-data.org/78.png",
+    "바이에른 뮌헨": "https://crests.football-data.org/5.png",
+    "뮌헨": "https://crests.football-data.org/5.png",
+    "레버쿠젠": "https://crests.football-data.org/3.png",
+    "도르트문트": "https://crests.football-data.org/4.png",
+    "라이프치히": "https://crests.football-data.org/721.png",
+    "인터밀란": "https://crests.football-data.org/108.png",
+    "인테르": "https://crests.football-data.org/108.png",
+    "유벤투스": "https://crests.football-data.org/109.png",
+    "AC밀란": "https://crests.football-data.org/98.png",
+    "나폴리": "https://crests.football-data.org/113.png",
+    "AS로마": "https://crests.football-data.org/100.png",
+    "아탈란타": "https://crests.football-data.org/102.png",
+    "PSG": "https://crests.football-data.org/524.png",
+    "파리 생제르맹": "https://crests.football-data.org/524.png",
+    "스포르팅": "https://crests.football-data.org/498.png",
+    "벤피카": "https://crests.football-data.org/1903.png",
+    "포르투": "https://crests.football-data.org/503.png",
+    "아약스": "https://crests.football-data.org/678.png",
+    "PSV": "https://crests.football-data.org/674.png",
+    "페예노르트": "https://crests.football-data.org/675.png"
 }
 
 if "custom_club_logos" not in st.session_state:
     st.session_state["custom_club_logos"] = DEFAULT_CLUB_LOGOS.copy()
+else:
+    for k_def, v_def in DEFAULT_CLUB_LOGOS.items():
+        if k_def in ["아스날", "아스널", "Arsenal"] or k_def not in st.session_state["custom_club_logos"] or "fotmob.com" in st.session_state["custom_club_logos"].get(k_def, ""):
+            st.session_state["custom_club_logos"][k_def] = v_def
+
+def extract_drive_id(url_str):
+    """구글 드라이브 공유 링크에서 파일 ID 추출"""
+    if not url_str or not isinstance(url_str, str):
+        return ""
+    u = url_str.strip()
+    if "drive.google.com" not in u:
+        return ""
+    m = re.search(r"/file/d/([a-zA-Z0-9_-]+)", u)
+    if not m:
+        m = re.search(r"[?&]id=([a-zA-Z0-9_-]+)", u)
+    return m.group(1) if m else ""
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def url_to_base64_img(img_url):
+    """구글 드라이브 공유 링크 또는 이미지 URL을 깨지지 않는 Base64 이미지로 즉시 변환"""
+    if not img_url or not str(img_url).strip():
+        return ""
+    u = str(img_url).strip()
+    if u.startswith("data:image"):
+        return u
+
+    drive_id = extract_drive_id(u)
+    if drive_id:
+        candidate_urls = [
+            f"https://drive.google.com/thumbnail?id={drive_id}&sz=w500",
+            f"https://lh3.googleusercontent.com/d/{drive_id}=w500",
+            f"https://drive.google.com/uc?export=download&id={drive_id}"
+        ]
+    else:
+        candidate_urls = [u]
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8"
+    }
+
+    for target_u in candidate_urls:
+        try:
+            resp = requests.get(target_u, headers=headers, timeout=6, allow_redirects=True)
+            if resp.status_code == 200 and len(resp.content) > 100:
+                mime = resp.headers.get("Content-Type", "image/png")
+                if "text/html" not in mime:
+                    b64 = base64.b64encode(resp.content).decode("utf-8")
+                    return f"data:{mime};base64,{b64}"
+        except Exception:
+            continue
+
+    return f"https://wsrv.nl/?url={candidate_urls[0]}&output=png"
 
 def extract_logos_from_notes(notes_str):
     if not isinstance(notes_str, str):
@@ -131,13 +188,14 @@ if not history_df.empty and "스카우팅메모" in history_df.columns:
         f_team_h = str(r_hist.get("원소속팀명", "")).strip()
         t_team_h = str(r_hist.get("이적팀명", "")).strip()
         f_logo_h, t_logo_h = extract_logos_from_notes(nt_raw)
-        if f_team_h and f_logo_h:
+        if f_team_h and f_logo_h and "fotmob.com" not in f_logo_h:
             st.session_state["custom_club_logos"][f_team_h] = f_logo_h
-        if t_team_h and t_logo_h:
+        if t_team_h and t_logo_h and "fotmob.com" not in t_logo_h:
             st.session_state["custom_club_logos"][t_team_h] = t_logo_h
 
-def resolve_club_logo(team_name, manual_url=""):
-    if manual_url and str(manual_url).strip():
+def get_raw_club_logo(team_name, manual_url=""):
+    """구글 시트 저장용 원본 짧은 URL(구글 드라이브 링크 등) 반환"""
+    if manual_url and str(manual_url).strip() and not str(manual_url).strip().startswith("data:image"):
         return str(manual_url).strip()
     t_clean = str(team_name).strip()
     if not t_clean:
@@ -149,6 +207,11 @@ def resolve_club_logo(team_name, manual_url=""):
         if k_club in t_clean or t_clean in k_club:
             return v_url
     return ""
+
+def resolve_club_logo(team_name, manual_url=""):
+    """인포그래픽 렌더링용 Base64 변환 이미지 반환"""
+    raw_u = get_raw_club_logo(team_name, manual_url)
+    return url_to_base64_img(raw_u) if raw_u else ""
 
 # =========================================================================
 # [V7 하이엔드 그래픽 엔진]
@@ -439,7 +502,7 @@ def render_copyable_infographic(card_inner_html, filename="scouting_infographic"
     components.html(full_doc, height=height, scrolling=True)
 
 
-# 사이드바: 실시간 환율 설정 + 영국/국내 금액 변환기 + 구단 로고 사전 관리/수정
+# 사이드바: 실시간 환율 설정 + 구단 로고 사전 관리/수정 (구글 드라이브 호환) + 영국/국내 금액 변환기
 with st.sidebar:
     st.markdown("### 💱 실시간 환율 기준 설정")
     st.caption("이적시장 시점의 실제 환율에 맞게 조정할 수 있습니다.")
@@ -448,15 +511,17 @@ with st.sidebar:
 
     st.markdown("---")
     st.markdown("### 🛡️ 구단 로고 사전 조회 & 수정")
-    st.caption("한 번 등록/수정한 구단 로고는 팀 이름만 입력해도 인포그래픽에 자동 적용됩니다.")
+    st.caption("구글 드라이브 공유 링크를 등록해 두면 구단 이름만 입력해도 인포그래픽에 자동 적용됩니다.")
     with st.expander("구단 로고 추가 / 변경하기", expanded=False):
         known_clubs = sorted(list(st.session_state["custom_club_logos"].keys()))
         sel_club_edit = st.selectbox("등록된 구단 확인 (또는 아래에 직접 입력)", ["+ 새 구단 직접 입력"] + known_clubs, key="sb_logo_sel")
-        target_club_key = st.text_input("구단명 입력", value="" if sel_club_edit == "+ 새 구단 직접 입력" else sel_club_edit, placeholder="예: 뉴캐슬", key="sb_logo_name")
+        target_club_key = st.text_input("구단명 입력", value="" if sel_club_edit == "+ 새 구단 직접 입력" else sel_club_edit, placeholder="예: 아스날", key="sb_logo_name")
         curr_logo_val = st.session_state["custom_club_logos"].get(target_club_key.strip(), "")
-        new_logo_val = st.text_input("구단 로고 이미지 URL", value=curr_logo_val, placeholder="https://... 로고 이미지 주소", key="sb_logo_url")
+        new_logo_val = st.text_input("구단 로고 (구글 드라이브 공유 링크 등)", value=curr_logo_val, placeholder="https://drive.google.com/file/d/...", key="sb_logo_url")
         if curr_logo_val:
-            st.markdown(f"<div style='text-align:center; padding:6px; background:#0F172A; border-radius:8px;'><img src='{curr_logo_val}' style='height:42px; object-fit:contain;'/></div>", unsafe_allow_html=True)
+            preview_b64 = url_to_base64_img(curr_logo_val)
+            if preview_b64:
+                st.markdown(f"<div style='text-align:center; padding:6px; background:#0F172A; border-radius:8px;'><img src='{preview_b64}' style='height:46px; object-fit:contain;'/></div>", unsafe_allow_html=True)
         if st.button("💾 구단 로고 사전에 저장/수정", use_container_width=True, key="sb_logo_save_btn"):
             if target_club_key.strip() and new_logo_val.strip():
                 st.session_state["custom_club_logos"][target_club_key.strip()] = new_logo_val.strip()
@@ -864,20 +929,22 @@ with tab1:
         with c_t2: in_to_team = st.text_input("이적팀명 (영입 구단)", value=cf.get("to_team", ""), placeholder="예: 아스날", key=f"to_team_{k_id}")
         with c_t3: in_to_league_choice = st.selectbox("이적팀 리그", list(LEAGUE_WEIGHTS.keys()), index=list(LEAGUE_WEIGHTS.keys()).index(cf.get("to_league", list(LEAGUE_WEIGHTS.keys())[0])) if cf.get("to_league", "") in LEAGUE_WEIGHTS else 0, key=f"to_league_choice_{k_id}")
 
-        # 구단 로고 자동 매칭 및 수동 입력/수정 Expander
-        auto_from_logo = resolve_club_logo(in_from_team, cf.get("from_logo", ""))
-        auto_to_logo = resolve_club_logo(in_to_team, cf.get("to_logo", ""))
+        # 구단 로고 자동 매칭 및 수동 입력/수정 Expander (구글 드라이브 링크 호환)
+        auto_from_logo = get_raw_club_logo(in_from_team, cf.get("from_logo", ""))
+        auto_to_logo = get_raw_club_logo(in_to_team, cf.get("to_logo", ""))
 
-        with st.expander("🛡️ 구단 로고 URL 확인 & 수정 (1회 입력 시 시트 자동 저장 · 주요 구단 자동 완성)", expanded=False):
-            st.caption("비워두셔도 내장 사전 및 과거 시트 저장 기록에서 구단 로고를 자동으로 찾아 매칭합니다. 새 구단이거나 로고를 바꿀 때만 입력하세요.")
+        with st.expander("🛡️ 구단 로고 구글 드라이브 링크 확인 & 수정 (1회 입력 시 시트 영구 저장)", expanded=False):
+            st.caption("구글 드라이브에서 로고 PNG 파일 우클릭 ➔ [공유] ➔ [링크가 있는 모든 사용자] 설정 후 복사한 링크를 붙여넣으세요. 한 번 저장된 구단은 다음부터 팀 이름만 쳐도 자동 적용됩니다.")
             lg_c1, lg_c2 = st.columns(2)
             with lg_c1:
-                in_from_logo_manual = st.text_input("원소속팀 로고 URL", value=auto_from_logo, placeholder="자동 매칭됨 (직접 입력 시 덮어씀)", key=f"from_logo_{k_id}")
+                in_from_logo_manual = st.text_input("원소속팀 로고 (구글 드라이브 링크)", value=auto_from_logo, placeholder="https://drive.google.com/file/d/...", key=f"from_logo_{k_id}")
             with lg_c2:
-                in_to_logo_manual = st.text_input("이적팀(영입구단) 로고 URL", value=auto_to_logo, placeholder="자동 매칭됨 (직접 입력 시 덮어씀)", key=f"to_logo_{k_id}")
+                in_to_logo_manual = st.text_input("이적팀 로고 (구글 드라이브 링크)", value=auto_to_logo, placeholder="https://drive.google.com/file/d/...", key=f"to_logo_{k_id}")
 
-        final_from_logo = resolve_club_logo(in_from_team, in_from_logo_manual)
-        final_to_logo = resolve_club_logo(in_to_team, in_to_logo_manual)
+        raw_from_logo = get_raw_club_logo(in_from_team, in_from_logo_manual)
+        raw_to_logo = get_raw_club_logo(in_to_team, in_to_logo_manual)
+        final_from_logo = url_to_base64_img(raw_from_logo)
+        final_to_logo = url_to_base64_img(raw_to_logo)
 
         is_tracked_target = any(k in in_to_league_choice for k in TRACKED_LEAGUE_NAMES)
         st.caption("✅ **10대 핵심 리그 이적**: 시즌 종료 후 4번 탭 사후 검증 대상에 **자동 등록**됩니다." if is_tracked_target else "ℹ️ **기타 리그 이적**: 메인 결산 장부에만 기록됩니다.")
@@ -1130,15 +1197,15 @@ with tab1:
         w_3yr = min(100, int(proj_3yr_val / max_v_ref * 100))
 
         # 상단 이적 경로 미니 구단 로고 HTML 조립
-        mini_from_img = f"<img src='{final_from_logo}' crossorigin='anonymous' style='width:20px; height:20px; object-fit:contain; vertical-align:middle; margin-right:5px;'/>" if final_from_logo else "🏟️ "
-        mini_to_img = f"<img src='{final_to_logo}' crossorigin='anonymous' style='width:20px; height:20px; object-fit:contain; vertical-align:middle; margin-right:5px;'/>" if final_to_logo else "🛡️ "
+        mini_from_img = f"<img src='{final_from_logo}' style='width:22px; height:22px; object-fit:contain; vertical-align:middle; margin-right:5px;'/>" if final_from_logo else "🏟️ "
+        mini_to_img = f"<img src='{final_to_logo}' style='width:22px; height:22px; object-fit:contain; vertical-align:middle; margin-right:5px;'/>" if final_to_logo else "🛡️ "
         route_with_logos_html = f"<span style='display:inline-flex; align-items:center;'>{mini_from_img}<b>{from_t_disp}</b> &nbsp;➔&nbsp; {mini_to_img}<b style='color:#FFFFFF;'>{to_t_disp}</b> &nbsp;<span style='font-size:11.5px; color:#93C5FD;'>({in_to_league_choice.split(' (')[0]})</span></span>"
 
-        # 메인 프로필 액자: 영입 구단(이적팀)의 큼직한 공식 로고 표시 (없으면 원소속팀 로고 또는 방패 아이콘)
+        # 메인 프로필 액자: 영입 구단(이적팀)의 큼직한 공식 로고 표시
         hero_logo_url = final_to_logo if final_to_logo else final_from_logo
         hero_club_emblem_html = (
             f"<div style='width:78px; height:78px; border-radius:18px; background:radial-gradient(circle, rgba(30,41,59,0.95) 0%, rgba(9,13,22,0.98) 100%); border:2px solid #38BDF8; box-shadow:0 0 18px rgba(56,189,248,0.45); display:flex; align-items:center; justify-content:center; padding:8px; margin-right:18px; flex-shrink:0;'>"
-            f"<img src='{hero_logo_url}' crossorigin='anonymous' style='width:100%; height:100%; object-fit:contain;'/></div>"
+            f"<img src='{hero_logo_url}' style='width:100%; height:100%; object-fit:contain;'/></div>"
             if hero_logo_url else
             f"<div style='width:74px; height:74px; border-radius:18px; background:linear-gradient(135deg, #1E293B, #0F172A); border:2px solid #38BDF8; display:flex; align-items:center; justify-content:center; font-size:30px; font-weight:900; color:#38BDF8; margin-right:18px; flex-shrink:0;'>🛡️</div>"
         )
@@ -1294,10 +1361,10 @@ with tab1:
         else:
             action_type = "update_existing" if edit_toggle else "save_all"
             with st.spinner("구글 시트에 데이터를 기록 중입니다..."):
-                if in_from_team.strip() and final_from_logo:
-                    st.session_state["custom_club_logos"][in_from_team.strip()] = final_from_logo
-                if in_to_team.strip() and final_to_logo:
-                    st.session_state["custom_club_logos"][in_to_team.strip()] = final_to_logo
+                if in_from_team.strip() and raw_from_logo:
+                    st.session_state["custom_club_logos"][in_from_team.strip()] = raw_from_logo
+                if in_to_team.strip() and raw_to_logo:
+                    st.session_state["custom_club_logos"][in_to_team.strip()] = raw_to_logo
 
                 contract_desc = remaining_contract.split(" (")[0]
                 nat_str = player_nat if player_nat.strip() else "미상"
@@ -1305,8 +1372,8 @@ with tab1:
                 detailed_notes = f"[{'방출' if is_out_trade else '영입'}|{ttype_short}|{reg_short}|{urg_short}|UCL:{stage_w:.2f}|메디컬:{inj_w:.2f}] 계약:{contract_desc}"
                 if clean_user_note: detailed_notes += f" | {clean_user_note}"
                 if is_gk: detailed_notes += f" | GK[선방:{st.session_state.get('f_gk_saves', 78)}|실점:{st.session_state.get('f_gk_conceded', 28)}]"
-                if final_from_logo: detailed_notes += f" ||LOGO_FROM:{final_from_logo}||"
-                if final_to_logo: detailed_notes += f" ||LOGO_TO:{final_to_logo}||"
+                if raw_from_logo: detailed_notes += f" ||LOGO_FROM:{raw_from_logo}||"
+                if raw_to_logo: detailed_notes += f" ||LOGO_TO:{raw_to_logo}||"
 
                 payload = {
                     "action": action_type, "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
@@ -1660,6 +1727,8 @@ with tab3:
             """
             render_copyable_infographic(tab3_board_html, filename=f"comps_{display_name}", height=580)
             st.dataframe(match_df, use_container_width=True)
+
+_part1_end = True
     # ================= TAB 4: 이적 첫 시즌 최종 성적 입력 & 모델 검증 =================
 with tab4:
     st.subheader("🎯 시즌 종료 후 최종 실제 성적 입력 & 모델 예측 정확도 사후 검증")
@@ -1912,7 +1981,7 @@ with tab5:
     ms_logo_url = resolve_club_logo(ms_team_def)
     ms_emblem_html = (
         f"<div style='width:68px; height:68px; border-radius:16px; background:#0F172A; border:2px solid #38BDF8; display:flex; align-items:center; justify-content:center; padding:7px; margin-right:16px; flex-shrink:0;'>"
-        f"<img src='{ms_logo_url}' crossorigin='anonymous' style='width:100%; height:100%; object-fit:contain;'/></div>"
+        f"<img src='{ms_logo_url}' style='width:100%; height:100%; object-fit:contain;'/></div>"
         if ms_logo_url else ""
     )
 
@@ -2191,7 +2260,7 @@ with tab7:
                 club_rep_logo = resolve_club_logo(sel_team_name)
                 club_rep_emblem_html = (
                     f"<div style='width:72px; height:72px; border-radius:16px; background:#0F172A; border:2px solid #38BDF8; display:flex; align-items:center; justify-content:center; padding:8px; margin-right:16px; flex-shrink:0;'>"
-                    f"<img src='{club_rep_logo}' crossorigin='anonymous' style='width:100%; height:100%; object-fit:contain;'/></div>"
+                    f"<img src='{club_rep_logo}' style='width:100%; height:100%; object-fit:contain;'/></div>"
                     if club_rep_logo else
                     f"<div style='width:68px; height:68px; border-radius:16px; background:#0F172A; border:2px solid #38BDF8; display:flex; align-items:center; justify-content:center; font-size:28px; margin-right:16px; flex-shrink:0;'>🛡️</div>"
                 )
@@ -2317,7 +2386,7 @@ with tab7:
                         net_v = rk_r["순지출(만€)"]
                         w_sc = rk_r["가중이적평점"]
                         rk_logo = resolve_club_logo(t_nm)
-                        rk_logo_img = f"<img src='{rk_logo}' crossorigin='anonymous' style='width:18px; height:18px; object-fit:contain; vertical-align:middle; margin-right:6px;'/>" if rk_logo else ""
+                        rk_logo_img = f"<img src='{rk_logo}' style='width:18px; height:18px; object-fit:contain; vertical-align:middle; margin-right:6px;'/>" if rk_logo else ""
                         rk_rows_html += (
                             f"<div style='background:#090D16; border:1px solid #1E293B; padding:9px 14px; border-radius:10px; margin-bottom:7px;'>"
                             f"<div style='display:flex; justify-content:space-between; align-items:center; font-size:13px; margin-bottom:4px;'>"
