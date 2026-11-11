@@ -19,7 +19,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# 최신 구글 시트 웹앱 URL 반영 완료
+# 최신 구글 시트 웹앱 URL
 GOOGLE_SHEET_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwmxL1KAuMav1KpXsRQpsa-p18i_-nkWVG-4MkTR7c6jI7FRqNvUaTLSuC7lGFivYvD/exec"
 SPREADSHEET_ID = "16CeAQp1-xqc-mhtvlP0vLlQu5k1pg8DW5A-m29WCFdw"
 SHEET_CSV_URL = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/gviz/tq?tqx=out:csv"
@@ -36,7 +36,7 @@ if "last_saved_msg" not in st.session_state:
 # [구글 드라이브 폴더 자동 스캔 & 체크무늬/흰배경 완벽 제거 엔진]
 # - 아래 큰따옴표(" ") 안에 구글 드라이브 '축구구단_로고' 폴더 공유 링크를 넣어주세요!
 # =========================================================================
-DRIVE_LOGO_FOLDER_URL = "https://script.google.com/macros/s/AKfycbwmxL1KAuMav1KpXsRQpsa-p18i_-nkWVG-4MkTR7c6jI7FRqNvUaTLSuC7lGFivYvD/exec"
+DRIVE_LOGO_FOLDER_URL = "https://drive.google.com/drive/folders/1jhKbgnrWEK3t0rQuP9OYTryYrI56Ujye?usp=drive_link"
 
 DEFAULT_CLUB_LOGOS = {
     "아스날": "https://crests.football-data.org/57.png",
@@ -104,12 +104,12 @@ CLUB_SYNONYMS = {
 @st.cache_data(ttl=300, show_spinner=False)
 def fetch_drive_folder_logos(folder_url):
     """구글 시트 Apps Script를 통해 드라이브 로고 폴더 안의 모든 파일명과 링크를 자동 스캔"""
-    if not folder_url or "drive.google.com" not in folder_url:
+    if not folder_url or "drive.google.com" not in str(folder_url):
         return {}
     try:
         res = requests.post(
             GOOGLE_SHEET_WEBAPP_URL,
-            data=json.dumps({"action": "list_drive_logos", "folder_url": folder_url}),
+            data=json.dumps({"action": "list_drive_logos", "folder_url": folder_url.strip()}),
             headers={"Content-Type": "text/plain;charset=utf-8"},
             timeout=10,
             allow_redirects=True
@@ -125,7 +125,6 @@ def fetch_drive_folder_logos(folder_url):
 if "custom_club_logos" not in st.session_state:
     st.session_state["custom_club_logos"] = DEFAULT_CLUB_LOGOS.copy()
 
-# 구글 드라이브 폴더 스캔 결과를 최우선으로 병합
 scanned_drive_logos = fetch_drive_folder_logos(DRIVE_LOGO_FOLDER_URL)
 for c_name, d_url in scanned_drive_logos.items():
     st.session_state["custom_club_logos"][c_name] = d_url
@@ -145,11 +144,7 @@ def extract_drive_id(url_str):
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def url_to_base64_img(img_url):
-    """
-    [체크무늬 & 흰 배경 완벽 제거 엔진]
-    - 외곽의 흰색 배경뿐만 아니라 가짜 투명 체크무늬(회색+흰색 격자)까지 100% 깨끗하게 제거
-    - 아스널 방패(금색/빨간색/파란색 테두리) 안쪽의 흰색 글씨와 문양은 완벽 보호
-    """
+    """외곽의 흰색 배경 및 가짜 투명 체크무늬(회색+흰색 격자) 완벽 제거 엔진"""
     if not img_url or not str(img_url).strip():
         return ""
     u = str(img_url).strip()
@@ -229,11 +224,20 @@ def extract_logos_from_notes(notes_str):
     t_url = m_to.group(1).strip() if m_to else ""
     return f_url, t_url
 
+def extract_subpos_from_notes(notes_str):
+    if not isinstance(notes_str, str):
+        return []
+    m_sub = re.search(r"\|\|SUBPOS:(.*?)\|\|", notes_str)
+    if m_sub and m_sub.group(1).strip():
+        return [x.strip() for x in m_sub.group(1).split(",") if x.strip()]
+    return []
+
 def clean_notes_display(notes_str):
     if not isinstance(notes_str, str):
         return ""
     cleaned = re.sub(r"\|\|LOGO_FROM:.*?\|\|", "", notes_str)
     cleaned = re.sub(r"\|\|LOGO_TO:.*?\|\|", "", cleaned)
+    cleaned = re.sub(r"\|\|SUBPOS:.*?\|\|", "", cleaned)
     return cleaned.strip(" |")
 
 default_stats = {
@@ -288,8 +292,193 @@ def resolve_club_logo(team_name, manual_url=""):
     return url_to_base64_img(raw_u) if raw_u else ""
 
 # =========================================================================
-# [V7 하이엔드 그래픽 엔진]
+# [V8 FM 스카우팅 그래픽 엔진: 미니 포지션 피치 + 선호 플레이(PPM) + 장단점(Pros/Cons)]
 # =========================================================================
+SUB_POS_OPTIONS = [
+    "ST (스트라이커)", "LW (좌측 윙어)", "RW (우측 윙어)", "CAM (공격형 미드필더)",
+    "CM (중앙 미드필더)", "CDM (수비형 미드필더)", "LB/LWB (좌측 풀백·윙백)",
+    "RB/RWB (우측 풀백·윙백)", "CB (센터백)", "GK (골키퍼)"
+]
+
+def build_fm_mini_pitch_svg(main_pos_str, versatility_str, manual_sub_list, stats_dict):
+    """FM 스타일 미니 포지션 숙련도 맵 (🟢 주포지션 천연 / 🟡 서브포지션 능숙 하이브리드)"""
+    nodes = {
+        "ST":  (80, 22, "ST"),
+        "LW":  (28, 44, "LW"),
+        "CAM": (80, 50, "CAM"),
+        "RW":  (132, 44, "RW"),
+        "CM":  (80, 82, "CM"),
+        "CDM": (80, 112, "CDM"),
+        "LB":  (26, 138, "LB"),
+        "CB":  (80, 144, "CB"),
+        "RB":  (134, 138, "RB"),
+        "GK":  (80, 174, "GK")
+    }
+
+    primary_nodes = set()
+    secondary_nodes = set()
+
+    if "ST/CF" in main_pos_str:
+        primary_nodes.add("ST")
+    elif "WG/CAM" in main_pos_str:
+        primary_nodes.update(["LW", "RW", "CAM"])
+    elif "CM/CDM" in main_pos_str:
+        primary_nodes.update(["CM", "CDM"])
+    elif "RB/LB/WB" in main_pos_str:
+        primary_nodes.update(["LB", "RB"])
+    elif "CB" in main_pos_str:
+        primary_nodes.add("CB")
+    elif "GK" in main_pos_str:
+        primary_nodes.add("GK")
+
+    is_multi = "단일" not in versatility_str
+    if is_multi:
+        if manual_sub_list:
+            for item in manual_sub_list:
+                code = item.split(" ")[0].split("/")[0].strip()
+                if code in nodes and code not in primary_nodes:
+                    secondary_nodes.add(code)
+        else:
+            # 하이브리드 자동 추론: 수동 선택이 비어 있으면 스탯 성향으로 인접 서브 포지션 자동 점등
+            is_utility_3 = "3개" in versatility_str
+            p_pass = stats_dict.get("pass_pct", 85.0)
+            p_drib = stats_dict.get("p90_drib", 0.5)
+            p_box = stats_dict.get("p90_box", 1.5)
+            p_tkl = stats_dict.get("p90_tkl", 1.2)
+
+            if "ST" in primary_nodes:
+                secondary_nodes.update(["LW", "RW"] if p_drib >= 0.8 else ["CAM"])
+                if is_utility_3: secondary_nodes.update(["LW", "RW", "CAM"])
+            elif "CAM" in primary_nodes:
+                if p_box >= 4.0: secondary_nodes.add("ST")
+                else: secondary_nodes.add("CM")
+            elif "CM" in primary_nodes:
+                if p_tkl >= 1.8: secondary_nodes.add("CB")
+                else: secondary_nodes.add("CAM")
+                if is_utility_3: secondary_nodes.update(["RB", "LB"])
+            elif "LB" in primary_nodes:
+                secondary_nodes.add("CB" if p_tkl >= 1.6 else "LW")
+                if is_utility_3: secondary_nodes.add("CDM")
+            elif "CB" in primary_nodes:
+                if p_pass >= 88.5: secondary_nodes.add("CDM")
+                else: secondary_nodes.update(["RB", "LB"])
+                if is_utility_3: secondary_nodes.update(["CDM", "RB", "LB"])
+
+    dots_svg = ""
+    for code, (nx, ny, lbl) in nodes.items():
+        if code in primary_nodes:
+            dots_svg += (
+                f'<circle cx="{nx}" cy="{ny}" r="11" fill="#10B981" fill-opacity="0.35"/>'
+                f'<circle cx="{nx}" cy="{ny}" r="7.5" fill="#10B981" stroke="#FFFFFF" stroke-width="1.8"/>'
+                f'<text x="{nx}" y="{ny+18}" text-anchor="middle" fill="#6EE7B7" font-size="8.5" font-weight="900">{lbl}</text>'
+            )
+        elif code in secondary_nodes:
+            dots_svg += (
+                f'<circle cx="{nx}" cy="{ny}" r="9.5" fill="#FBBF24" fill-opacity="0.28"/>'
+                f'<circle cx="{nx}" cy="{ny}" r="6.5" fill="#FBBF24" stroke="#0F172A" stroke-width="1.5"/>'
+                f'<text x="{nx}" y="{ny+17}" text-anchor="middle" fill="#FDE68A" font-size="8" font-weight="800">{lbl}</text>'
+            )
+        else:
+            dots_svg += (
+                f'<circle cx="{nx}" cy="{ny}" r="4.5" fill="#1E293B" stroke="#475569" stroke-width="1"/>'
+                f'<text x="{nx}" y="{ny+14}" text-anchor="middle" fill="#64748B" font-size="7.5" font-weight="700">{lbl}</text>'
+            )
+
+    return f"""
+    <svg viewBox="0 0 160 196" width="142" height="174" style="display:block; margin:0 auto;">
+        <rect x="4" y="4" width="152" height="188" rx="10" fill="#064E3B" stroke="#34D399" stroke-width="1.5" stroke-opacity="0.55"/>
+        <line x1="4" y1="98" x2="156" y2="98" stroke="rgba(255,255,255,0.22)" stroke-width="1.2"/>
+        <circle cx="80" cy="98" r="20" fill="none" stroke="rgba(255,255,255,0.22)" stroke-width="1.2"/>
+        <rect x="42" y="4" width="76" height="26" fill="none" stroke="rgba(255,255,255,0.22)" stroke-width="1.2"/>
+        <rect x="42" y="166" width="76" height="26" fill="none" stroke="rgba(255,255,255,0.22)" stroke-width="1.2"/>
+        {dots_svg}
+    </svg>
+    """
+
+def generate_fm_scouting_features(
+    main_pos, age, rating, goals, xg, assists, xa, shots, chances, dribbles, box_touches,
+    tackles, pass_pct, duels_pct, aerial_pct, gk_saves, gk_prev, gk_cs, gk_errors,
+    mins, overpay_pct, stage_str, inj_str, reg_str, vers_str, contract_str, league_w
+):
+    """FotMob 스탯 & 12대 가중치 조건을 분석하여 FM 스타일 선호 플레이(PPM) 태그 및 장단점(Pros/Cons) 자동 추출"""
+    p90 = max(1.0, mins / 90.0)
+    p90_xg_xa = (xg + xa) / p90
+    p90_shots = shots / p90
+    p90_chances = chances / p90
+    p90_drib = dribbles / p90
+    p90_box = box_touches / p90
+    p90_tkl = tackles / p90
+    duels_avg = (duels_pct + aerial_pct) / 2.0
+    is_gk = "GK" in main_pos
+    is_def_mid = any(k in main_pos for k in ["CB", "RB/LB", "CM/CDM"])
+
+    # 1) FM 선호 플레이 (Player Traits / PPM) 추출
+    traits = []
+    if is_gk:
+        if gk_prev >= 2.0: traits.append("🧤 동물적인 반사신경 & 슈퍼세이브 선호")
+        if gk_cs >= 10: traits.append("🧱 수비진 조율 및 클린시트 통솔")
+        if pass_pct >= 80.0: traits.append("🎯 후방 스위퍼 키퍼 빌드업 관여")
+        if not traits: traits.append("🧤 안정적인 기본기 중심 골키핑")
+    else:
+        if p90_box >= 4.2: traits.append("⚡ 상대 페널티 박스 안 침투 선호")
+        if goals >= 8 and xg > 0 and (goals / xg) >= 1.15: traits.append("🎯 침착한 골문 구석 마무리 (결정력 특화)")
+        if p90_drib >= 1.2: traits.append("🏃‍♂️ 측면/중앙 드리블 돌파를 자주 시도함")
+        if p90_chances >= 1.5 or (xa / p90) >= 0.22: traits.append("🔑 킬패스 및 결정적 기회 창출 시도")
+        if pass_pct >= 89.0: traits.append("📐 후방 템포 조절 및 짧은 패스 빌드업 선호")
+        if p90_tkl >= 1.6 or duels_pct >= 63.0: traits.append("🛡️ 적극적인 대인 압박 및 태클 시도")
+        if aerial_pct >= 64.0: traits.append("🗼 공중볼 경합 및 제공권 타겟 플레이")
+        if p90_shots >= 2.8: traits.append("🚀 과감한 중거리 및 슈팅 볼륨 가져감")
+        if "만능" in vers_str or "듀얼" in vers_str: traits.append("🔄 전술 변화에 따른 스위칭 플레이 능숙")
+        if not traits:
+            traits.append("⚖️ 전술 지시를 충실히 이행하는 밸런스형 플레이어")
+
+    # 2) FM 스카우팅 강점 (Pros - 초록색 배지)
+    pros = []
+    if rating >= 7.30: pros.append(f"직전 시즌 최정상급 퍼포먼스 검증 (★{rating:.2f})")
+    elif rating >= 7.08: pros.append(f"일관성 있는 주전급 경기력 유지 (★{rating:.2f})")
+
+    if is_gk:
+        if gk_prev >= 1.5: pros.append(f"기대 실점 대비 뛰어난 선방 방어력 ({gk_prev:+.2f}골 차단)")
+        if gk_cs >= 10: pros.append(f"검증된 무실점 경기 운영 능력 (클린시트 {gk_cs}회)")
+    elif is_def_mid:
+        if duels_avg >= 60.0: pros.append(f"탄탄한 지상·공중 대인 경합 지배력 (평균 {duels_avg:.1f}%)")
+        if pass_pct >= 87.5: pros.append(f"안정적인 패스 공급 및 탈압박 빌드업 ({pass_pct:.1f}%)")
+        if p90_tkl >= 1.4: pros.append(f"높은 수비 기여도 및 볼 탈취 능력 (90분당 태클 {p90_tkl:.2f}회)")
+    else:
+        if p90_xg_xa >= 0.55: pros.append(f"최상위권 공격 포인트 생산성 (90분당 xG+xA {p90_xg_xa:.2f})")
+        if goals > xg * 1.1 and goals >= 5: pros.append(f"기대득점(xG {xg:.1f})을 상회하는 골 결정력 ({goals}골)")
+        if p90_chances >= 1.4: pros.append(f"동료에게 기회를 열어주는 찬스 메이킹 (총 {chances}회)")
+
+    if overpay_pct <= -5.0: pros.append(f"적정가 대비 뛰어난 가성비 영입 ({overpay_pct:.1f}% 절감)")
+    if "철강왕" in inj_str or mins >= 2600: pros.append(f"뛰어난 피지컬 내구성 및 풀타임 소화력 ({mins:,}분)")
+    if "UCL" in stage_str or "UEL" in stage_str: pros.append("유럽대항전 및 메이저 빅매치 큰 경기 검증 완료")
+    if "홈그로운" in reg_str or "유스" in reg_str: pros.append("구단 스쿼드 등록에 유리한 홈그로운(HG) 쿼터 충족")
+    if age <= 23: pros.append(f"향후 성장 잠재력 및 높은 리세일 밸류 기대 (만 {age}세)")
+
+    if not pros:
+        pros.append("팀 스쿼드 뎁스 및 로테이션 운영에 보탬이 되는 자원")
+
+    # 3) FM 스카우팅 약점/리스크 (Cons - 주황/빨간색 배지)
+    cons = []
+    if overpay_pct >= 12.0: cons.append(f"모델 적정가 대비 높은 이적료 프리미엄 지출 (+{overpay_pct:.1f}%)")
+    if "장기 부상" in inj_str or "잔부상" in inj_str: cons.append("과거 부상 이력에 따른 메디컬 관리 및 내구성 주의")
+    if age >= 30: cons.append(f"에이징 커브 진입 구간으로 향후 이적료 회수율 낮음 (만 {age}세)")
+    if league_w <= 0.78: cons.append("빅리그 상위 템포 및 강한 압박 적응 기간 필요")
+    if not is_gk and not is_def_mid and xg >= 5.0 and goals < xg * 0.80:
+        cons.append(f"기대득점(xG {xg:.1f}) 대비 다소 아쉬운 골 결정력 ({goals}골)")
+    if not is_gk and duels_avg < 50.0:
+        cons.append(f"거친 피지컬 경합 상황에서의 열세 ({duels_avg:.1f}%)")
+    if "비EU" in reg_str:
+        cons.append("스쿼드 내 제한된 비EU 외국인 쿼터 소모")
+    if "패닉바이" in contract_str or mins < 1400:
+        cons.append(f"직전 시즌 다소 부족했던 실전 출전 시간 ({mins:,}분)")
+
+    if not cons:
+        cons.append("뚜렷한 치명적 단점 없는 육각형 안정형 영입")
+
+    return traits[:4], pros[:4], cons[:3]
+
+
 def build_svg_donut_ring(score, max_score=10.0, color="#10B981", sub_label="DEAL SCORE", size=112):
     r = 44
     c = 2 * math.pi * r
@@ -528,7 +717,7 @@ def render_copyable_infographic(card_inner_html, filename="scouting_infographic"
         <div id="capture-board">
             {card_inner_html}
             <div class="brand-footer">
-                <span>⚽ PRO FOOTBALL SCOUTING & VALUATION ANALYTICS</span>
+                <span>⚽ PRO FOOTBALL SCOUTING & VALUATION ANALYTICS (FM EDITION)</span>
                 <span>DATA SOURCE: TRANSFERMARKT · FOTMOB · 12-FACTOR PROPRIETARY MODEL</span>
             </div>
         </div>
@@ -813,10 +1002,11 @@ with tab1:
 
     default_form_template = {
         "name": "", "nat": "", "age": 28, "from_team": "", "to_team": "",
-        "from_logo": "", "to_logo": "",
+        "from_logo": "", "to_logo": "", "sub_pos_list": [],
         "tm": 4500, "fee": 5960, "wage": 0.0, "notes": "",
         "season": "26/27 여름 (Summer)",
         "pos": list(POSITION_WEIGHTS.keys())[4],
+        "vers": list(VERSATILITY_WEIGHTS.keys())[0],
         "from_league": list(LEAGUE_WEIGHTS.keys())[0],
         "to_league": list(LEAGUE_WEIGHTS.keys())[0],
         "buying_tier": list(CLUB_TIERS.keys())[1],
@@ -907,6 +1097,7 @@ with tab1:
 
                         notes_val = str(rd.get("스카우팅메모", ""))
                         saved_from_logo, saved_to_logo = extract_logos_from_notes(notes_val)
+                        saved_sub_pos = extract_subpos_from_notes(notes_val)
                         cleaned_notes_val = clean_notes_display(notes_val)
 
                         tier_saved = str(rd.get("영입구단규모", ""))
@@ -916,6 +1107,7 @@ with tab1:
                         ttype_match = next((tt_k for tt_k in TRANSFER_TYPE_WEIGHTS.keys() if tt_saved and tt_saved in tt_k), list(TRANSFER_TYPE_WEIGHTS.keys())[0])
                         reg_match = next((r_k for r_k in REGISTRATION_WEIGHTS.keys() if r_k.split(" (")[0] in notes_val), list(REGISTRATION_WEIGHTS.keys())[1])
                         urg_match = next((u_k for u_k in URGENCY_WEIGHTS.keys() if u_k.split(" (")[0] in notes_val), list(URGENCY_WEIGHTS.keys())[0])
+                        vers_match = list(VERSATILITY_WEIGHTS.keys())[2] if len(saved_sub_pos) >= 2 else (list(VERSATILITY_WEIGHTS.keys())[1] if len(saved_sub_pos) == 1 else list(VERSATILITY_WEIGHTS.keys())[0])
 
                         st.session_state["current_form"] = {
                             "name": str(rd.get("선수명", "")),
@@ -925,12 +1117,14 @@ with tab1:
                             "to_team": str(rd.get("이적팀명", "")),
                             "from_logo": saved_from_logo,
                             "to_logo": saved_to_logo,
+                            "sub_pos_list": [sp for sp in SUB_POS_OPTIONS if sp in saved_sub_pos],
                             "tm": int(find_val(rd, ["시장가치", "tm"], 4500)),
                             "fee": int(find_val(rd, ["실제이적료", "이적료", "fee"], 0)),
                             "wage": float(find_val(rd, ["선수주급", "주급", "wage"], 0.0)),
                             "notes": cleaned_notes_val,
                             "season": sel_e_season,
                             "pos": pos_match,
+                            "vers": vers_match,
                             "from_league": from_l_match,
                             "to_league": to_l_match,
                             "buying_tier": tier_match,
@@ -1008,7 +1202,6 @@ with tab1:
         with c_t2: in_to_team = st.text_input("이적팀명 (영입 구단)", value=cf.get("to_team", ""), placeholder="예: 아스날", key=f"to_team_{k_id}")
         with c_t3: in_to_league_choice = st.selectbox("이적팀 리그", list(LEAGUE_WEIGHTS.keys()), index=list(LEAGUE_WEIGHTS.keys()).index(cf.get("to_league", list(LEAGUE_WEIGHTS.keys())[0])) if cf.get("to_league", "") in LEAGUE_WEIGHTS else 0, key=f"to_league_choice_{k_id}")
 
-        # 구단 로고 자동 매칭 및 수동 입력/수정 Expander (구글 드라이브 폴더 자동 스캔 연동)
         auto_from_logo = get_raw_club_logo(in_from_team, cf.get("from_logo", ""))
         auto_to_logo = get_raw_club_logo(in_to_team, cf.get("to_logo", ""))
 
@@ -1029,8 +1222,21 @@ with tab1:
         st.caption("✅ **10대 핵심 리그 이적**: 시즌 종료 후 4번 탭 사후 검증 대상에 **자동 등록**됩니다." if is_tracked_target else "ℹ️ **기타 리그 이적**: 메인 결산 장부에만 기록됩니다.")
 
         pos_col1, pos_col2 = st.columns(2)
-        with pos_col1: main_position = st.selectbox("주 포지션", list(POSITION_WEIGHTS.keys()), index=list(POSITION_WEIGHTS.keys()).index(cf.get("pos", list(POSITION_WEIGHTS.keys())[4])) if cf.get("pos", "") in POSITION_WEIGHTS else 4, key=f"pos_{k_id}")
-        with pos_col2: versatility = st.selectbox("멀티 포지션 소화 능력", list(VERSATILITY_WEIGHTS.keys()), index=0, key=f"vers_{k_id}")
+        with pos_col1: main_position = st.selectbox("주 포지션 (🟢 천연 포지션)", list(POSITION_WEIGHTS.keys()), index=list(POSITION_WEIGHTS.keys()).index(cf.get("pos", list(POSITION_WEIGHTS.keys())[4])) if cf.get("pos", "") in POSITION_WEIGHTS else 4, key=f"pos_{k_id}")
+        with pos_col2: 
+            vers_init = cf.get("vers", list(VERSATILITY_WEIGHTS.keys())[0])
+            versatility = st.selectbox("멀티 포지션 소화 능력", list(VERSATILITY_WEIGHTS.keys()), index=list(VERSATILITY_WEIGHTS.keys()).index(vers_init) if vers_init in VERSATILITY_WEIGHTS else 0, key=f"vers_{k_id}")
+
+        # [FM 하이브리드 서브 포지션 선택기] 듀얼 롤 / 만능 유틸리티 선택 시에만 활성화 (비워두면 스탯 기반 자동 추론)
+        if "단일" not in versatility:
+            manual_sub_positions = st.multiselect(
+                "🟡 서브 포지션 선택 (클릭 시 미니 축구장에 노란불 점등 · 비워두면 스탯 기반 자동 추론)",
+                options=SUB_POS_OPTIONS,
+                default=cf.get("sub_pos_list", []),
+                key=f"subpos_{k_id}"
+            )
+        else:
+            manual_sub_positions = []
 
         c_r1, c_r2 = st.columns(2)
         with c_r1: 
@@ -1241,7 +1447,7 @@ with tab1:
     pj_rating_t1 = round(max(6.0, cur_rating - (1.0 - final_lf_t1) * 0.9), 2)
 
     with col2:
-        st.subheader("🖼️ [V7 Club Logo Edition] 초고화질 스카우팅 인포그래픽 보드")
+        st.subheader("🖼️ [V8 FM Scouting Edition] 초고화질 스카우팅 인포그래픽 보드")
         display_name = player_name.strip() if player_name.strip() else "선수명 미입력"
         display_nat = f"({player_nat.strip()})" if player_nat.strip() else ""
         pos_short = main_position.split(" (")[0]
@@ -1294,8 +1500,45 @@ with tab1:
             f"골키퍼 첫 시즌 예상 FotMob 평점 <b style='color:#FBBF24;'>★{pj_rating_t1:.2f}</b> (직전 선방 {st.session_state.get('f_gk_saves', 78)}회 · 클린시트 {st.session_state.get('f_gk_cs', 10)}회)"
         )
 
+        # [FM 스카우팅 리포트 생성] 미니 포지션 맵 + 선호 플레이(PPM) + 장단점(Pros/Cons)
+        fm_mini_pitch_svg = build_fm_mini_pitch_svg(
+            main_position, versatility, manual_sub_positions,
+            {
+                "pass_pct": st.session_state.get("f_pass_pct", 88.2),
+                "p90_drib": st.session_state.get("f_dribbles", 14) / f_p90,
+                "p90_box": st.session_state.get("f_touches_box", 153) / f_p90,
+                "p90_tkl": cur_p90_tackles
+            }
+        )
+        fm_traits, fm_pros, fm_cons = generate_fm_scouting_features(
+            main_position, player_age, cur_rating,
+            st.session_state["f_goals"], st.session_state["f_xg"],
+            st.session_state["f_assists"], st.session_state["f_xa"],
+            st.session_state["f_shots"], st.session_state["f_chances"],
+            st.session_state["f_dribbles"], st.session_state["f_touches_box"],
+            st.session_state["f_tackles"], st.session_state.get("f_pass_pct", 88.2),
+            st.session_state.get("f_duels_pct", 62.4), st.session_state.get("f_aerial_pct", 65.8),
+            st.session_state.get("f_gk_saves", 78), st.session_state.get("f_gk_prevented", 2.45),
+            st.session_state.get("f_gk_cs", 10), st.session_state.get("f_gk_errors", 0),
+            st.session_state["f_mins"], overpay_pct, big_stage, injury_status,
+            reg_status, versatility, remaining_contract, league_w
+        )
+
+        traits_badges_html = "".join([
+            f"<span style='background:rgba(56,189,248,0.14); border:1px solid rgba(56,189,248,0.45); color:#E0F2FE; padding:5px 10px; border-radius:8px; font-size:11.5px; font-weight:800; display:inline-block;'>{tr}</span>"
+            for tr in fm_traits
+        ])
+        pros_items_html = "".join([
+            f"<div style='display:flex; align-items:center; gap:7px; background:rgba(16,185,129,0.10); border-left:3px solid #10B981; padding:6px 10px; border-radius:6px; margin-bottom:5px; font-size:11.5px; color:#E2E8F0; font-weight:700;'><span style='color:#34D399;'>🟢</span> {pr}</div>"
+            for pr in fm_pros
+        ])
+        cons_items_html = "".join([
+            f"<div style='display:flex; align-items:center; gap:7px; background:rgba(244,63,94,0.10); border-left:3px solid #F43F5E; padding:6px 10px; border-radius:6px; margin-bottom:5px; font-size:11.5px; color:#E2E8F0; font-weight:700;'><span style='color:#FB7185;'>🔴</span> {cn}</div>"
+            for cn in fm_cons
+        ])
+
         tab1_board_html = f"""
-        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:18px; padding-bottom:12px; border-bottom:1px solid rgba(148,163,184,0.18);">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:16px; padding-bottom:12px; border-bottom:1px solid rgba(148,163,184,0.18);">
             <div style="display:flex; align-items:center; gap:10px;">
                 <span style="background:{badge_bg}; color:#FFFFFF; font-size:11px; font-weight:900; padding:5px 12px; border-radius:20px; letter-spacing:0.5px;">{tag_badge_txt}</span>
                 <span style="background:rgba(30,41,59,0.9); border:1px solid #475569; color:#E2E8F0; font-size:12px; font-weight:700; padding:4px 11px; border-radius:20px;">{season_val.split(' (')[0]} · {ttype_short}</span>
@@ -1305,7 +1548,7 @@ with tab1:
             </div>
         </div>
 
-        <div class="glass-panel" style="padding:18px 22px; margin-bottom:18px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px;">
+        <div class="glass-panel" style="padding:18px 22px; margin-bottom:16px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px;">
             <div style="display:flex; align-items:center; flex:1; min-width:260px;">
                 {hero_club_emblem_html}
                 <div>
@@ -1326,7 +1569,7 @@ with tab1:
             </div>
         </div>
 
-        <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:12px; margin-bottom:18px;">
+        <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:12px; margin-bottom:16px;">
             <div class="kpi-card" style="border-top:3px solid #64748B;">
                 <div style="font-size:11px; color:#94A3B8; font-weight:700;">TM 기준 시장가치</div>
                 <div style="font-size:21px; font-weight:900; color:#F8FAFC; margin-top:5px;">€{tm_market_value:,.0f}만</div>
@@ -1349,7 +1592,7 @@ with tab1:
             </div>
         </div>
 
-        <div style="display:grid; grid-template-columns: 1.02fr 1.12fr; gap:14px; margin-bottom:18px; align-items:stretch;">
+        <div style="display:grid; grid-template-columns: 1.02fr 1.12fr; gap:14px; margin-bottom:16px; align-items:stretch;">
             <div class="glass-panel" style="padding:16px; text-align:center; display:flex; flex-direction:column; justify-content:center;">
                 <div style="font-size:13.5px; font-weight:900; color:#38BDF8; letter-spacing:0.3px; margin-bottom:6px;">💠 6각형 스카우팅 밸런스 인덱스</div>
                 {svg_radar_t1}
@@ -1381,6 +1624,35 @@ with tab1:
             </div>
         </div>
 
+        <!-- [신규 추가] FM 스타일 스카우팅 리포트 패널 (미니 포지션 숙련도 피치 + 선호 플레이 태그 + 장단점 배지) -->
+        <div class="glass-panel" style="padding:16px 18px; margin-bottom:16px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                <div style="font-size:13px; font-weight:900; color:#34D399; letter-spacing:0.3px;">🎮 FM SCOUTING INTELLIGENCE · 포지션 숙련도 & 플레이스타일 & 장단점 리포트</div>
+                <div style="font-size:11px; color:#94A3B8; font-weight:700;"><span style="color:#10B981;">●</span> 천연(주포지션) &nbsp;<span style="color:#FBBF24;">●</span> 능숙(서브포지션)</div>
+            </div>
+            <div style="display:grid; grid-template-columns: 165px 1fr; gap:16px; align-items:center;">
+                <div style="background:#090D16; border:1px solid #1E293B; border-radius:12px; padding:10px; text-align:center;">
+                    {fm_mini_pitch_svg}
+                </div>
+                <div style="display:flex; flex-direction:column; gap:10px;">
+                    <div style="background:#090D16; border:1px solid #1E293B; border-radius:10px; padding:10px 12px;">
+                        <div style="font-size:11px; font-weight:800; color:#38BDF8; margin-bottom:6px;">🧬 선호하는 플레이 & 전술 성향 (Player Traits / PPM)</div>
+                        <div style="display:flex; flex-wrap:wrap; gap:6px;">{traits_badges_html}</div>
+                    </div>
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                        <div style="background:#090D16; border:1px solid rgba(16,185,129,0.28); border-radius:10px; padding:10px 12px;">
+                            <div style="font-size:11px; font-weight:900; color:#34D399; margin-bottom:6px;">🟢 핵심 강점 (PROS)</div>
+                            {pros_items_html}
+                        </div>
+                        <div style="background:#090D16; border:1px solid rgba(244,63,94,0.28); border-radius:10px; padding:10px 12px;">
+                            <div style="font-size:11px; font-weight:900; color:#FB7185; margin-bottom:6px;">🔴 약점 및 리스크 (CONS)</div>
+                            {cons_items_html}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="glass-panel" style="padding:16px 18px;">
             <div style="font-size:12.5px; font-weight:900; color:#94A3B8; margin-bottom:12px; letter-spacing:0.3px;">📋 12대 세부 스카우팅 프로파일링 (가중치 알고리즘 반영 · 배율 비공개)</div>
             <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:9px; font-size:12px;">
@@ -1399,7 +1671,7 @@ with tab1:
             </div>
         </div>
         """
-        render_copyable_infographic(tab1_board_html, filename=f"scouting_{display_name}", height=915)
+        render_copyable_infographic(tab1_board_html, filename=f"scouting_{display_name}", height=1135)
 
         with st.expander("🔍 [내부 관리용] 12대 세부 가중치 적용 현황표 & 누적 배율 (외부 비공개 확인용)", expanded=False):
             total_multiplier = league_w * age_w * club_w * contract_w * pos_w * vers_w * reg_w * opta_w * ttype_w * stage_w * inj_w * urg_w * season_factor
@@ -1430,7 +1702,7 @@ with tab1:
     st.markdown("---")
     display_pname_t1 = player_name.strip() if player_name.strip() else "선수명 미입력"
     tag_btn_name_t1 = "🔴 방출(OUT) 데이터" if is_out_trade else "🔵 영입(IN) 데이터"
-    btn_label_t1 = f"🔄 '{display_pname_t1}' 수정된 데이터 구글 시트에 업데이트(덮어쓰기)" if edit_toggle else f"💾 {tag_btn_name_t1} 구글 시트에 바로 저장하기 (구단 로고 자동 학습 포함)"
+    btn_label_t1 = f"🔄 '{display_pname_t1}' 수정된 데이터 구글 시트에 업데이트(덮어쓰기)" if edit_toggle else f"💾 {tag_btn_name_t1} 구글 시트에 바로 저장하기 (구단 로고·서브포지션 자동 저장)"
 
     if st.button(btn_label_t1, type="primary", use_container_width=True, key="save_btn_tab1"):
         if not player_name.strip():
@@ -1449,6 +1721,7 @@ with tab1:
                 detailed_notes = f"[{'방출' if is_out_trade else '영입'}|{ttype_short}|{reg_short}|{urg_short}|UCL:{stage_w:.2f}|메디컬:{inj_w:.2f}] 계약:{contract_desc}"
                 if clean_user_note: detailed_notes += f" | {clean_user_note}"
                 if is_gk: detailed_notes += f" | GK[선방:{st.session_state.get('f_gk_saves', 78)}|실점:{st.session_state.get('f_gk_conceded', 28)}]"
+                if manual_sub_positions: detailed_notes += f" ||SUBPOS:{','.join(manual_sub_positions)}||"
                 if raw_from_logo: detailed_notes += f" ||LOGO_FROM:{raw_from_logo}||"
                 if raw_to_logo: detailed_notes += f" ||LOGO_TO:{raw_to_logo}||"
 
@@ -2130,7 +2403,6 @@ with tab5:
 with tab6:
     st.subheader("👥 과거 선수 1:1 대조 & 영입 후보 A vs B 즉석 동시 비교 시뮬레이터")
 
-    # [업그레이드] 포지션 맞춤형 핵심 퍼포먼스 지수(40~98점) 및 요약 텍스트 자동 계산 함수
     def calc_pos_custom_metric(pos_text, p90_xg_xa, duels_avg_pct, p90_tkl, pass_pct, gk_prev, gk_cs_or_saves):
         if any(k in pos_text for k in ["GK", "골키퍼"]):
             idx = int(round(min(98, max(45, 70 + gk_prev * 4.5 + gk_cs_or_saves * 0.4))))
