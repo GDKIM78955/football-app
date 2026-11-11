@@ -8,7 +8,7 @@ import math
 import re
 import base64
 from io import BytesIO
-from PIL import Image
+from PIL import Image, ImageFilter
 import plotly.graph_objects as go
 from datetime import datetime
 
@@ -19,7 +19,8 @@ st.set_page_config(
     layout="wide"
 )
 
-GOOGLE_SHEET_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzFxpJzPoGqdkn-1rrH1aiP07Yk2iKyH2mIJCGPMcvdGC9pzrHuHtHg5KzRbwdCi_Fl/exec"
+# 새로 발급받은 구글 시트 웹앱 URL 완벽 반영
+GOOGLE_SHEET_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbweYk_uWkBVXOAgRfY_k3MRz9ItZiMRsfsCYy-mrnMPxBaLrdr0GEG7C0CTZ0nZEuCt/exec"
 SPREADSHEET_ID = "16CeAQp1-xqc-mhtvlP0vLlQu5k1pg8DW5A-m29WCFdw"
 SHEET_CSV_URL = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/gviz/tq?tqx=out:csv"
 
@@ -32,16 +33,14 @@ if "last_saved_msg" not in st.session_state:
     st.session_state["last_saved_msg"] = None
 
 # =========================================================================
-# [구글 드라이브 전용 구단 로고 자동 매칭 & 외곽 하얀 배경 자동 투명화 엔진]
-# - 테스트해주신 아스널/아스날 구글 드라이브 링크 기본 탑재 완료
-# - 로고 내부의 흰색(대포, 방패 내부, 글씨)은 100% 보호하고 바깥쪽 흰 배경만 투명화!
+# [구글 드라이브 폴더 자동 스캔 & HD 로고 화질/여백/테두리 자동 보정 엔진]
+# - 아래 DRIVE_LOGO_FOLDER_URL에 아까 보내주신 '축구구단_로고' 폴더 링크를 넣어주세요!
 # =========================================================================
-ARSENAL_DRIVE_URL = "https://drive.google.com/file/d/1XPF14Ucu-_6y-Vapoad2xiyXvzBa4-uR/view?usp=drive_link"
-
+DRIVE_LOGO_FOLDER_URL = "여기에_구글드라이브_로고폴더_공유링크를_붙여넣으세요"
+https://script.google.com/macros/s/AKfycbweYk_uWkBVXOAgRfY_k3MRz9ItZiMRsfsCYy-mrnMPxBaLrdr0GEG7C0CTZ0nZEuCt/exec
 DEFAULT_CLUB_LOGOS = {
-    "아스날": ARSENAL_DRIVE_URL,
-    "아스널": ARSENAL_DRIVE_URL,
-    "Arsenal": ARSENAL_DRIVE_URL,
+    "아스날": "https://crests.football-data.org/57.png",
+    "아스널": "https://crests.football-data.org/57.png",
     "맨시티": "https://crests.football-data.org/65.png",
     "맨체스터 시티": "https://crests.football-data.org/65.png",
     "리버풀": "https://crests.football-data.org/64.png",
@@ -88,15 +87,52 @@ DEFAULT_CLUB_LOGOS = {
     "페예노르트": "https://crests.football-data.org/675.png"
 }
 
+CLUB_SYNONYMS = {
+    "아스널": ["아스날", "Arsenal"],
+    "아스날": ["아스널", "Arsenal"],
+    "맨시티": ["맨체스터 시티", "맨체스터시티"],
+    "맨유": ["맨체스터 유나이티드", "맨체스터유나이티드"],
+    "아스톤 빌라": ["애스턴 빌라", "아스톤빌라", "애스턴빌라"],
+    "애스턴 빌라": ["아스톤 빌라", "아스톤빌라", "애스턴빌라"],
+    "바이에른 뮌헨": ["뮌헨", "바이에른뮌헨"],
+    "인터밀란": ["인테르", "인터 밀란"],
+    "인테르": ["인터밀란", "인터 밀란"],
+    "PSG": ["파리 생제르맹", "파리생제르맹"],
+    "AT 마드리드": ["아틀레티코 마드리드", "AT마드리드"]
+}
+
+@st.cache_data(ttl=300, show_spinner=False)
+def fetch_drive_folder_logos(folder_url):
+    """구글 시트 Apps Script를 통해 드라이브 로고 폴더 안의 모든 파일명과 링크를 자동 스캔"""
+    if not folder_url or "drive.google.com" not in folder_url:
+        return {}
+    try:
+        res = requests.post(
+            GOOGLE_SHEET_WEBAPP_URL,
+            data=json.dumps({"action": "list_drive_logos", "folder_url": folder_url}),
+            headers={"Content-Type": "text/plain;charset=utf-8"},
+            timeout=10,
+            allow_redirects=True
+        )
+        if res.status_code in [200, 302]:
+            rj = res.json()
+            if rj.get("status") == "success":
+                return rj.get("logos", {})
+    except Exception:
+        pass
+    return {}
+
 if "custom_club_logos" not in st.session_state:
     st.session_state["custom_club_logos"] = DEFAULT_CLUB_LOGOS.copy()
-else:
-    for k_def, v_def in DEFAULT_CLUB_LOGOS.items():
-        if k_def in ["아스날", "아스널", "Arsenal"] or k_def not in st.session_state["custom_club_logos"] or "fotmob.com" in st.session_state["custom_club_logos"].get(k_def, ""):
-            st.session_state["custom_club_logos"][k_def] = v_def
+
+# 구글 드라이브 폴더 스캔 결과를 최우선으로 병합
+scanned_drive_logos = fetch_drive_folder_logos(DRIVE_LOGO_FOLDER_URL)
+for c_name, d_url in scanned_drive_logos.items():
+    st.session_state["custom_club_logos"][c_name] = d_url
+    for syn in CLUB_SYNONYMS.get(c_name, []):
+        st.session_state["custom_club_logos"][syn] = d_url
 
 def extract_drive_id(url_str):
-    """구글 드라이브 공유 링크에서 파일 ID 추출"""
     if not url_str or not isinstance(url_str, str):
         return ""
     u = url_str.strip()
@@ -109,7 +145,13 @@ def extract_drive_id(url_str):
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def url_to_base64_img(img_url):
-    """구글 드라이브 원본 다운로드 + 외곽 하얀색/체크무늬 배경만 정밀 투명화(Flood-Fill) 변환 엔진"""
+    """
+    [HD 로고 화질 보정 엔진]
+    1) 구글 드라이브 원본 파일 다운로드
+    2) 외곽 흰색/연회색 배경 Flood-Fill 투명화 + 경계면 소프트 페더링(계단현상 제거)
+    3) 상하좌우 불필요한 투명 여백 자동 크롭(getbbox)으로 로고 크기 극대화
+    4) LANCZOS 고해상도 리사이징 & 미세 샤프닝(UnsharpMask)으로 쨍한 화질 구현
+    """
     if not img_url or not str(img_url).strip():
         return ""
     u = str(img_url).strip()
@@ -143,9 +185,9 @@ def url_to_base64_img(img_url):
                 width, height = img.size
                 pixels = img.load()
 
-                # 네 모서리 픽셀 확인: 이미 투명(Alpha<=50)하면 건드리지 않고, 불투명한 흰색/연회색 배경일 때만 외곽 투명화 수행
+                # 1. 외곽 배경 투명화 + 소프트 테두리 페더링 (내부 흰색은 100% 보호)
                 corners = [pixels[0, 0], pixels[width - 1, 0], pixels[0, height - 1], pixels[width - 1, height - 1]]
-                has_solid_white_corner = any(c[3] > 200 and c[0] >= 220 and c[1] >= 220 and c[2] >= 220 for c in corners)
+                has_solid_white_corner = any(c[3] > 200 and c[0] >= 215 and c[1] >= 215 and c[2] >= 215 for c in corners)
 
                 if has_solid_white_corner:
                     visited = set()
@@ -156,13 +198,41 @@ def url_to_base64_img(img_url):
                             continue
                         visited.add((x, y))
                         r, g, b, a = pixels[x, y]
-                        # 외곽과 이어진 흰색~연회색 배경(R,G,B>=220 & 채도 낮음)만 투명화 (방패 테두리 내부의 흰색은 완벽 보호)
-                        if a == 0 or (r >= 220 and g >= 220 and b >= 220 and max(r, g, b) - min(r, g, b) <= 25):
+                        lum = (r + g + b) / 3.0
+                        sat = max(r, g, b) - min(r, g, b)
+
+                        if a == 0 or (lum >= 232 and sat <= 25):
                             pixels[x, y] = (255, 255, 255, 0)
                             queue.extend([(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)])
+                        elif lum >= 195 and sat <= 38:
+                            # 경계면 안티앨리어싱(소프트 페더링): 하얀 테두리 끼를 부드럽게 반투명 처리
+                            new_a = int(max(0, min(255, (232.0 - lum) / 37.0 * a)))
+                            pixels[x, y] = (r, g, b, new_a)
+
+                # 2. 상하좌우 빈 여백 자동 크롭 (로고가 액자에 꽉 차게 확대됨)
+                bbox = img.getbbox()
+                if bbox:
+                    img = img.crop(bbox)
+
+                # 3. 정방형 캔버스(240x240) 중앙 정렬 & LANCZOS 리사이징 + 샤프닝 필터
+                target_box = 240
+                cw, ch = img.size
+                if cw > 0 and ch > 0:
+                    scale = min((target_box - 12) / cw, (target_box - 12) / ch)
+                    nw, nh = max(1, int(round(cw * scale))), max(1, int(round(ch * scale)))
+                    img_resized = img.resize((nw, nh), Image.Resampling.LANCZOS)
+                    # RGB 채널에만 미세 샤프닝을 적용해 뭉개짐 없이 쨍한 벡터 느낌 부여
+                    r_ch, g_ch, b_ch, a_ch = img_resized.split()
+                    rgb_sharp = Image.merge("RGB", (r_ch, g_ch, b_ch)).filter(
+                        ImageFilter.UnsharpMask(radius=1.0, percent=115, threshold=2)
+                    )
+                    r_s, g_s, b_s = rgb_sharp.split()
+                    img_final = Image.new("RGBA", (target_box, target_box), (0, 0, 0, 0))
+                    img_final.paste(Image.merge("RGBA", (r_s, g_s, b_s, a_ch)), ((target_box - nw) // 2, (target_box - nh) // 2))
+                    img = img_final
 
                 out_buf = BytesIO()
-                img.save(out_buf, format="PNG")
+                img.save(out_buf, format="PNG", optimize=True)
                 b64 = base64.b64encode(out_buf.getvalue()).decode("utf-8")
                 return f"data:image/png;base64,{b64}"
         except Exception:
@@ -208,7 +278,6 @@ def fetch_sheet_history():
 
 history_df = fetch_sheet_history()
 
-# 구글 시트에 저장된 과거 로고 태그들을 자동으로 읽어와 로고 사전에 영구 병합
 if not history_df.empty and "스카우팅메모" in history_df.columns:
     for _, r_hist in history_df.iterrows():
         nt_raw = str(r_hist.get("스카우팅메모", ""))
@@ -221,7 +290,6 @@ if not history_df.empty and "스카우팅메모" in history_df.columns:
             st.session_state["custom_club_logos"][t_team_h] = t_logo_h
 
 def get_raw_club_logo(team_name, manual_url=""):
-    """구글 시트 저장용 원본 짧은 URL(구글 드라이브 링크 등) 반환"""
     if manual_url and str(manual_url).strip() and not str(manual_url).strip().startswith("data:image"):
         return str(manual_url).strip()
     t_clean = str(team_name).strip()
@@ -236,7 +304,6 @@ def get_raw_club_logo(team_name, manual_url=""):
     return ""
 
 def resolve_club_logo(team_name, manual_url=""):
-    """인포그래픽 렌더링용 Base64 변환 이미지 반환"""
     raw_u = get_raw_club_logo(team_name, manual_url)
     return url_to_base64_img(raw_u) if raw_u else ""
 
@@ -529,7 +596,7 @@ def render_copyable_infographic(card_inner_html, filename="scouting_infographic"
     components.html(full_doc, height=height, scrolling=True)
 
 
-# 사이드바: 실시간 환율 설정 + 구단 로고 사전 관리/수정 (구글 드라이브 호환) + 영국/국내 금액 변환기
+# 사이드바: 실시간 환율 설정 + 구단 로고 사전 관리/수정 (구글 드라이브 폴더 동기화 포함) + 영국/국내 금액 변환기
 with st.sidebar:
     st.markdown("### 💱 실시간 환율 기준 설정")
     st.caption("이적시장 시점의 실제 환율에 맞게 조정할 수 있습니다.")
@@ -538,8 +605,12 @@ with st.sidebar:
 
     st.markdown("---")
     st.markdown("### 🛡️ 구단 로고 사전 조회 & 수정")
-    st.caption("구글 드라이브 공유 링크를 등록해 두면 구단 이름만 입력해도 인포그래픽에 자동 적용됩니다.")
-    with st.expander("구단 로고 추가 / 변경하기", expanded=False):
+    st.caption(f"구글 드라이브 폴더 자동 인식 구단: **{len(scanned_drive_logos)}개**")
+    if st.button("🔄 드라이브 로고 폴더 새로고침", use_container_width=True, key="sb_refresh_drive_btn"):
+        st.cache_data.clear()
+        st.rerun()
+
+    with st.expander("구단 로고 직접 확인 / 변경하기", expanded=False):
         known_clubs = sorted(list(st.session_state["custom_club_logos"].keys()))
         sel_club_edit = st.selectbox("등록된 구단 확인 (또는 아래에 직접 입력)", ["+ 새 구단 직접 입력"] + known_clubs, key="sb_logo_sel")
         target_club_key = st.text_input("구단명 입력", value="" if sel_club_edit == "+ 새 구단 직접 입력" else sel_club_edit, placeholder="예: 아스날", key="sb_logo_name")
@@ -548,7 +619,7 @@ with st.sidebar:
         if curr_logo_val:
             preview_b64 = url_to_base64_img(curr_logo_val)
             if preview_b64:
-                st.markdown(f"<div style='text-align:center; padding:6px; background:#0F172A; border-radius:8px;'><img src='{preview_b64}' style='height:46px; object-fit:contain;'/></div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='text-align:center; padding:6px; background:#0F172A; border-radius:8px;'><img src='{preview_b64}' style='height:48px; object-fit:contain;'/></div>", unsafe_allow_html=True)
         if st.button("💾 구단 로고 사전에 저장/수정", use_container_width=True, key="sb_logo_save_btn"):
             if target_club_key.strip() and new_logo_val.strip():
                 st.session_state["custom_club_logos"][target_club_key.strip()] = new_logo_val.strip()
@@ -957,17 +1028,17 @@ with tab1:
         with c_t2: in_to_team = st.text_input("이적팀명 (영입 구단)", value=cf.get("to_team", ""), placeholder="예: 아스날", key=f"to_team_{k_id}")
         with c_t3: in_to_league_choice = st.selectbox("이적팀 리그", list(LEAGUE_WEIGHTS.keys()), index=list(LEAGUE_WEIGHTS.keys()).index(cf.get("to_league", list(LEAGUE_WEIGHTS.keys())[0])) if cf.get("to_league", "") in LEAGUE_WEIGHTS else 0, key=f"to_league_choice_{k_id}")
 
-        # 구단 로고 자동 매칭 및 수동 입력/수정 Expander (구글 드라이브 링크 호환)
+        # 구단 로고 자동 매칭 및 수동 입력/수정 Expander (구글 드라이브 폴더 자동 스캔 연동)
         auto_from_logo = get_raw_club_logo(in_from_team, cf.get("from_logo", ""))
         auto_to_logo = get_raw_club_logo(in_to_team, cf.get("to_logo", ""))
 
-        with st.expander("🛡️ 구단 로고 구글 드라이브 링크 확인 & 수정 (1회 입력 시 시트 영구 저장)", expanded=False):
-            st.caption("구글 드라이브에서 로고 PNG/WebP 파일 우클릭 ➔ [공유] ➔ [링크가 있는 모든 사용자] 설정 후 복사한 링크를 붙여넣으세요. 바깥쪽 흰 배경은 자동으로 투명화됩니다.")
+        with st.expander("🛡️ 구단 로고 자동 매칭 확인 & 수동 변경 (드라이브 폴더 자동 스캔 연동)", expanded=False):
+            st.caption("구글 드라이브 로고 폴더에 '구단명.webp' 또는 '구단명.png' 파일을 올려두면 링크 입력 없이 자동 매칭됩니다.")
             lg_c1, lg_c2 = st.columns(2)
             with lg_c1:
-                in_from_logo_manual = st.text_input("원소속팀 로고 (구글 드라이브 링크)", value=auto_from_logo, placeholder="https://drive.google.com/file/d/...", key=f"from_logo_{k_id}")
+                in_from_logo_manual = st.text_input("원소속팀 로고 링크", value=auto_from_logo, placeholder="폴더/사전 자동 매칭됨", key=f"from_logo_{k_id}")
             with lg_c2:
-                in_to_logo_manual = st.text_input("이적팀 로고 (구글 드라이브 링크)", value=auto_to_logo, placeholder="https://drive.google.com/file/d/...", key=f"to_logo_{k_id}")
+                in_to_logo_manual = st.text_input("이적팀 로고 링크", value=auto_to_logo, placeholder="폴더/사전 자동 매칭됨", key=f"to_logo_{k_id}")
 
         raw_from_logo = get_raw_club_logo(in_from_team, in_from_logo_manual)
         raw_to_logo = get_raw_club_logo(in_to_team, in_to_logo_manual)
@@ -1225,15 +1296,15 @@ with tab1:
         w_3yr = min(100, int(proj_3yr_val / max_v_ref * 100))
 
         # 상단 이적 경로 미니 구단 로고 HTML 조립
-        mini_from_img = f"<img src='{final_from_logo}' style='width:22px; height:22px; object-fit:contain; vertical-align:middle; margin-right:5px;'/>" if final_from_logo else "🏟️ "
-        mini_to_img = f"<img src='{final_to_logo}' style='width:22px; height:22px; object-fit:contain; vertical-align:middle; margin-right:5px;'/>" if final_to_logo else "🛡️ "
+        mini_from_img = f"<img src='{final_from_logo}' style='width:22px; height:22px; object-fit:contain; vertical-align:middle; margin-right:5px; filter:drop-shadow(0 1px 2px rgba(0,0,0,0.6));'/>" if final_from_logo else "🏟️ "
+        mini_to_img = f"<img src='{final_to_logo}' style='width:22px; height:22px; object-fit:contain; vertical-align:middle; margin-right:5px; filter:drop-shadow(0 1px 2px rgba(0,0,0,0.6));'/>" if final_to_logo else "🛡️ "
         route_with_logos_html = f"<span style='display:inline-flex; align-items:center;'>{mini_from_img}<b>{from_t_disp}</b> &nbsp;➔&nbsp; {mini_to_img}<b style='color:#FFFFFF;'>{to_t_disp}</b> &nbsp;<span style='font-size:11.5px; color:#93C5FD;'>({in_to_league_choice.split(' (')[0]})</span></span>"
 
         # 메인 프로필 액자: 영입 구단(이적팀)의 큼직한 공식 로고 표시
         hero_logo_url = final_to_logo if final_to_logo else final_from_logo
         hero_club_emblem_html = (
-            f"<div style='width:78px; height:78px; border-radius:18px; background:radial-gradient(circle, rgba(30,41,59,0.95) 0%, rgba(9,13,22,0.98) 100%); border:2px solid #38BDF8; box-shadow:0 0 18px rgba(56,189,248,0.45); display:flex; align-items:center; justify-content:center; padding:8px; margin-right:18px; flex-shrink:0;'>"
-            f"<img src='{hero_logo_url}' style='width:100%; height:100%; object-fit:contain;'/></div>"
+            f"<div style='width:80px; height:80px; border-radius:18px; background:radial-gradient(circle, rgba(30,41,59,0.95) 0%, rgba(9,13,22,0.98) 100%); border:2px solid #38BDF8; box-shadow:0 0 18px rgba(56,189,248,0.45); display:flex; align-items:center; justify-content:center; padding:7px; margin-right:18px; flex-shrink:0;'>"
+            f"<img src='{hero_logo_url}' style='width:100%; height:100%; object-fit:contain; filter:drop-shadow(0 2px 4px rgba(0,0,0,0.65));'/></div>"
             if hero_logo_url else
             f"<div style='width:74px; height:74px; border-radius:18px; background:linear-gradient(135deg, #1E293B, #0F172A); border:2px solid #38BDF8; display:flex; align-items:center; justify-content:center; font-size:30px; font-weight:900; color:#38BDF8; margin-right:18px; flex-shrink:0;'>🛡️</div>"
         )
@@ -1757,7 +1828,7 @@ with tab3:
             st.dataframe(match_df, use_container_width=True)
 
 _part1_end = True
-   # ================= TAB 4: 이적 첫 시즌 최종 성적 입력 & 모델 검증 =================
+    # ================= TAB 4: 이적 첫 시즌 최종 성적 입력 & 모델 검증 =================
 with tab4:
     st.subheader("🎯 시즌 종료 후 최종 실제 성적 입력 & 모델 예측 정확도 사후 검증")
 
@@ -2008,8 +2079,8 @@ with tab5:
 
     ms_logo_url = resolve_club_logo(ms_team_def)
     ms_emblem_html = (
-        f"<div style='width:68px; height:68px; border-radius:16px; background:#0F172A; border:2px solid #38BDF8; display:flex; align-items:center; justify-content:center; padding:7px; margin-right:16px; flex-shrink:0;'>"
-        f"<img src='{ms_logo_url}' style='width:100%; height:100%; object-fit:contain;'/></div>"
+        f"<div style='width:70px; height:70px; border-radius:16px; background:#0F172A; border:2px solid #38BDF8; display:flex; align-items:center; justify-content:center; padding:6px; margin-right:16px; flex-shrink:0;'>"
+        f"<img src='{ms_logo_url}' style='width:100%; height:100%; object-fit:contain; filter:drop-shadow(0 2px 4px rgba(0,0,0,0.65));'/></div>"
         if ms_logo_url else ""
     )
 
@@ -2287,8 +2358,8 @@ with tab7:
                 pitch_html = build_tactical_pitch_html(team_in_df)
                 club_rep_logo = resolve_club_logo(sel_team_name)
                 club_rep_emblem_html = (
-                    f"<div style='width:72px; height:72px; border-radius:16px; background:#0F172A; border:2px solid #38BDF8; display:flex; align-items:center; justify-content:center; padding:8px; margin-right:16px; flex-shrink:0;'>"
-                    f"<img src='{club_rep_logo}' style='width:100%; height:100%; object-fit:contain;'/></div>"
+                    f"<div style='width:74px; height:74px; border-radius:16px; background:#0F172A; border:2px solid #38BDF8; display:flex; align-items:center; justify-content:center; padding:7px; margin-right:16px; flex-shrink:0;'>"
+                    f"<img src='{club_rep_logo}' style='width:100%; height:100%; object-fit:contain; filter:drop-shadow(0 2px 4px rgba(0,0,0,0.65));'/></div>"
                     if club_rep_logo else
                     f"<div style='width:68px; height:68px; border-radius:16px; background:#0F172A; border:2px solid #38BDF8; display:flex; align-items:center; justify-content:center; font-size:28px; margin-right:16px; flex-shrink:0;'>🛡️</div>"
                 )
@@ -2414,7 +2485,7 @@ with tab7:
                         net_v = rk_r["순지출(만€)"]
                         w_sc = rk_r["가중이적평점"]
                         rk_logo = resolve_club_logo(t_nm)
-                        rk_logo_img = f"<img src='{rk_logo}' style='width:18px; height:18px; object-fit:contain; vertical-align:middle; margin-right:6px;'/>" if rk_logo else ""
+                        rk_logo_img = f"<img src='{rk_logo}' style='width:20px; height:20px; object-fit:contain; vertical-align:middle; margin-right:6px; filter:drop-shadow(0 1px 2px rgba(0,0,0,0.6));'/>" if rk_logo else ""
                         rk_rows_html += (
                             f"<div style='background:#090D16; border:1px solid #1E293B; padding:9px 14px; border-radius:10px; margin-bottom:7px;'>"
                             f"<div style='display:flex; justify-content:space-between; align-items:center; font-size:13px; margin-bottom:4px;'>"
@@ -2490,4 +2561,4 @@ with tab7:
             st.markdown("---")
             csv_backup = history_df.to_csv(index=False).encode("utf-8-sig")
             st.download_button("📥 전체 DB 엑셀(CSV) 백업 다운로드", data=csv_backup, file_name=f"transfer_scouting_db_{datetime.now().strftime('%Y%m%d_%H%M')}.csv", mime="text/csv", use_container_width=True)
-            st.dataframe(history_df, use_container_width=True) 
+            st.dataframe(history_df, use_container_width=True)
