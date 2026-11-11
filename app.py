@@ -3553,3 +3553,358 @@ with tab7:
             csv_backup = history_df.to_csv(index=False).encode("utf-8-sig")
             st.download_button("📥 전체 DB 엑셀(CSV) 백업 다운로드", data=csv_backup, file_name=f"transfer_scouting_db_{datetime.now().strftime('%Y%m%d_%H%M')}.csv", mime="text/csv", use_container_width=True)
             st.dataframe(history_df, use_container_width=True)
+# ==============================================================================
+# [부록: 탭 1~7 데이터 산출 기준 & 알고리즘 공식 가이드북 이미지 생성기]
+# - app.py 맨 마지막 줄 아래에 이어서 붙여넣으시면 작동합니다!
+# ==============================================================================
+with st.sidebar:
+    st.markdown("---")
+    show_manual_guide = st.toggle("📖 [공식 매뉴얼] 탭 1~7 산출 기준 설명서 (이미지 저장용)", value=False, key="sb_manual_toggle")
+
+if show_manual_guide:
+    st.markdown("---")
+    st.subheader("📖 프로페셔널 축구 스카우팅 & 밸류에이션 모델 공식 산출 가이드라인 (탭 1 ~ 탭 7)")
+    st.caption("각 탭을 선택하신 뒤 상단의 [📸 초고화질 인포그래픽 이미지 한 번에 복사하기] 또는 [💾 고해상도 PNG 저장] 버튼을 눌러 설명서 이미지로 보관하세요!")
+
+    guide_choice = st.radio(
+        "이미지로 저장할 설명서 페이지 선택 (총 7장)",
+        [
+            "📌 Page 1. [TAB 1] 적정 이적료 12대 가중치 & 거래 평점 산출 기준",
+            "📌 Page 2. [TAB 1] 90종 FM 스카우팅 리포트 & 미니 포지션 맵 기준",
+            "📌 Page 3. [TAB 2] FotMob 첫 시즌 성적 예측(Projection) 알고리즘",
+            "📌 Page 4. [TAB 3] 과거 유사 이적 사례(Comps) 일치도 산출 기준",
+            "📌 Page 5. [TAB 4] 시즌 종료 최종 성적 & 모델 적중률 사후 검증 기준",
+            "📌 Page 6. [TAB 5 & 6] 라운드별 중간 점검 & 포지션 맞춤형 A vs B 비교 기준",
+            "📌 Page 7. [TAB 7] 구단별 가중 평점 · 예산 효율지수 · 파워 랭킹 기준"
+        ],
+        horizontal=False, key="guide_page_radio"
+    )
+
+    if "Page 1" in guide_choice:
+        g_html = """
+        <div class="glass-panel" style="padding:18px 22px; margin-bottom:16px; border-left:5px solid #38BDF8;">
+            <div style="font-size:11px; font-weight:900; color:#38BDF8; letter-spacing:1px;">OFFICIAL METHODOLOGY GUIDELINE · PAGE 01 / 07</div>
+            <div style="font-size:26px; font-weight:900; color:#FFFFFF; margin-top:3px;">💰 [TAB 1] 적정 이적료 12대 가중치 & 거래 평점 산출 기준</div>
+            <div style="font-size:13px; color:#94A3B8; margin-top:4px;">트랜스퍼마르크트(TM) 기준 시장가치에 12대 현실 변수를 곱연산하여 적정 가치와 오버페이율을 도출합니다.</div>
+        </div>
+        <div class="glass-panel" style="padding:16px 20px; margin-bottom:14px;">
+            <div style="font-size:14px; font-weight:900; color:#10B981; margin-bottom:8px;">📐 1. 모델 산출 적정가 (Fair Value) 핵심 공식</div>
+            <div style="background:#090D16; border:1px solid #1E293B; padding:12px 16px; border-radius:10px; font-size:13.5px; color:#F8FAFC; font-weight:800; text-align:center;">
+                모델 산출 적정가 = TM 시장가치 × (W₁ × W₂ × W₃ × W₄ × W₅ × W₆ × W₇ × W₈ × W₉ × W₁₀ × W₁₁ × W₁₂) × 계절 프리미엄(여름 1.00 / 겨울 1.10)
+            </div>
+            <div style="font-size:12px; color:#94A3B8; margin-top:8px;">• <b>현실 시장 적정 범위:</b> 셀링 클럽의 협상 프리미엄을 감안하여 기본 산출값의 <b>+5%~+10% (겨울 +15%~+20%)</b> 구간을 현실 타결 범위로 제시</div>
+        </div>
+        <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; margin-bottom:14px; font-size:11.5px;">
+            <div class="glass-panel" style="padding:12px;"><b style="color:#38BDF8;">01. 원소속 리그 수준 (W₁)</b><br><span style="color:#CBD5E1;">• EPL: 1.00 / 라리가: 0.92<br>• 분데스: 0.91 / 세리에A: 0.90<br>• 리그1: 0.88 / 챔피언십: 0.80<br>• 포르투갈: 0.78 / 네덜란드: 0.77</span></div>
+            <div class="glass-panel" style="padding:12px;"><b style="color:#10B981;">02. 포지션별 나이 커브 (W₂)</b><br><span style="color:#CBD5E1;">• 공격수: ~19세(1.05)·23세(1.03)·27세(1.00)·29세(0.97)·31세(0.90)<br>• 센터백/GK: 29세까지(1.00) 유지, 31세(0.96)·34세(0.90) 완만한 감가</span></div>
+            <div class="glass-panel" style="padding:12px;"><b style="color:#C084FC;">03. 영입 구단 티어 (W₃)</b><br><span style="color:#CBD5E1;">• Tier 1 메가클럽: 1.05x (거품 반영)<br>• Tier 2 빅클럽: 1.02x<br>• Tier 3 중상위: 1.00x<br>• Tier 4/5 중소구단: 0.98x ~ 0.95x</span></div>
+            <div class="glass-panel" style="padding:12px;"><b style="color:#FBBF24;">04. 잔여 계약 기간 (W₄)</b><br><span style="color:#CBD5E1;">• 6개월 이하(FA 임박): 0.80x (-20%)<br>• 1년 남음: 0.92x (-8%)<br>• 2년 남음(표준): 1.00x<br>• 3년(1.02x) / 4년 이상(1.04x)</span></div>
+            <div class="glass-panel" style="padding:12px;"><b style="color:#F472B6;">05~07. 포지션·멀티·쿼터</b><br><span style="color:#CBD5E1;">• 포지션: ST(1.02)·WG(1.01)·CM(1.00)·수비(0.99)·GK(0.97)<br>• 멀티: 듀얼(1.01)·만능(1.02)<br>• 쿼터: 홈그로운(1.04)·비EU(0.98)</span></div>
+            <div class="glass-panel" style="padding:12px;"><b style="color:#2DD4BF;">08~12. 활약·계약·빅매치·부상·절박성</b><br><span style="color:#CBD5E1;">• FotMob 활약: 0.98x ~ 1.02x<br>• UCL 검증: 최대 1.03x<br>• 부상 이력: 철강왕(1.01)~장기부상(0.94)<br>• 구단 절박성: 패닉바이 시 1.08x</span></div>
+        </div>
+        <div class="glass-panel" style="padding:16px 20px;">
+            <div style="font-size:14px; font-weight:900; color:#FBBF24; margin-bottom:8px;">⭐ 2. 거래 평점 (Deal Score · 10점 만점) 산출 및 등급 기준</div>
+            <div style="font-size:12px; color:#E2E8F0; line-height:1.6; margin-bottom:10px;">
+                • <b>출발 기준점:</b> <b>★ 7.50점</b> (적정가 1:1 거래 시 기본점) &nbsp;|&nbsp; <b>괴리율 보정:</b> 영입(IN) 시 오버페이 20%당 <b>-1.0점</b> 감점 (방출 OUT 시 고가 매각 20%당 <b>+1.0점</b> 가산)<br>
+                • <b>스펙 가감점:</b> 직전 FotMob 평점 보너스((평점-7.0)×1.5, 최대 +1.0점) + 에이징 포텐셜 보정 + 빅매치/메디컬/쿼터 리스크 보정 합산
+            </div>
+            <div style="display:grid; grid-template-columns:repeat(5, 1fr); gap:8px; text-align:center; font-size:11.5px;">
+                <div style="background:#090D16; border-top:3px solid #10B981; padding:8px; border-radius:8px;"><b style="color:#10B981;">💎 S등급</b><br>★ 9.00 ~ 10.0</div>
+                <div style="background:#090D16; border-top:3px solid #38BDF8; padding:8px; border-radius:8px;"><b style="color:#38BDF8;">🌟 A등급</b><br>★ 8.00 ~ 8.99</div>
+                <div style="background:#090D16; border-top:3px solid #FBBF24; padding:8px; border-radius:8px;"><b style="color:#FBBF24;">⚖️ B등급</b><br>★ 7.00 ~ 7.99</div>
+                <div style="background:#090D16; border-top:3px solid #F97316; padding:8px; border-radius:8px;"><b style="color:#F97316;">⚠️ C등급</b><br>★ 6.00 ~ 6.99</div>
+                <div style="background:#090D16; border-top:3px solid #EF4444; padding:8px; border-radius:8px;"><b style="color:#EF4444;">🚨 D등급</b><br>★ 6.00 미만</div>
+            </div>
+        </div>
+        """
+        render_copyable_infographic(g_html, filename="guide_page1_tab1_valuation", height=780)
+
+    elif "Page 2" in guide_choice:
+        g_html = """
+        <div class="glass-panel" style="padding:18px 22px; margin-bottom:16px; border-left:5px solid #10B981;">
+            <div style="font-size:11px; font-weight:900; color:#10B981; letter-spacing:1px;">OFFICIAL METHODOLOGY GUIDELINE · PAGE 02 / 07</div>
+            <div style="font-size:26px; font-weight:900; color:#FFFFFF; margin-top:3px;">🎮 [TAB 1] 90종 FM 스카우팅 리포트 & 하이브리드 포지션 맵 기준</div>
+            <div style="font-size:13px; color:#94A3B8; margin-top:4px;">입력된 20여 개 FotMob 스탯의 상호 비율을 교차 분석하여 전술 아키타입, 선호 플레이(PPM), 장단점을 자동 판별합니다.</div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px;">
+            <div class="glass-panel" style="padding:16px;">
+                <div style="font-size:14px; font-weight:900; color:#38BDF8; margin-bottom:10px;">🧬 1. 포지션별 전술 롤 아키타입 자동 판별 기준</div>
+                <div style="font-size:12px; color:#E2E8F0; line-height:1.65;">
+                    • <b style="color:#7DD3FC;">스트라이커 (ST/CF):</b><br>
+                      - <b>컴플리트 포워드:</b> 90분당 득점 0.45+ & 기회창출 1.2+ & 공중볼 58%+<br>
+                      - <b>포처 (Poacher):</b> 90분당 박스터치 5.0+ & 기회창출 1.0 미만 & 10골+<br>
+                      - <b>연계형(DLF) / 타겟맨:</b> 기회창출 1.4+ 또는 공중볼 승률 62%+<br>
+                    • <b style="color:#7DD3FC;">윙어 / 공미 (WG/CAM):</b><br>
+                      - <b>인사이드 포워드:</b> 90분당 슈팅 2.3+ & 박스터치 4.2+<br>
+                      - <b>플레이메이커(AP):</b> 90분당 xA 0.25+ 또는 기회창출 2.0+<br>
+                      - <b>클래식 윙어:</b> 90분당 드리블 1.8+ & 슈팅 2.0 미만<br>
+                    • <b style="color:#7DD3FC;">미드필더 (CM/CDM):</b><br>
+                      - <b>딥라잉 플레이메이커(DLP):</b> 패스성공률 89.5%+ & 기회창출 1.2+<br>
+                      - <b>박스 투 박스(B2B):</b> 90분당 태클 1.8+ & 박스터치 2.0+<br>
+                      - <b>앵커맨(볼위너):</b> 90분당 태클 2.0+ & 지상경합 60%+<br>
+                    • <b style="color:#7DD3FC;">센터백 / 풀백 / 골키퍼:</b><br>
+                      - <b>볼 플레잉 CB:</b> 패스 89.5%+ & 지상경합 60%+ / <b>스토퍼:</b> 공중볼 66%+<br>
+                      - <b>인버티드 풀백:</b> 패스 88%+ & 태클 1.4+ / <b>스위퍼 키퍼:</b> 패스 82%+
+                </div>
+            </div>
+            <div class="glass-panel" style="padding:16px;">
+                <div style="font-size:14px; font-weight:900; color:#34D399; margin-bottom:10px;">🟢🔴 2. 강점(Pros) & 약점(Cons) 자동 추출 기준</div>
+                <div style="font-size:12px; color:#E2E8F0; line-height:1.65;">
+                    • <b style="color:#34D399;">핵심 강점 (PROS) 주요 트리거:</b><br>
+                      - <b>골 결정력 특화:</b> 실제 득점 ≥ 기대득점(xG) × 1.15 (6골 이상)<br>
+                      - <b>슈팅 영점 조준:</b> 유효슈팅 / 총슈팅 비율 48% 이상<br>
+                      - <b>오픈플레이 순도:</b> PK 득점 0골이면서 필드골 8골 이상<br>
+                      - <b>완성형 경합 지배력:</b> 지상경합 63%+ & 공중볼 경합 63%+ 동시 달성<br>
+                      - <b>주전 신뢰도:</b> 선발 출전 비율 85% 이상 & 2,300분 이상 소화<br>
+                    • <b style="color:#FB7185;">약점 및 리스크 (CONS) 주요 트리거:</b><br>
+                      - <b>결정력 부진:</b> xG 5.0 이상이나 실제 득점이 xG의 78% 미만<br>
+                      - <b>슈팅 난사 경향:</b> 총슈팅 35회 이상이나 유효슈팅률 32% 미만<br>
+                      - <b>높은 PK 의존도:</b> 전체 득점 중 PK 득점 비중이 35% 이상<br>
+                      - <b>수비 편차 노출:</b> 지상경합 60%+이나 공중볼 52% 미만 (또는 반대)<br>
+                      - <b>오버페이 / 에이징:</b> 적정가 대비 +10% 이상 지출 / 만 30세 이상
+                </div>
+            </div>
+        </div>
+        <div class="glass-panel" style="padding:14px 18px;">
+            <div style="font-size:13.5px; font-weight:900; color:#FBBF24; margin-bottom:6px;">🗺️ 3. 하이브리드 미니 포지션 숙련도 피치 (🟢 천연 / 🟡 능숙) 작동 원리</div>
+            <div style="font-size:12px; color:#CBD5E1; line-height:1.5;">
+                • <b>수동 지정 우선:</b> [듀얼 롤 / 만능 유틸리티] 선택 시 활성화된 서브 포지션 선택칩을 클릭하면 해당 위치에 100% 정확하게 노란불(🟡) 점등<br>
+                • <b>스탯 기반 자동 추론:</b> 서브 포지션을 비워두면 선수의 패스 성공률·드리블·박스터치·태클 수치를 분석해 가장 연관성 높은 인접 포지션에 자동 점등
+            </div>
+        </div>
+        """
+        render_copyable_infographic(g_html, filename="guide_page2_fm_scouting", height=740)
+
+    elif "Page 3" in guide_choice:
+        g_html = """
+        <div class="glass-panel" style="padding:18px 22px; margin-bottom:16px; border-left:5px solid #A855F7;">
+            <div style="font-size:11px; font-weight:900; color:#C084FC; letter-spacing:1px;">OFFICIAL METHODOLOGY GUIDELINE · PAGE 03 / 07</div>
+            <div style="font-size:26px; font-weight:900; color:#FFFFFF; margin-top:3px;">📱 [TAB 2] FotMob 이적 첫 시즌 성적 프로젝션(예측) 알고리즘</div>
+            <div style="font-size:13px; color:#94A3B8; margin-top:4px;">직전 시즌 90분당 스탯(Per 90)을 양 리그 간 난이도 격차, 스텝업 적응 계수, 예상 출전 시간으로 환산합니다.</div>
+        </div>
+        <div class="glass-panel" style="padding:16px 20px; margin-bottom:14px;">
+            <div style="font-size:14px; font-weight:900; color:#38BDF8; margin-bottom:10px;">📐 1. 리그 이동 변환 계수 (Final League Factor) 산출 3단계</div>
+            <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; text-align:center; font-size:12px;">
+                <div style="background:#090D16; padding:12px; border-radius:10px; border:1px solid #1E293B;">
+                    <div style="color:#94A3B8; font-size:11px;">STEP 1. 기본 리그 비율 (Raw Factor)</div>
+                    <div style="color:#FFFFFF; font-weight:900; font-size:14px; margin-top:6px;">원소속 리그 가중치 ÷ 이적 리그 가중치</div>
+                    <div style="color:#64748B; font-size:11px; margin-top:4px;">예: 에레디비시(0.77) ➔ EPL(1.00) = 0.77</div>
+                </div>
+                <div style="background:#090D16; padding:12px; border-radius:10px; border:1px solid #1E293B;">
+                    <div style="color:#94A3B8; font-size:11px;">STEP 2. 상위 리그 적응 계수 (Adapt Penalty)</div>
+                    <div style="color:#34D399; font-weight:900; font-size:14px; margin-top:6px;">1.0 - (리그 가중치 격차 × 0.45)</div>
+                    <div style="color:#64748B; font-size:11px; margin-top:4px;">상위 리그 스텝업 시 적용 (하한선 0.80)</div>
+                </div>
+                <div style="background:#090D16; padding:12px; border-radius:10px; border:1px solid #1E293B;">
+                    <div style="color:#94A3B8; font-size:11px;">STEP 3. 최종 변환 계수 (Final Factor)</div>
+                    <div style="color:#38BDF8; font-weight:900; font-size:14px; margin-top:6px;">Raw Factor × Adapt Penalty</div>
+                    <div style="color:#64748B; font-size:11px; margin-top:4px;">모든 90분당 공격/창출 지표에 곱연산</div>
+                </div>
+            </div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
+            <div class="glass-panel" style="padding:16px;">
+                <div style="font-size:14px; font-weight:900; color:#10B981; margin-bottom:8px;">⚽ 2. 부문별 스탯 프로젝션 상세 공식</div>
+                <div style="font-size:12px; color:#E2E8F0; line-height:1.7;">
+                    • <b>예상 90분당 경기 수 (Target 90s):</b> 예상 출전시간(분) ÷ 90<br>
+                    • <b>예측 기대득점(xG) & 기대도움(xA):</b><br>
+                      &nbsp;&nbsp;(직전 기록 ÷ 직전 90s) × Final Factor × Target 90s<br>
+                    • <b>예측 실제 득점 (결정력 보존 공식):</b><br>
+                      &nbsp;&nbsp;예측 xG × (직전 실제 득점 ÷ 직전 xG)<br>
+                    • <b>예측 태클 / 골키퍼 선방 (역방향 볼륨 보정):</b><br>
+                      &nbsp;&nbsp;상위 리그 이적 시 수비/피슈팅 상황이 늘어나는 점을 반영하여 <b>(1 ÷ Raw Factor)</b>를 곱해 산출<br>
+                    • <b>예상 FotMob 평점:</b> 직전 평점 - (1.0 - Final Factor) × 0.9
+                </div>
+            </div>
+            <div class="glass-panel" style="padding:16px;">
+                <div style="font-size:14px; font-weight:900; color:#FBBF24; margin-bottom:8px;">⏱️ 3. 팀 내 위상(역할군)별 표준 출전 시간 기준</div>
+                <div style="font-size:12px; color:#E2E8F0; line-height:1.7;">
+                    • <b>🔥 1티어 핵심 주전 (Main Starter):</b><br>
+                      &nbsp;&nbsp;여름 풀시즌 <b>3,000분</b> (약 33.3경기) / 겨울 후반기 <b>1,440분</b> (16경기)<br>
+                    • <b>⭐ 2티어 일반 주전 (Regular Starter):</b><br>
+                      &nbsp;&nbsp;여름 풀시즌 <b>2,500분</b> (약 27.8경기) / 겨울 후반기 <b>1,200분</b><br>
+                    • <b>⚖️ 3티어 로테이션 / 백업 (Squad Rotation):</b><br>
+                      &nbsp;&nbsp;여름 풀시즌 <b>1,800분</b> (약 20.0경기) / 겨울 후반기 <b>900분</b><br>
+                    • <b>🌱 4티어 유망주 / 컵대회 자원 (Prospect):</b><br>
+                      &nbsp;&nbsp;여름 풀시즌 <b>800분</b> (약 8.9경기) / 겨울 후반기 <b>400분</b>
+                </div>
+            </div>
+        </div>
+        """
+        render_copyable_infographic(g_html, filename="guide_page3_tab2_projection", height=640)
+
+    elif "Page 4" in guide_choice:
+        g_html = """
+        <div class="glass-panel" style="padding:18px 22px; margin-bottom:16px; border-left:5px solid #F59E0B;">
+            <div style="font-size:11px; font-weight:900; color:#FBBF24; letter-spacing:1px;">OFFICIAL METHODOLOGY GUIDELINE · PAGE 04 / 07</div>
+            <div style="font-size:26px; font-weight:900; color:#FFFFFF; margin-top:3px;">🔍 [TAB 3] 과거 유사 이적 사례(Comps) 일치도 산출 기준</div>
+            <div style="font-size:13px; color:#94A3B8; margin-top:4px;">DB에 축적된 과거 이적 사례들과 현재 타겟의 4대 핵심 지표를 다차원 거리(Multi-Dimensional Distance) 공식으로 비교합니다.</div>
+        </div>
+        <div class="glass-panel" style="padding:18px 20px; margin-bottom:14px;">
+            <div style="font-size:14px; font-weight:900; color:#38BDF8; margin-bottom:10px;">📐 1. 4대 핵심 비교 차원 및 가중치 비중 (총합 100%)</div>
+            <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; text-align:center; font-size:12px;">
+                <div class="kpi-card" style="border-top:3px solid #38BDF8;">
+                    <div style="font-size:11px; color:#94A3B8;">① 실제 이적료 규모 유사성</div>
+                    <div style="font-size:22px; font-weight:900; color:#38BDF8; margin-top:4px;">비중 30%</div>
+                    <div style="font-size:11px; color:#64748B; margin-top:4px;">|과거이적료 - 기준이적료| 정규화</div>
+                </div>
+                <div class="kpi-card" style="border-top:3px solid #10B981;">
+                    <div style="font-size:11px; color:#94A3B8;">② 거래 평점(Deal Score) 유사성</div>
+                    <div style="font-size:22px; font-weight:900; color:#10B981; margin-top:4px;">비중 25%</div>
+                    <div style="font-size:11px; color:#64748B; margin-top:4px;">|과거평점 - 기준평점| ÷ 5.0</div>
+                </div>
+                <div class="kpi-card" style="border-top:3px solid #F59E0B;">
+                    <div style="font-size:11px; color:#94A3B8;">③ 오버페이/절감 괴리율 유사성</div>
+                    <div style="font-size:22px; font-weight:900; color:#FBBF24; margin-top:4px;">비중 25%</div>
+                    <div style="font-size:11px; color:#64748B; margin-top:4px;">|과거괴리율 - 기준괴리율| ÷ 50%</div>
+                </div>
+                <div class="kpi-card" style="border-top:3px solid #A855F7;">
+                    <div style="font-size:11px; color:#94A3B8;">④ 원소속 출발 리그 수준 유사성</div>
+                    <div style="font-size:22px; font-weight:900; color:#C084FC; margin-top:4px;">비중 20%</div>
+                    <div style="font-size:11px; color:#64748B; margin-top:4px;">|과거리그가중치 - 현재리그가중치|</div>
+                </div>
+            </div>
+        </div>
+        <div class="glass-panel" style="padding:16px 20px;">
+            <div style="font-size:14px; font-weight:900; color:#34D399; margin-bottom:8px;">🎯 2. 최종 일치도(Similarity %) 계산 및 해석 기준</div>
+            <div style="background:#090D16; border:1px solid #1E293B; padding:12px; border-radius:10px; font-size:13px; color:#F8FAFC; font-weight:800; text-align:center; margin-bottom:10px;">
+                최종 유사도(%) = max( 0%,  [ 1.0 - (이적료거리×0.30 + 평점거리×0.25 + 괴리율거리×0.25 + 리그거리×0.20) ] × 100 )
+            </div>
+            <div style="font-size:12px; color:#CBD5E1; line-height:1.6;">
+                • <b>일치도 90% 이상 (도플갱어 매치):</b> 이적료 체급, 구단 협상 상황(오버페이 비율), 출발 리그 난이도가 사실상 동일한 역대급 유사 사례<br>
+                • <b>일치도 80% ~ 89% (유력 벤치마크):</b> 동일한 시장 가치 구간에서 비교 준거점으로 삼기 가장 적합한 과거 이적 사례<br>
+                • <b>포지션 & 리그 필터링:</b> 특정 포지션(예: 센터백끼리만)이나 특정 출발 리그(예: 분데스리가 출발 선수끼리만)로 좁혀서 정밀 비교 가능
+            </div>
+        </div>
+        """
+        render_copyable_infographic(g_html, filename="guide_page4_tab3_comps", height=600)
+
+    elif "Page 5" in guide_choice:
+        g_html = """
+        <div class="glass-panel" style="padding:18px 22px; margin-bottom:16px; border-left:5px solid #10B981;">
+            <div style="font-size:11px; font-weight:900; color:#10B981; letter-spacing:1px;">OFFICIAL METHODOLOGY GUIDELINE · PAGE 05 / 07</div>
+            <div style="font-size:26px; font-weight:900; color:#FFFFFF; margin-top:3px;">🎯 [TAB 4] 시즌 종료 최종 성적 & 모델 예측 적중률 검증 기준</div>
+            <div style="font-size:13px; color:#94A3B8; margin-top:4px;">시즌 종료 후 실제 FotMob 최종 성적을 대입하여 내 예측 모델의 정확도(%)와 선수의 최종 첫 시즌 성공 여부를 판정합니다.</div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px;">
+            <div class="glass-panel" style="padding:16px;">
+                <div style="font-size:14px; font-weight:900; color:#38BDF8; margin-bottom:8px;">🎯 1. 모델 예측 적중률 (%) 산출 공식</div>
+                <div style="font-size:12px; color:#E2E8F0; line-height:1.7;">
+                    • <b>FotMob 평점 예측 적중률 (%):</b><br>
+                      <span style="color:#34D399; font-weight:800;">[ 1.0 - ( |실제 평점 - 예측 평점| ÷ 1.5 ) ] × 100</span><br>
+                      - 오차 0.00점 = <b>100% 적중</b><br>
+                      - 오차 ±0.15점 = <b>90.0% 적중</b> (매우 정밀)<br>
+                      - 오차 ±0.30점 = <b>80.0% 적중</b> (준수)<br>
+                    • <b>출전 시간 예측 적중률 (%):</b><br>
+                      <span style="color:#7DD3FC; font-weight:800;">[ 1.0 - ( |실제 출전분 - 예측 출전분| ÷ max(1500, 예측분) ) ] × 100</span>
+                </div>
+            </div>
+            <div class="glass-panel" style="padding:16px;">
+                <div style="font-size:14px; font-weight:900; color:#10B981; margin-bottom:8px;">⭐ 2. 시즌 최종 활약 평점 (10점 만점) 공식</div>
+                <div style="font-size:12px; color:#E2E8F0; line-height:1.7;">
+                    • <b>기본 출발 점수:</b> 기대치에 정확히 부합했을 때 <b>★ 7.50점</b><br>
+                    • <b>평점 격차 반영:</b> (실제 평점 - 예측 평점) × <b>3.0배</b> 가감<br>
+                    • <b>공격포인트(GK는 클린시트) 초과 달성 반영:</b><br>
+                      &nbsp;&nbsp;(실제 공포 - 예측 공포) × <b>0.15점</b> 가감<br>
+                    • <b>출전 시간 소화율 반영:</b><br>
+                      &nbsp;&nbsp;(실제 출전분 ÷ 예측 출전분 - 1.0) × <b>1.5점</b> 가감
+                </div>
+            </div>
+        </div>
+        <div class="glass-panel" style="padding:16px 20px;">
+            <div style="font-size:14px; font-weight:900; color:#FBBF24; margin-bottom:10px;">🏆 3. 시즌 종료 사후 검증 5단계 최종 판정 기준</div>
+            <div style="display:grid; grid-template-columns:repeat(5, 1fr); gap:8px; text-align:center; font-size:11.5px;">
+                <div style="background:#090D16; border-top:3px solid #10B981; padding:10px 8px; border-radius:8px;"><b style="color:#10B981;">🏆 완벽 적중 & 대성공</b><br><span style="color:#CBD5E1;">적중률 90%+ 및<br>활약평점 ★7.80+</span></div>
+                <div style="background:#090D16; border-top:3px solid #34D399; padding:10px 8px; border-radius:8px;"><b style="color:#34D399;">🔥 예측 초과 초대박</b><br><span style="color:#CBD5E1;">예측치를 뛰어넘어<br>활약평점 ★8.50+</span></div>
+                <div style="background:#090D16; border-top:3px solid #38BDF8; padding:10px 8px; border-radius:8px;"><b style="color:#38BDF8;">✅ 예측 범위 내 순항</b><br><span style="color:#CBD5E1;">평점 적중률 82%+<br>기대치 정상 부합</span></div>
+                <div style="background:#090D16; border-top:3px solid #FBBF24; padding:10px 8px; border-radius:8px;"><b style="color:#FBBF24;">⚠️ 기대 대비 아쉬움</b><br><span style="color:#CBD5E1;">활약평점 ★6.30~7.29<br>예측치 소폭 하회</span></div>
+                <div style="background:#090D16; border-top:3px solid #EF4444; padding:10px 8px; border-radius:8px;"><b style="color:#EF4444;">🚨 예측 하회 / 실패</b><br><span style="color:#CBD5E1;">활약평점 ★6.30 미만<br>장기부상·부진(Flop)</span></div>
+            </div>
+        </div>
+        """
+        render_copyable_infographic(g_html, filename="guide_page5_tab4_validation", height=620)
+
+    elif "Page 6" in guide_choice:
+        g_html = """
+        <div class="glass-panel" style="padding:18px 22px; margin-bottom:16px; border-left:5px solid #EC4899;">
+            <div style="font-size:11px; font-weight:900; color:#F472B6; letter-spacing:1px;">OFFICIAL METHODOLOGY GUIDELINE · PAGE 06 / 07</div>
+            <div style="font-size:26px; font-weight:900; color:#FFFFFF; margin-top:3px;">⏱️👥 [TAB 5 & TAB 6] 라운드별 중간 점검 & 포지션별 A vs B 비교 기준</div>
+            <div style="font-size:13px; color:#94A3B8; margin-top:4px;">시즌 도중 라운드 비례 페이스 환산 공식(탭 5)과 포지션별 맞춤형 핵심 기여도 지수 산출 공식(탭 6)입니다.</div>
+        </div>
+        <div class="glass-panel" style="padding:16px 20px; margin-bottom:14px;">
+            <div style="font-size:14px; font-weight:900; color:#38BDF8; margin-bottom:8px;">⏱️ 1. [TAB 5] 시즌 중 라운드별 중간 점검 (In-Season Pace) 공식</div>
+            <div style="font-size:12px; color:#E2E8F0; line-height:1.65;">
+                • <b>시즌 진행률 (Progress Ratio):</b> 현재 진행 라운드(R) ÷ 리그 총 라운드 (예: 19R ÷ 38R = <b>50.0%</b>)<br>
+                • <b>현재 라운드 시점 기대 목표치 (좌측 회색 바):</b> 1시즌 전체 예측 스탯 × 시즌 진행률<br>
+                • <b>시즌 완주 시 최종 예상 페이스 (On-Pace Projection):</b> 현재까지 누적 실제 기록 ÷ 시즌 진행률<br>
+                • <b>중간 점검 평점 기준:</b> <b>★8.50+</b>(🔥기대치 초과 폭격) / <b>★7.30~8.49</b>(✅소프트 랜딩 순항) / <b>★6.20~7.29</b>(⚠️적응 지연) / <b>★6.20 미만</b>(🚨먹튀 경보)
+            </div>
+        </div>
+        <div class="glass-panel" style="padding:16px 20px;">
+            <div style="font-size:14px; font-weight:900; color:#10B981; margin-bottom:10px;">⚔️ 2. [TAB 6] 영입 후보 A vs B 포지션 맞춤형 6각형 핵심 기여도 산출 공식</div>
+            <div style="font-size:12px; color:#94A3B8; margin-bottom:10px;">공격수에게 유리한 골·도움 일변도 평가를 방지하기 위해, 선수의 주 포지션에 따라 레이더 차트 제4축이 자동 전환됩니다.</div>
+            <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; font-size:12px;">
+                <div style="background:#090D16; border-top:3px solid #38BDF8; padding:12px; border-radius:10px;">
+                    <b style="color:#38BDF8; font-size:13px;">⚡ 공격수 (ST / WG / CAM)</b><br>
+                    <span style="color:#6EE7B7; font-weight:800;">축 명칭: [90분당 공격생산력]</span><br><br>
+                    <span style="color:#CBD5E1;">• <b>산출 공식:</b><br>90분당 (xG + xA) × 95 + 42<br>• 90분당 0.60 기록 시 <b>98점</b> 만점 부여</span>
+                </div>
+                <div style="background:#090D16; border-top:3px solid #10B981; padding:12px; border-radius:10px;">
+                    <b style="color:#10B981; font-size:13px;">🛡️ 미드필더 & 수비수 (CM / CB / FB)</b><br>
+                    <span style="color:#6EE7B7; font-weight:800;">축 명칭: [수비·경합 지배력]</span><br><br>
+                    <span style="color:#CBD5E1;">• <b>산출 공식:</b><br>(평균 경합승률 - 45)×1.15 + (90분당 태클×11.5) + (패스성공률 - 75)×0.5 + 46</span>
+                </div>
+                <div style="background:#090D16; border-top:3px solid #A855F7; padding:12px; border-radius:10px;">
+                    <b style="color:#C084FC; font-size:13px;">🧤 골키퍼 (Goalkeeper)</b><br>
+                    <span style="color:#6EE7B7; font-weight:800;">축 명칭: [선방·골문 지배력]</span><br><br>
+                    <span style="color:#CBD5E1;">• <b>산출 공식:</b><br>70 + (득점차단 × 4.5) + (클린시트 × 0.4)<br>• 기대실점 대비 방어력 중심 평가</span>
+                </div>
+            </div>
+        </div>
+        """
+        render_copyable_infographic(g_html, filename="guide_page6_tab5_tab6", height=640)
+
+    elif "Page 7" in guide_choice:
+        g_html = """
+        <div class="glass-panel" style="padding:18px 22px; margin-bottom:16px; border-left:5px solid #38BDF8;">
+            <div style="font-size:11px; font-weight:900; color:#38BDF8; letter-spacing:1px;">OFFICIAL METHODOLOGY GUIDELINE · PAGE 07 / 07</div>
+            <div style="font-size:26px; font-weight:900; color:#FFFFFF; margin-top:3px;">🏆 [TAB 7] 구단별 가중 평점 · 예산 효율지수 · 파워 랭킹 기준</div>
+            <div style="font-size:13px; color:#94A3B8; margin-top:4px;">구단 단위의 영입(IN)·방출(OUT) 총결산 성적표 및 리그 전체 파워 랭킹 포디움을 산출하는 기준입니다.</div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px;">
+            <div class="glass-panel" style="padding:16px;">
+                <div style="font-size:14px; font-weight:900; color:#38BDF8; margin-bottom:8px;">⚖️ 1. 구단 가중 이적 평점 & 입장 자동 반전 공식</div>
+                <div style="font-size:12px; color:#E2E8F0; line-height:1.7;">
+                    • <b>이적료 비례 가중 평균 (Weighted Average):</b><br>
+                      &nbsp;&nbsp;소액 영입이 대형 영입과 같은 비중을 갖지 않도록 <b>거래 이적료에 비례한 가중 평균</b> 산출<br>
+                    • <b>FA / 임대 최소 가중치 보장 (500만 €):</b><br>
+                      &nbsp;&nbsp;이적료 €0인 자유계약(FA) 꿀영입도 최소 <b>500만 €</b>의 가중치를 부여하여 구단 평점에 정당하게 반영<br>
+                    • <b>영입(IN) ↔ 방출(OUT) 평점 자동 반전:</b><br>
+                      &nbsp;&nbsp;영입 구단 입장에서 거품(오버페이)으로 기록된 딜은 파는 구단(원소속팀) 성적표에서 <b>(15.00 - 원래 평점)</b>으로 자동 반전되어 <b>높은 매각 수완 점수</b>로 기록됨
+                </div>
+            </div>
+            <div class="glass-panel" style="padding:16px;">
+                <div style="font-size:14px; font-weight:900; color:#10B981; margin-bottom:8px;">💰 2. 예산 효율지수 (%) & 6각형 구단 밸런스</div>
+                <div style="font-size:12px; color:#E2E8F0; line-height:1.7;">
+                    • <b>예산 효율지수 산출 공식:</b><br>
+                      <span style="color:#34D399; font-weight:800;">78% + [ (적정가 총합 - 실제 영입 지출 총합) ÷ 적정가 총합 × 45 ]</span><br>
+                      - <b>85% ~ 98%:</b> 적정가보다 저렴하게 쓸어 담은 거상 구단<br>
+                      - <b>75% ~ 84%:</b> 적정가 수준에서 합리적으로 지출한 구단 (기준 78%)<br>
+                      - <b>50% ~ 74%:</b> 오버페이 프리미엄 지출이 많았던 구단<br>
+                    • <b>선수단 젊음/포텐 축:</b> (32.0 - 영입생 평균나이) × 5.2 + 45<br>
+                    • <b>스쿼드 밸런스 축:</b> 65점 + (영입 수 × 6점) + (방출 수 × 3점)
+                </div>
+            </div>
+        </div>
+        <div class="glass-panel" style="padding:16px 20px;">
+            <div style="font-size:14px; font-weight:900; color:#FBBF24; margin-bottom:10px;">🏆 3. 구단 이적시장 성적표 최종 등급 커트라인</div>
+            <div style="display:grid; grid-template-columns:repeat(5, 1fr); gap:8px; text-align:center; font-size:11.5px;">
+                <div style="background:#090D16; border-top:3px solid #10B981; padding:10px 8px; border-radius:8px;"><b style="color:#10B981;">💎 S등급 (대성공)</b><br><span style="color:#CBD5E1;">가중평점 ★8.50+<br>최상위 거상 운영</span></div>
+                <div style="background:#090D16; border-top:3px solid #38BDF8; padding:10px 8px; border-radius:8px;"><b style="color:#38BDF8;">🌟 A등급 (우수)</b><br><span style="color:#CBD5E1;">가중평점 ★7.50~8.49<br>성공적인 전력 보강</span></div>
+                <div style="background:#090D16; border-top:3px solid #FBBF24; padding:10px 8px; border-radius:8px;"><b style="color:#FBBF24;">⚖️ B등급 (준수)</b><br><span style="color:#CBD5E1;">가중평점 ★6.80~7.49<br>무난한 실리 운영</span></div>
+                <div style="background:#090D16; border-top:3px solid #F97316; padding:10px 8px; border-radius:8px;"><b style="color:#F97316;">⚠️ C등급 (아쉬움)</b><br><span style="color:#CBD5E1;">가중평점 ★6.00~6.79<br>오버페이 비중 높음</span></div>
+                <div style="background:#090D16; border-top:3px solid #EF4444; padding:10px 8px; border-radius:8px;"><b style="color:#EF4444;">🚨 D등급 (실패)</b><br><span style="color:#CBD5E1;">가중평점 ★6.00 미만<br>패닉바이·재정 낭비</span></div>
+            </div>
+        </div>
+        """
+        render_copyable_infographic(g_html, filename="guide_page7_tab7_club_ranking", height=640)
