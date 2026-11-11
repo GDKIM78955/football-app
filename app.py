@@ -183,13 +183,11 @@ def url_to_base64_img(img_url):
                 width, height = img.size
                 pixels = img.load()
 
-                # 네 모서리가 이미 투명한지 확인
                 corners = [pixels[0, 0], pixels[width - 1, 0], pixels[0, height - 1], pixels[width - 1, height - 1]]
                 needs_bg_removal = any(c[3] > 50 for c in corners)
 
                 if needs_bg_removal:
                     visited = set()
-                    # 테두리 전체 픽셀에서 출발하여 외곽의 흰색 + 회색 체크무늬 격자를 모두 탐색
                     queue = (
                         [(x, 0) for x in range(width)] +
                         [(x, height - 1) for x in range(width)] +
@@ -203,14 +201,12 @@ def url_to_base64_img(img_url):
                         visited.add((x, y))
                         r, g, b, a = pixels[x, y]
                         lum = (r + g + b) / 3.0
-                        sat = max(r, g, b) - min(r, g, b)  # 채도 (무채색일수록 0에 가까움)
+                        sat = max(r, g, b) - min(r, g, b)
 
-                        # 1) 투명 픽셀이거나, 2) 채도가 낮은 무채색(흰색~중간 회색 체크무늬: 밝기 135 이상, 채도 30 이하)이면 100% 투명화!
                         if a == 0 or (lum >= 135 and sat <= 30):
                             pixels[x, y] = (0, 0, 0, 0)
                             queue.extend([(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)])
 
-                # 상하좌우 빈 여백 자동 크롭 (로고가 액자에 꽉 차게 정렬)
                 bbox = img.getbbox()
                 if bbox:
                     img = img.crop(bbox)
@@ -1279,12 +1275,10 @@ with tab1:
         w_act = min(100, int(calc_actual_fee / max_v_ref * 100))
         w_3yr = min(100, int(proj_3yr_val / max_v_ref * 100))
 
-        # 상단 이적 경로 미니 구단 로고 HTML 조립
         mini_from_img = f"<img src='{final_from_logo}' style='width:22px; height:22px; object-fit:contain; vertical-align:middle; margin-right:5px; filter:drop-shadow(0 1px 2px rgba(0,0,0,0.6));'/>" if final_from_logo else "🏟️ "
         mini_to_img = f"<img src='{final_to_logo}' style='width:22px; height:22px; object-fit:contain; vertical-align:middle; margin-right:5px; filter:drop-shadow(0 1px 2px rgba(0,0,0,0.6));'/>" if final_to_logo else "🛡️ "
         route_with_logos_html = f"<span style='display:inline-flex; align-items:center;'>{mini_from_img}<b>{from_t_disp}</b> &nbsp;➔&nbsp; {mini_to_img}<b style='color:#FFFFFF;'>{to_t_disp}</b> &nbsp;<span style='font-size:11.5px; color:#93C5FD;'>({in_to_league_choice.split(' (')[0]})</span></span>"
 
-        # 메인 프로필 액자: 영입 구단(이적팀)의 큼직한 공식 로고 표시
         hero_logo_url = final_to_logo if final_to_logo else final_from_logo
         hero_club_emblem_html = (
             f"<div style='width:80px; height:80px; border-radius:18px; background:radial-gradient(circle, rgba(30,41,59,0.95) 0%, rgba(9,13,22,0.98) 100%); border:2px solid #38BDF8; box-shadow:0 0 18px rgba(56,189,248,0.45); display:flex; align-items:center; justify-content:center; padding:8px; margin-right:18px; flex-shrink:0;'>"
@@ -2136,10 +2130,23 @@ with tab5:
 with tab6:
     st.subheader("👥 과거 선수 1:1 대조 & 영입 후보 A vs B 즉석 동시 비교 시뮬레이터")
 
+    # [업그레이드] 포지션 맞춤형 핵심 퍼포먼스 지수(40~98점) 및 요약 텍스트 자동 계산 함수
+    def calc_pos_custom_metric(pos_text, p90_xg_xa, duels_avg_pct, p90_tkl, pass_pct, gk_prev, gk_cs_or_saves):
+        if any(k in pos_text for k in ["GK", "골키퍼"]):
+            idx = int(round(min(98, max(45, 70 + gk_prev * 4.5 + gk_cs_or_saves * 0.4))))
+            return "선방·골문 지배력", idx, f"득점차단 {gk_prev:+.2f}"
+        elif any(k in pos_text for k in ["CB", "RB", "LB", "WB", "CM", "CDM", "센터백", "풀백", "윙백", "중앙", "수비형", "미드필더"]):
+            raw_sc = (duels_avg_pct - 45.0) * 1.15 + (p90_tkl * 11.5) + max(0.0, (pass_pct - 75.0) * 0.5) + 46.0
+            idx = int(round(min(98, max(45, raw_sc))))
+            return "수비·경합 지배력", idx, f"경합 {duels_avg_pct:.1f}% · 태클 {p90_tkl:.2f}"
+        else:
+            idx = int(round(min(98, max(45, p90_xg_xa * 95.0 + 42.0))))
+            return "90분당 공격생산력", idx, f"90분당 xG+xA {p90_xg_xa:.2f}"
+
     bench_mode = st.radio(
         "비교 분석 모드 선택",
         [
-            "⚖️ 영입 후보 A vs 후보 B 즉석 동시 비교 시뮬레이터 (미저장 루머 타겟 비교 가능)",
+            "⚖️ 영입 후보 A vs 후보 B 즉석 동시 비교 시뮬레이터 (포지션 맞춤형 스탯 자동 적용)",
             "🗂️ 신규 분석 선수 (1번 탭) vs 구글 시트 과거 저장 선수 1:1 대조 (Historical Head-to-Head)"
         ],
         horizontal=True, key="tab6_mode_radio"
@@ -2151,15 +2158,26 @@ with tab6:
     p_curr_pos = main_position.split(" (")[0]
     p_curr_fee = float(calc_actual_fee) if calc_actual_fee > 0 else 5000.0
     p_curr_score = float(final_deal_score) if final_deal_score > 0 else 7.50
-    p_curr_p90 = (st.session_state["f_xg"] + st.session_state["f_xa"]) / ((st.session_state["f_mins"] / 90.0) if st.session_state["f_mins"] > 0 else 1.0)
+    p_curr_mins_p90 = (st.session_state["f_mins"] / 90.0) if st.session_state["f_mins"] > 0 else 1.0
+    p_curr_p90 = (st.session_state["f_xg"] + st.session_state["f_xa"]) / p_curr_mins_p90
+    p_curr_tkl_p90 = st.session_state.get("f_tackles", 24) / p_curr_mins_p90
+    p_curr_duels = (st.session_state.get("f_duels_pct", 62.4) + st.session_state.get("f_aerial_pct", 65.8)) / 2.0
+    p_curr_pass = st.session_state.get("f_pass_pct", 88.2)
+    p_curr_gk_prev = st.session_state.get("f_gk_prevented", 2.45)
+    p_curr_gk_cs = st.session_state.get("f_gk_cs", 10)
     p_curr_rating = float(st.session_state["f_rating"])
+
+    a_axis_label, a_pos_metric_idx, a_stat_summary = calc_pos_custom_metric(
+        main_position, p_curr_p90, p_curr_duels, p_curr_tkl_p90, p_curr_pass, p_curr_gk_prev, p_curr_gk_cs
+    )
 
     if "후보 A vs 후보 B" in bench_mode:
         col_a, col_b = st.columns(2)
         with col_a:
-            st.markdown(f"##### 🔵 **후보 A: {p_curr_name}** *(1번 탭 자동 연동)*")
+            st.markdown(f"##### 🔵 **후보 A: {p_curr_name}** *(1번·2번 탭 자동 연동)*")
             st.write(f"- **나이 / 포지션**: 만 `{p_curr_age}세` / `{p_curr_pos}` | **리그**: `{selling_league.split(' (')[0]}`")
             st.write(f"- **산출 적정가**: `€{fair_value:,.1f}만` vs **요구액**: `€{p_curr_fee:,.0f}만` (`{overpay_pct:+.1f}%`)")
+            st.write(f"- **포지션 핵심 지표 ({a_axis_label})**: `{a_stat_summary}` (지수 `{a_pos_metric_idx}점`)")
             st.write(f"- **최종 거래 평점**: **`★ {p_curr_score:.2f} / 10.00`**")
 
         with col_b:
@@ -2175,15 +2193,39 @@ with tab6:
             with b_c6: b_tm = st.number_input("후보 B TM가치(만€)", 0, 30000, value=4500, step=100, key="sim_b_tm")
             with b_c7: b_fee = st.number_input("후보 B 요구액(만€)", 0, 30000, value=5500, step=100, key="sim_b_fee")
 
-            b_c8, b_c9 = st.columns(2)
-            with b_c8: b_rating = st.number_input("후보 B 직전 FotMob 평점", 5.0, 10.0, value=7.25, step=0.01, key="sim_b_rating")
-            with b_c9: b_p90 = st.number_input("후보 B 90분당 xG+xA", 0.0, 2.5, value=0.45, step=0.05, key="sim_b_p90")
+            b_is_gk = "GK" in b_pos_full
+            b_is_def_mid = any(k in b_pos_full for k in ["CB", "RB/LB", "CM/CDM"])
+
+            if b_is_gk:
+                b_c8, b_c9, b_c10 = st.columns(3)
+                with b_c8: b_rating = st.number_input("후보 B FotMob 평점", 5.0, 10.0, value=7.15, step=0.01, key="sim_b_rating_gk")
+                with b_c9: b_gk_prev = st.number_input("후보 B 득점 차단", -15.0, 25.0, value=2.0, step=0.1, key="sim_b_gk_prev")
+                with b_c10: b_gk_cs = st.number_input("후보 B 클린시트", 0, 35, value=10, step=1, key="sim_b_gk_cs")
+                b_p90, b_duels, b_tkl_p90, b_pass = 0.0, 60.0, 0.0, 80.0
+            elif b_is_def_mid:
+                b_c8, b_c9, b_c10, b_c11 = st.columns(4)
+                with b_c8: b_rating = st.number_input("후보 B FotMob 평점", 5.0, 10.0, value=7.20, step=0.01, key="sim_b_rating_dm")
+                with b_c9: b_duels = st.number_input("후보 B 평균 경합승률(%)", 30.0, 90.0, value=63.0, step=0.5, key="sim_b_duels")
+                with b_c10: b_tkl_p90 = st.number_input("후보 B 90분당 태클", 0.0, 6.0, value=1.80, step=0.1, key="sim_b_tkl")
+                with b_c11: b_pass = st.number_input("후보 B 패스 성공률(%)", 50.0, 98.0, value=87.5, step=0.5, key="sim_b_pass")
+                b_p90, b_gk_prev, b_gk_cs = 0.20, 0.0, 0
+            else:
+                b_c8, b_c9 = st.columns(2)
+                with b_c8: b_rating = st.number_input("후보 B 직전 FotMob 평점", 5.0, 10.0, value=7.25, step=0.01, key="sim_b_rating")
+                with b_c9: b_p90 = st.number_input("후보 B 90분당 xG+xA", 0.0, 2.5, value=0.55, step=0.05, key="sim_b_p90")
+                b_duels, b_tkl_p90, b_pass, b_gk_prev, b_gk_cs = 55.0, 0.8, 82.0, 0.0, 0
 
         b_lw = LEAGUE_WEIGHTS[b_from_l]
         b_aw = get_positional_age_weight(b_age, b_pos_full)
         b_cw = CONTRACT_WEIGHTS[b_contract]
         b_pw = POSITION_WEIGHTS[b_pos_full]
-        b_opta_w = 1.02 if (b_rating >= 7.45 or b_p90 >= 0.75) else (1.01 if (b_rating >= 7.15 or b_p90 >= 0.50) else (1.00 if b_rating >= 6.80 else 0.98))
+
+        if b_is_gk:
+            b_opta_w = 1.02 if (b_rating >= 7.35 or b_gk_prev >= 3.5) else (1.01 if (b_rating >= 7.05 or b_gk_prev >= 1.5) else (1.00 if b_rating >= 6.75 else 0.98))
+        elif b_is_def_mid:
+            b_opta_w = 1.02 if (b_rating >= 7.35 or (b_duels >= 64.0 and b_tkl_p90 >= 1.6)) else (1.01 if (b_rating >= 7.08 or (b_duels >= 58.0 and b_tkl_p90 >= 1.1)) else (1.00 if b_rating >= 6.75 else 0.98))
+        else:
+            b_opta_w = 1.02 if (b_rating >= 7.45 or b_p90 >= 0.75) else (1.01 if (b_rating >= 7.15 or b_p90 >= 0.50) else (1.00 if b_rating >= 6.80 else 0.98))
 
         b_fair = b_tm * b_lw * b_aw * club_w * b_cw * b_pw * b_opta_w * season_factor
         b_diff = b_fee - b_fair
@@ -2195,11 +2237,16 @@ with tab6:
         b_score = round(max(1.00, min(10.00, 7.50 + b_val_delta + b_rat_delta + b_age_delta)), 2)
         b_pos_short = b_pos_full.split(" (")[0]
 
+        b_axis_label, b_pos_metric_idx, b_stat_summary = calc_pos_custom_metric(
+            b_pos_full, b_p90, b_duels, b_tkl_p90, b_pass, b_gk_prev, b_gk_cs
+        )
+        radar_4th_label = a_axis_label if a_axis_label == b_axis_label else "포지션 핵심기여도"
+
         winner_str = f"🏆 최종 추천 타겟: {p_curr_name} (평점 +{p_curr_score - b_score:.2f}점 우위)" if p_curr_score > b_score else (f"🏆 최종 추천 타겟: {b_name} (평점 +{b_score - p_curr_score:.2f}점 우위)" if b_score > p_curr_score else "⚖️ 두 후보의 종합 거래 평점이 동률입니다.")
 
-        ab_cats = ['거래 평점', '가성비 지수', 'FotMob 평점', '90분당 생산력', '나이 포텐셜', '리그 경쟁력']
-        a_radar = [int(round(p_curr_score * 10)), int(round(max(45, min(98, 78 - overpay_pct * 0.7)))), int(round(max(50, min(98, (p_curr_rating - 6.0) * 22 + 52)))), int(round(min(98, max(45, p_curr_p90 * 105)))), to_public_index(age_w, 0.70, 1.05), to_public_index(league_w, 0.45, 1.00)]
-        b_radar = [int(round(b_score * 10)), int(round(max(45, min(98, 78 - b_overpay * 0.7)))), int(round(max(50, min(98, (b_rating - 6.0) * 22 + 52)))), int(round(min(98, max(45, b_p90 * 105)))), to_public_index(b_aw, 0.70, 1.05), to_public_index(b_lw, 0.45, 1.00)]
+        ab_cats = ['거래 평점', '가성비 지수', 'FotMob 평점', radar_4th_label, '나이 포텐셜', '리그 경쟁력']
+        a_radar = [int(round(p_curr_score * 10)), int(round(max(45, min(98, 78 - overpay_pct * 0.7)))), int(round(max(50, min(98, (p_curr_rating - 6.0) * 22 + 52)))), a_pos_metric_idx, to_public_index(age_w, 0.70, 1.05), to_public_index(league_w, 0.45, 1.00)]
+        b_radar = [int(round(b_score * 10)), int(round(max(45, min(98, 78 - b_overpay * 0.7)))), int(round(max(50, min(98, (b_rating - 6.0) * 22 + 52)))), b_pos_metric_idx, to_public_index(b_aw, 0.70, 1.05), to_public_index(b_lw, 0.45, 1.00)]
         svg_ab_radar = build_svg_radar(ab_cats, a_radar, color_a="#38BDF8", values_b=b_radar, color_b="#F97316", size=330)
         donut_a = build_svg_donut_ring(p_curr_score, 10.0, "#38BDF8", "CANDIDATE A", size=100)
         donut_b = build_svg_donut_ring(b_score, 10.0, "#F97316", "CANDIDATE B", size=100)
@@ -2216,10 +2263,10 @@ with tab6:
                 <div style="margin-bottom:10px;">{donut_a}</div>
                 <div style="background:#090D16; padding:8px; border-radius:8px; font-size:12px; margin-bottom:6px;">산출 적정가: <b style="color:#10B981;">€{fair_value:,.0f}만</b></div>
                 <div style="background:#090D16; padding:8px; border-radius:8px; font-size:12px; margin-bottom:6px;">요구 이적료: <b style="color:#38BDF8;">€{p_curr_fee:,.0f}만</b> ({overpay_pct:+.1f}%)</div>
-                <div style="background:#090D16; padding:8px; border-radius:8px; font-size:12px;">직전 ★{p_curr_rating:.2f} | 생산력 {p_curr_p90:.2f}</div>
+                <div style="background:#090D16; padding:8px; border-radius:8px; font-size:11.5px;">직전 ★{p_curr_rating:.2f} | {a_stat_summary}</div>
             </div>
             <div class="glass-panel" style="padding:12px; text-align:center;">
-                <div style="font-size:13.5px; font-weight:900; color:#F8FAFC; margin-bottom:4px;">⚔️ 6각형 스카우팅 맞대결</div>
+                <div style="font-size:13.5px; font-weight:900; color:#F8FAFC; margin-bottom:4px;">⚔️ 포지션 맞춤형 6각형 맞대결</div>
                 {svg_ab_radar}
             </div>
             <div class="glass-panel" style="border-top:3px solid #F97316; padding:18px; text-align:center;">
@@ -2229,7 +2276,7 @@ with tab6:
                 <div style="margin-bottom:10px;">{donut_b}</div>
                 <div style="background:#090D16; padding:8px; border-radius:8px; font-size:12px; margin-bottom:6px;">산출 적정가: <b style="color:#10B981;">€{b_fair:,.0f}만</b></div>
                 <div style="background:#090D16; padding:8px; border-radius:8px; font-size:12px; margin-bottom:6px;">요구 이적료: <b style="color:#F97316;">€{b_fee:,.0f}만</b> ({b_overpay:+.1f}%)</div>
-                <div style="background:#090D16; padding:8px; border-radius:8px; font-size:12px;">직전 ★{b_rating:.2f} | 생산력 {b_p90:.2f}</div>
+                <div style="background:#090D16; padding:8px; border-radius:8px; font-size:11.5px;">직전 ★{b_rating:.2f} | {b_stat_summary}</div>
             </div>
         </div>
         """
@@ -2251,11 +2298,22 @@ with tab6:
                 t_xg, t_xa = float(find_val(pt_dict, ["이전_xg", "직전_xg", "xg"], 0.0)), float(find_val(pt_dict, ["이전_xa", "직전_xa", "xa"], 0.0))
                 t_mins = float(find_val(pt_dict, ["이전_출전시간", "직전_출전시간", "출전시간"], 2500.0))
                 t_rating = float(find_val(pt_dict, ["이전_FotMob평점", "직전_평점", "이전평점", "FotMob평점"], 7.0))
-                t_p90 = (t_xg + t_xa) / (t_mins / 90.0) if t_mins > 0 else 0.0
+                t_p90_mins = (t_mins / 90.0) if t_mins > 0 else 1.0
+                t_p90 = (t_xg + t_xa) / t_p90_mins
+                t_tkl_p90 = float(find_val(pt_dict, ["이전_태클성공", "직전_태클", "태클", "tackles"], 24.0)) / t_p90_mins
+                t_duels = (float(find_val(pt_dict, ["지상경합승률", "duels_pct"], 60.0)) + float(find_val(pt_dict, ["공중볼승률", "aerial_pct"], 60.0))) / 2.0
+                t_pass = float(find_val(pt_dict, ["패스성공률", "pass_pct"], 85.0))
+                t_gk_prev = float(find_val(pt_dict, ["gk득점차단", "득점차단", "prevented"], 1.5))
+                t_gk_cs = float(find_val(pt_dict, ["gk클린시트", "클린시트", "cs"], 10.0))
 
-                h2h_cats = ['거래 평점', '이적료 규모', 'FotMob 평점', '90분당 생산력', '나이 적정성', '적정가 가치']
-                p_rad = [int(final_deal_score*10), int(min(98, max(45, p_curr_fee/120))), int(min(98, max(50, (p_curr_rating-6)*22+52))), int(min(98, max(45, p_curr_p90*105))), int(max(45, min(98, (35-p_curr_age)*5))), int(min(98, max(45, fair_value/120)))]
-                t_rad = [int(t_score*10), int(min(98, max(45, t_fee/120))), int(min(98, max(50, (t_rating-6)*22+52))), int(min(98, max(45, t_p90*105))), int(max(45, min(98, (35-t_age)*5))), int(min(98, max(45, t_fair/120)))]
+                t_axis_label, t_pos_metric_idx, t_stat_summary = calc_pos_custom_metric(
+                    t_pos, t_p90, t_duels, t_tkl_p90, t_pass, t_gk_prev, t_gk_cs
+                )
+                h2h_4th_label = a_axis_label if a_axis_label == t_axis_label else "포지션 핵심기여도"
+
+                h2h_cats = ['거래 평점', '이적료 규모', 'FotMob 평점', h2h_4th_label, '나이 적정성', '적정가 가치']
+                p_rad = [int(final_deal_score*10), int(min(98, max(45, p_curr_fee/120))), int(min(98, max(50, (p_curr_rating-6)*22+52))), a_pos_metric_idx, int(max(45, min(98, (35-p_curr_age)*5))), int(min(98, max(45, fair_value/120)))]
+                t_rad = [int(t_score*10), int(min(98, max(45, t_fee/120))), int(min(98, max(50, (t_rating-6)*22+52))), t_pos_metric_idx, int(max(45, min(98, (35-t_age)*5))), int(min(98, max(45, t_fair/120)))]
                 svg_h2h = build_svg_radar(h2h_cats, p_rad, color_a="#38BDF8", values_b=t_rad, color_b="#F97316", size=325)
 
                 h2h_board_html = f"""
@@ -2266,6 +2324,7 @@ with tab6:
                         <div style="font-size:12px; color:#94A3B8; margin-bottom:12px;">만 {p_curr_age}세 · {p_curr_pos}</div>
                         <div style="background:#090D16; padding:8px; border-radius:8px; font-size:12px; margin-bottom:6px;">적정가: <b style="color:#10B981;">€{fair_value:,.0f}만</b></div>
                         <div style="background:#090D16; padding:8px; border-radius:8px; font-size:12px; margin-bottom:6px;">실제 거래액: <b style="color:#38BDF8;">€{p_curr_fee:,.0f}만</b></div>
+                        <div style="background:#090D16; padding:7px; border-radius:8px; font-size:11.5px; color:#CBD5E1;">★{p_curr_rating:.2f} | {a_stat_summary}</div>
                         <div style="font-size:24px; font-weight:900; color:#38BDF8; margin-top:8px;">★ {final_deal_score:.2f}</div>
                     </div>
                     <div class="glass-panel" style="padding:12px; text-align:center;">
@@ -2278,11 +2337,12 @@ with tab6:
                         <div style="font-size:12px; color:#94A3B8; margin-bottom:12px;">만 {t_age}세 · {t_pos}</div>
                         <div style="background:#090D16; padding:8px; border-radius:8px; font-size:12px; margin-bottom:6px;">적정가: <b style="color:#10B981;">€{t_fair:,.0f}만</b></div>
                         <div style="background:#090D16; padding:8px; border-radius:8px; font-size:12px; margin-bottom:6px;">실제 거래액: <b style="color:#F97316;">€{t_fee:,.0f}만</b></div>
+                        <div style="background:#090D16; padding:7px; border-radius:8px; font-size:11.5px; color:#CBD5E1;">★{t_rating:.2f} | {t_stat_summary}</div>
                         <div style="font-size:24px; font-weight:900; color:#F97316; margin-top:8px;">★ {t_score:.2f}</div>
                     </div>
                 </div>
                 """
-                render_copyable_infographic(h2h_board_html, filename=f"h2h_{p_curr_name}_vs_{t_name}", height=510)
+                render_copyable_infographic(h2h_board_html, filename=f"h2h_{p_curr_name}_vs_{t_name}", height=530)
 
 # ================= TAB 7: 구단/리그별 결산 & 전술판 데이터룸 =================
 with tab7:
