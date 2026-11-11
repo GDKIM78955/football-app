@@ -1660,7 +1660,8 @@ with tab3:
             """
             render_copyable_infographic(tab3_board_html, filename=f"comps_{display_name}", height=580)
             st.dataframe(match_df, use_container_width=True)
-    with tab4:
+    # ================= TAB 4: 이적 첫 시즌 최종 성적 입력 & 모델 검증 =================
+with tab4:
     st.subheader("🎯 시즌 종료 후 최종 실제 성적 입력 & 모델 예측 정확도 사후 검증")
 
     @st.cache_data(ttl=60)
