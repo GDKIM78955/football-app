@@ -7,6 +7,8 @@ import json
 import math
 import re
 import base64
+from io import BytesIO
+from PIL import Image
 import plotly.graph_objects as go
 from datetime import datetime
 
@@ -30,10 +32,9 @@ if "last_saved_msg" not in st.session_state:
     st.session_state["last_saved_msg"] = None
 
 # =========================================================================
-# [구글 드라이브 전용 구단 로고 자동 매칭 & Base64 무결점 변환 엔진]
+# [구글 드라이브 전용 구단 로고 자동 매칭 & 외곽 하얀 배경 자동 투명화 엔진]
 # - 테스트해주신 아스널/아스날 구글 드라이브 링크 기본 탑재 완료
-# - 새 구단은 1번 탭 또는 좌측 사이드바에서 구글 드라이브 공유 링크를 1번만 입력해
-#   저장하면 시트에 영구 기록되어 다음부터 구단 이름만 쳐도 자동 매칭됩니다!
+# - 로고 내부의 흰색(대포, 방패 내부, 글씨)은 100% 보호하고 바깥쪽 흰 배경만 투명화!
 # =========================================================================
 ARSENAL_DRIVE_URL = "https://drive.google.com/file/d/1XPF14Ucu-_6y-Vapoad2xiyXvzBa4-uR/view?usp=drive_link"
 
@@ -108,7 +109,7 @@ def extract_drive_id(url_str):
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def url_to_base64_img(img_url):
-    """구글 드라이브 공유 링크 또는 이미지 URL을 깨지지 않는 Base64 이미지로 즉시 변환"""
+    """구글 드라이브 원본 다운로드 + 외곽 하얀색/체크무늬 배경만 정밀 투명화(Flood-Fill) 변환 엔진"""
     if not img_url or not str(img_url).strip():
         return ""
     u = str(img_url).strip()
@@ -118,26 +119,52 @@ def url_to_base64_img(img_url):
     drive_id = extract_drive_id(u)
     if drive_id:
         candidate_urls = [
-            f"https://drive.google.com/thumbnail?id={drive_id}&sz=w500",
-            f"https://lh3.googleusercontent.com/d/{drive_id}=w500",
-            f"https://drive.google.com/uc?export=download&id={drive_id}"
+            f"https://drive.google.com/uc?export=download&id={drive_id}",
+            f"https://lh3.googleusercontent.com/d/{drive_id}",
+            f"https://drive.google.com/thumbnail?id={drive_id}&sz=w500"
         ]
     else:
         candidate_urls = [u]
 
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8"
+        "Accept": "image/avif,image/webp,image/apng,image/png,image/*,*/*;q=0.8"
     }
 
     for target_u in candidate_urls:
         try:
             resp = requests.get(target_u, headers=headers, timeout=6, allow_redirects=True)
             if resp.status_code == 200 and len(resp.content) > 100:
-                mime = resp.headers.get("Content-Type", "image/png")
-                if "text/html" not in mime:
-                    b64 = base64.b64encode(resp.content).decode("utf-8")
-                    return f"data:{mime};base64,{b64}"
+                mime = resp.headers.get("Content-Type", "")
+                if "text/html" in mime:
+                    continue
+
+                img = Image.open(BytesIO(resp.content)).convert("RGBA")
+                width, height = img.size
+                pixels = img.load()
+
+                # 네 모서리 픽셀 확인: 이미 투명(Alpha<=50)하면 건드리지 않고, 불투명한 흰색/연회색 배경일 때만 외곽 투명화 수행
+                corners = [pixels[0, 0], pixels[width - 1, 0], pixels[0, height - 1], pixels[width - 1, height - 1]]
+                has_solid_white_corner = any(c[3] > 200 and c[0] >= 220 and c[1] >= 220 and c[2] >= 220 for c in corners)
+
+                if has_solid_white_corner:
+                    visited = set()
+                    queue = [(0, 0), (width - 1, 0), (0, height - 1), (width - 1, height - 1)]
+                    while queue:
+                        x, y = queue.pop()
+                        if (x, y) in visited or x < 0 or x >= width or y < 0 or y >= height:
+                            continue
+                        visited.add((x, y))
+                        r, g, b, a = pixels[x, y]
+                        # 외곽과 이어진 흰색~연회색 배경(R,G,B>=220 & 채도 낮음)만 투명화 (방패 테두리 내부의 흰색은 완벽 보호)
+                        if a == 0 or (r >= 220 and g >= 220 and b >= 220 and max(r, g, b) - min(r, g, b) <= 25):
+                            pixels[x, y] = (255, 255, 255, 0)
+                            queue.extend([(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)])
+
+                out_buf = BytesIO()
+                img.save(out_buf, format="PNG")
+                b64 = base64.b64encode(out_buf.getvalue()).decode("utf-8")
+                return f"data:image/png;base64,{b64}"
         except Exception:
             continue
 
@@ -525,6 +552,7 @@ with st.sidebar:
         if st.button("💾 구단 로고 사전에 저장/수정", use_container_width=True, key="sb_logo_save_btn"):
             if target_club_key.strip() and new_logo_val.strip():
                 st.session_state["custom_club_logos"][target_club_key.strip()] = new_logo_val.strip()
+                st.cache_data.clear()
                 st.success(f"✅ '{target_club_key.strip()}' 로고가 업데이트되었습니다!")
                 st.rerun()
 
@@ -934,7 +962,7 @@ with tab1:
         auto_to_logo = get_raw_club_logo(in_to_team, cf.get("to_logo", ""))
 
         with st.expander("🛡️ 구단 로고 구글 드라이브 링크 확인 & 수정 (1회 입력 시 시트 영구 저장)", expanded=False):
-            st.caption("구글 드라이브에서 로고 PNG 파일 우클릭 ➔ [공유] ➔ [링크가 있는 모든 사용자] 설정 후 복사한 링크를 붙여넣으세요. 한 번 저장된 구단은 다음부터 팀 이름만 쳐도 자동 적용됩니다.")
+            st.caption("구글 드라이브에서 로고 PNG/WebP 파일 우클릭 ➔ [공유] ➔ [링크가 있는 모든 사용자] 설정 후 복사한 링크를 붙여넣으세요. 바깥쪽 흰 배경은 자동으로 투명화됩니다.")
             lg_c1, lg_c2 = st.columns(2)
             with lg_c1:
                 in_from_logo_manual = st.text_input("원소속팀 로고 (구글 드라이브 링크)", value=auto_from_logo, placeholder="https://drive.google.com/file/d/...", key=f"from_logo_{k_id}")
@@ -1729,7 +1757,7 @@ with tab3:
             st.dataframe(match_df, use_container_width=True)
 
 _part1_end = True
-    # ================= TAB 4: 이적 첫 시즌 최종 성적 입력 & 모델 검증 =================
+   # ================= TAB 4: 이적 첫 시즌 최종 성적 입력 & 모델 검증 =================
 with tab4:
     st.subheader("🎯 시즌 종료 후 최종 실제 성적 입력 & 모델 예측 정확도 사후 검증")
 
@@ -2462,4 +2490,4 @@ with tab7:
             st.markdown("---")
             csv_backup = history_df.to_csv(index=False).encode("utf-8-sig")
             st.download_button("📥 전체 DB 엑셀(CSV) 백업 다운로드", data=csv_backup, file_name=f"transfer_scouting_db_{datetime.now().strftime('%Y%m%d_%H%M')}.csv", mime="text/csv", use_container_width=True)
-            st.dataframe(history_df, use_container_width=True)
+            st.dataframe(history_df, use_container_width=True) 
