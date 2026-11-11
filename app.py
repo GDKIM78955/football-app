@@ -36,7 +36,7 @@ if "last_saved_msg" not in st.session_state:
 # [구글 드라이브 폴더 자동 스캔 & 체크무늬/흰배경 완벽 제거 엔진]
 # - 아래 큰따옴표(" ") 안에 구글 드라이브 '축구구단_로고' 폴더 공유 링크를 넣어주세요!
 # =========================================================================
-DRIVE_LOGO_FOLDER_URL = "여기에_구글드라이브_로고폴더_공유링크를_넣으세요"
+DRIVE_LOGO_FOLDER_URL = "https://script.google.com/macros/s/AKfycbwmxL1KAuMav1KpXsRQpsa-p18i_-nkWVG-4MkTR7c6jI7FRqNvUaTLSuC7lGFivYvD/exec"
 
 DEFAULT_CLUB_LOGOS = {
     "아스날": "https://crests.football-data.org/57.png",
