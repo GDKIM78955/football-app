@@ -1,5 +1,5 @@
 # ==============================================================================
-# [PART 1 / 4] 기본 설정 · 로고/SVG 엔진 · 밸런스 패치 · 시트 자동 재계산 · TAB 1
+# [PART 1-A] 기본 설정 · 로고/SVG 엔진 · 밸런스 패치 · m+억만 동시표기 · 자동 재계산
 # ==============================================================================
 import streamlit as st
 import streamlit.components.v1 as components
@@ -15,114 +15,62 @@ from PIL import Image
 import plotly.graph_objects as go
 from datetime import datetime
 
-# 1. 페이지 기본 설정
-st.set_page_config(
-    page_title="축구 이적시장 12대 가중치 분석 & FotMob 프로젝션 Pro",
-    page_icon="⚽",
-    layout="wide"
-)
+st.set_page_config(page_title="축구 이적시장 12대 가중치 분석 & FotMob 프로젝션 Pro", page_icon="⚽", layout="wide")
 
-# 최신 구글 시트 웹앱 URL
 GOOGLE_SHEET_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwmxL1KAuMav1KpXsRQpsa-p18i_-nkWVG-4MkTR7c6jI7FRqNvUaTLSuC7lGFivYvD/exec"
 SPREADSHEET_ID = "16CeAQp1-xqc-mhtvlP0vLlQu5k1pg8DW5A-m29WCFdw"
 SHEET_CSV_URL = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/gviz/tq?tqx=out:csv"
-
 VAL_SHEET_GID = "15389686"
 VAL_SHEET_CSV_URL = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/export?format=csv&gid={VAL_SHEET_GID}"
 
-if "form_key_id" not in st.session_state:
-    st.session_state["form_key_id"] = 0
-if "last_saved_msg" not in st.session_state:
-    st.session_state["last_saved_msg"] = None
+if "form_key_id" not in st.session_state: st.session_state["form_key_id"] = 0
+if "last_saved_msg" not in st.session_state: st.session_state["last_saved_msg"] = None
 
-# =========================================================================
-# [구글 드라이브 폴더 자동 스캔 & 체크무늬/흰배경 완벽 제거 엔진]
-# - 보내주신 구글 드라이브 로고 폴더 링크가 기본 적용되어 있습니다!
-# =========================================================================
 DRIVE_LOGO_FOLDER_URL = "https://drive.google.com/drive/folders/1jhKbgnrWEK3t0rQuP9OYTryYrI56Ujye?usp=drive_link"
 
 DEFAULT_CLUB_LOGOS = {
-    "아스날": "https://crests.football-data.org/57.png",
-    "아스널": "https://crests.football-data.org/57.png",
-    "맨시티": "https://crests.football-data.org/65.png",
-    "맨체스터 시티": "https://crests.football-data.org/65.png",
-    "리버풀": "https://crests.football-data.org/64.png",
-    "첼시": "https://crests.football-data.org/61.png",
-    "토트넘": "https://crests.football-data.org/73.png",
-    "맨유": "https://crests.football-data.org/66.png",
-    "맨체스터 유나이티드": "https://crests.football-data.org/66.png",
-    "뉴캐슬": "https://crests.football-data.org/67.png",
-    "아스톤 빌라": "https://crests.football-data.org/58.png",
-    "애스턴 빌라": "https://crests.football-data.org/58.png",
-    "브라이튼": "https://crests.football-data.org/397.png",
-    "웨스트햄": "https://crests.football-data.org/563.png",
-    "본머스": "https://crests.football-data.org/1044.png",
-    "풀럼": "https://crests.football-data.org/63.png",
-    "울버햄튼": "https://crests.football-data.org/76.png",
-    "크리스탈 팰리스": "https://crests.football-data.org/354.png",
-    "브렌트포드": "https://crests.football-data.org/402.png",
-    "에버턴": "https://crests.football-data.org/62.png",
-    "노팅엄": "https://crests.football-data.org/351.png",
-    "노팅엄 포레스트": "https://crests.football-data.org/351.png",
-    "레알 마드리드": "https://crests.football-data.org/86.png",
-    "바르셀로나": "https://crests.football-data.org/81.png",
-    "AT 마드리드": "https://crests.football-data.org/78.png",
-    "아틀레티코 마드리드": "https://crests.football-data.org/78.png",
-    "바이에른 뮌헨": "https://crests.football-data.org/5.png",
-    "뮌헨": "https://crests.football-data.org/5.png",
-    "레버쿠젠": "https://crests.football-data.org/3.png",
-    "도르트문트": "https://crests.football-data.org/4.png",
-    "라이프치히": "https://crests.football-data.org/721.png",
-    "인터밀란": "https://crests.football-data.org/108.png",
-    "인테르": "https://crests.football-data.org/108.png",
-    "유벤투스": "https://crests.football-data.org/109.png",
-    "AC밀란": "https://crests.football-data.org/98.png",
-    "나폴리": "https://crests.football-data.org/113.png",
-    "AS로마": "https://crests.football-data.org/100.png",
-    "아탈란타": "https://crests.football-data.org/102.png",
-    "PSG": "https://crests.football-data.org/524.png",
-    "파리 생제르맹": "https://crests.football-data.org/524.png",
-    "스포르팅": "https://crests.football-data.org/498.png",
-    "벤피카": "https://crests.football-data.org/1903.png",
-    "포르투": "https://crests.football-data.org/503.png",
-    "아약스": "https://crests.football-data.org/678.png",
-    "PSV": "https://crests.football-data.org/674.png",
-    "페예노르트": "https://crests.football-data.org/675.png"
+    "아스날": "https://crests.football-data.org/57.png", "아스널": "https://crests.football-data.org/57.png",
+    "맨시티": "https://crests.football-data.org/65.png", "맨체스터 시티": "https://crests.football-data.org/65.png",
+    "리버풀": "https://crests.football-data.org/64.png", "첼시": "https://crests.football-data.org/61.png",
+    "토트넘": "https://crests.football-data.org/73.png", "맨유": "https://crests.football-data.org/66.png",
+    "맨체스터 유나이티드": "https://crests.football-data.org/66.png", "뉴캐슬": "https://crests.football-data.org/67.png",
+    "아스톤 빌라": "https://crests.football-data.org/58.png", "애스턴 빌라": "https://crests.football-data.org/58.png",
+    "브라이튼": "https://crests.football-data.org/397.png", "웨스트햄": "https://crests.football-data.org/563.png",
+    "본머스": "https://crests.football-data.org/1044.png", "풀럼": "https://crests.football-data.org/63.png",
+    "울버햄튼": "https://crests.football-data.org/76.png", "크리스탈 팰리스": "https://crests.football-data.org/354.png",
+    "브렌트포드": "https://crests.football-data.org/402.png", "에버턴": "https://crests.football-data.org/62.png",
+    "노팅엄": "https://crests.football-data.org/351.png", "노팅엄 포레스트": "https://crests.football-data.org/351.png",
+    "레알 마드리드": "https://crests.football-data.org/86.png", "바르셀로나": "https://crests.football-data.org/81.png",
+    "AT 마드리드": "https://crests.football-data.org/78.png", "아틀레티코 마드리드": "https://crests.football-data.org/78.png",
+    "바이에른 뮌헨": "https://crests.football-data.org/5.png", "뮌헨": "https://crests.football-data.org/5.png",
+    "레버쿠젠": "https://crests.football-data.org/3.png", "도르트문트": "https://crests.football-data.org/4.png",
+    "라이프치히": "https://crests.football-data.org/721.png", "인터밀란": "https://crests.football-data.org/108.png",
+    "인테르": "https://crests.football-data.org/108.png", "유벤투스": "https://crests.football-data.org/109.png",
+    "AC밀란": "https://crests.football-data.org/98.png", "나폴리": "https://crests.football-data.org/113.png",
+    "AS로마": "https://crests.football-data.org/100.png", "아탈란타": "https://crests.football-data.org/102.png",
+    "PSG": "https://crests.football-data.org/524.png", "파리 생제르맹": "https://crests.football-data.org/524.png",
+    "스포르팅": "https://crests.football-data.org/498.png", "벤피카": "https://crests.football-data.org/1903.png",
+    "포르투": "https://crests.football-data.org/503.png", "아약스": "https://crests.football-data.org/678.png",
+    "PSV": "https://crests.football-data.org/674.png", "페예노르트": "https://crests.football-data.org/675.png"
 }
 
 CLUB_SYNONYMS = {
-    "아스널": ["아스날", "Arsenal"],
-    "아스날": ["아스널", "Arsenal"],
-    "맨시티": ["맨체스터 시티", "맨체스터시티"],
-    "맨유": ["맨체스터 유나이티드", "맨체스터유나이티드"],
-    "아스톤 빌라": ["애스턴 빌라", "아스톤빌라", "애스턴빌라"],
-    "애스턴 빌라": ["아스톤 빌라", "아스톤빌라", "애스턴빌라"],
-    "바이에른 뮌헨": ["뮌헨", "바이에른뮌헨"],
-    "인터밀란": ["인테르", "인터 밀란"],
-    "인테르": ["인터밀란", "인터 밀란"],
-    "PSG": ["파리 생제르맹", "파리생제르맹"],
-    "AT 마드리드": ["아틀레티코 마드리드", "AT마드리드"]
+    "아스널": ["아스날", "Arsenal"], "아스날": ["아스널", "Arsenal"], "맨시티": ["맨체스터 시티", "맨체스터시티"],
+    "맨유": ["맨체스터 유나이티드", "맨체스터유나이티드"], "아스톤 빌라": ["애스턴 빌라", "아스톤빌라", "애스턴빌라"],
+    "애스턴 빌라": ["아스톤 빌라", "아스톤빌라", "애스턴빌라"], "바이에른 뮌헨": ["뮌헨", "바이에른뮌헨"],
+    "인터밀란": ["인테르", "인터 밀란"], "인테르": ["인터밀란", "인터 밀란"],
+    "PSG": ["파리 생제르맹", "파리생제르맹"], "AT 마드리드": ["아틀레티코 마드리드", "AT마드리드"]
 }
 
 @st.cache_data(ttl=300, show_spinner=False)
 def fetch_drive_folder_logos(folder_url):
-    """구글 시트 Apps Script를 통해 드라이브 로고 폴더 안의 모든 파일명과 링크를 자동 스캔"""
-    if not folder_url or "drive.google.com" not in str(folder_url):
-        return {}
+    if not folder_url or "drive.google.com" not in str(folder_url): return {}
     try:
-        res = requests.post(
-            GOOGLE_SHEET_WEBAPP_URL,
-            data=json.dumps({"action": "list_drive_logos", "folder_url": folder_url.strip()}),
-            headers={"Content-Type": "text/plain;charset=utf-8"},
-            timeout=10,
-            allow_redirects=True
-        )
+        res = requests.post(GOOGLE_SHEET_WEBAPP_URL, data=json.dumps({"action": "list_drive_logos", "folder_url": folder_url.strip()}), headers={"Content-Type": "text/plain;charset=utf-8"}, timeout=10, allow_redirects=True)
         if res.status_code in [200, 302]:
             rj = res.json()
-            if rj.get("status") == "success":
-                return rj.get("logos", {})
-    except Exception:
-        pass
+            if rj.get("status") == "success": return rj.get("logos", {})
+    except Exception: pass
     return {}
 
 if "custom_club_logos" not in st.session_state:
@@ -131,122 +79,83 @@ if "custom_club_logos" not in st.session_state:
 scanned_drive_logos = fetch_drive_folder_logos(DRIVE_LOGO_FOLDER_URL)
 for c_name, d_url in scanned_drive_logos.items():
     st.session_state["custom_club_logos"][c_name] = d_url
-    for syn in CLUB_SYNONYMS.get(c_name, []):
-        st.session_state["custom_club_logos"][syn] = d_url
+    for syn in CLUB_SYNONYMS.get(c_name, []): st.session_state["custom_club_logos"][syn] = d_url
 
 def extract_drive_id(url_str):
-    if not url_str or not isinstance(url_str, str):
-        return ""
+    if not url_str or not isinstance(url_str, str): return ""
     u = url_str.strip()
-    if "drive.google.com" not in u:
-        return ""
-    m = re.search(r"/file/d/([a-zA-Z0-9_-]+)", u)
-    if not m:
-        m = re.search(r"[?&]id=([a-zA-Z0-9_-]+)", u)
+    if "drive.google.com" not in u: return ""
+    m = re.search(r"/file/d/([a-zA-Z0-9_-]+)", u) or re.search(r"[?&]id=([a-zA-Z0-9_-]+)", u)
     return m.group(1) if m else ""
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def url_to_base64_img(img_url):
-    """외곽의 흰색 배경 및 가짜 투명 체크무늬(회색+흰색 격자) 완벽 제거 엔진"""
-    if not img_url or not str(img_url).strip():
-        return ""
+    if not img_url or not str(img_url).strip(): return ""
     u = str(img_url).strip()
-    if u.startswith("data:image"):
-        return u
-
+    if u.startswith("data:image"): return u
     drive_id = extract_drive_id(u)
-    if drive_id:
-        candidate_urls = [
-            f"https://drive.google.com/uc?export=download&id={drive_id}",
-            f"https://lh3.googleusercontent.com/d/{drive_id}",
-            f"https://drive.google.com/thumbnail?id={drive_id}&sz=w500"
-        ]
-    else:
-        candidate_urls = [u]
-
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Accept": "image/avif,image/webp,image/apng,image/png,image/*,*/*;q=0.8"
-    }
-
+    candidate_urls = [f"https://drive.google.com/uc?export=download&id={drive_id}", f"https://lh3.googleusercontent.com/d/{drive_id}", f"https://drive.google.com/thumbnail?id={drive_id}&sz=w500"] if drive_id else [u]
+    headers = {"User-Agent": "Mozilla/5.0", "Accept": "image/avif,image/webp,image/apng,image/png,image/*,*/*;q=0.8"}
     for target_u in candidate_urls:
         try:
             resp = requests.get(target_u, headers=headers, timeout=6, allow_redirects=True)
-            if resp.status_code == 200 and len(resp.content) > 100:
-                mime = resp.headers.get("Content-Type", "")
-                if "text/html" in mime:
-                    continue
-
+            if resp.status_code == 200 and len(resp.content) > 100 and "text/html" not in resp.headers.get("Content-Type", ""):
                 img = Image.open(BytesIO(resp.content)).convert("RGBA")
                 width, height = img.size
                 pixels = img.load()
-
                 corners = [pixels[0, 0], pixels[width - 1, 0], pixels[0, height - 1], pixels[width - 1, height - 1]]
-                needs_bg_removal = any(c[3] > 50 for c in corners)
-
-                if needs_bg_removal:
+                if any(c[3] > 50 for c in corners):
                     visited = set()
-                    queue = (
-                        [(x, 0) for x in range(width)] +
-                        [(x, height - 1) for x in range(width)] +
-                        [(0, y) for y in range(height)] +
-                        [(width - 1, y) for y in range(height)]
-                    )
+                    queue = [(x, 0) for x in range(width)] + [(x, height - 1) for x in range(width)] + [(0, y) for y in range(height)] + [(width - 1, y) for y in range(height)]
                     while queue:
                         x, y = queue.pop()
-                        if (x, y) in visited or x < 0 or x >= width or y < 0 or y >= height:
-                            continue
+                        if (x, y) in visited or x < 0 or x >= width or y < 0 or y >= height: continue
                         visited.add((x, y))
                         r, g, b, a = pixels[x, y]
-                        lum = (r + g + b) / 3.0
-                        sat = max(r, g, b) - min(r, g, b)
-
-                        if a == 0 or (lum >= 135 and sat <= 30):
+                        if a == 0 or ((r + g + b) / 3.0 >= 135 and (max(r, g, b) - min(r, g, b)) <= 30):
                             pixels[x, y] = (0, 0, 0, 0)
                             queue.extend([(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)])
-
                 bbox = img.getbbox()
-                if bbox:
-                    img = img.crop(bbox)
-
+                if bbox: img = img.crop(bbox)
                 out_buf = BytesIO()
                 img.save(out_buf, format="PNG")
-                b64 = base64.b64encode(out_buf.getvalue()).decode("utf-8")
-                return f"data:image/png;base64,{b64}"
-        except Exception:
-            continue
-
+                return f"data:image/png;base64,{base64.b64encode(out_buf.getvalue()).decode('utf-8')}"
+        except Exception: continue
     return f"https://wsrv.nl/?url={candidate_urls[0]}&output=png"
 
 def extract_logos_from_notes(notes_str):
-    if not isinstance(notes_str, str):
-        return "", ""
-    m_from = re.search(r"\|\|LOGO_FROM:(.*?)\|\|", notes_str)
-    m_to = re.search(r"\|\|LOGO_TO:(.*?)\|\|", notes_str)
-    f_url = m_from.group(1).strip() if m_from else ""
-    t_url = m_to.group(1).strip() if m_to else ""
-    return f_url, t_url
+    if not isinstance(notes_str, str): return "", ""
+    m_from, m_to = re.search(r"\|\|LOGO_FROM:(.*?)\|\|", notes_str), re.search(r"\|\|LOGO_TO:(.*?)\|\|", notes_str)
+    return (m_from.group(1).strip() if m_from else ""), (m_to.group(1).strip() if m_to else "")
 
 def extract_subpos_from_notes(notes_str):
-    if not isinstance(notes_str, str):
-        return []
+    if not isinstance(notes_str, str): return []
     m_sub = re.search(r"\|\|SUBPOS:(.*?)\|\|", notes_str)
-    if m_sub and m_sub.group(1).strip():
-        return [x.strip() for x in m_sub.group(1).split(",") if x.strip()]
-    return []
+    return [x.strip() for x in m_sub.group(1).split(",") if x.strip()] if (m_sub and m_sub.group(1).strip()) else []
 
 def clean_notes_display(notes_str):
-    if not isinstance(notes_str, str):
-        return ""
-    cleaned = re.sub(r"\|\|LOGO_FROM:.*?\|\|", "", notes_str)
-    cleaned = re.sub(r"\|\|LOGO_TO:.*?\|\|", "", cleaned)
-    cleaned = re.sub(r"\|\|SUBPOS:.*?\|\|", "", cleaned)
+    if not isinstance(notes_str, str): return ""
+    cleaned = re.sub(r"\|\|LOGO_FROM:.*?\|\||\|\|LOGO_TO:.*?\|\||\|\|SUBPOS:.*?\|\|", "", notes_str)
     return cleaned.strip(" |")
 
 def normalize_tackle_input(val):
-    """FotMob 수비적 행동(Defensive Actions, 150~900+) 입력 시 순수 태클 스케일로 자동 보정"""
     v = float(val) if val else 0.0
     return v / 6.5 if v > 120 else v
+
+# [핵심] "€227.1m (2억 2,710만)" 동시 표기 함수
+def fmt_tm_kor(man_eur_val, signed=False, multiline=False):
+    v = int(round(float(man_eur_val))) if man_eur_val else 0
+    av = abs(v)
+    m_str = f"{av / 100.0:,.2f}".rstrip("0").rstrip(".")
+    if av >= 10000:
+        eok, man = av // 10000, av % 10000
+        kor_str = f"{eok}억 {man:,}만" if man > 0 else f"{eok}억"
+    else:
+        kor_str = f"{av:,}만"
+    sign = "+" if (signed and v > 0) else ("-" if v < 0 else "")
+    if multiline:
+        return f"{sign}€{m_str}m<div style='font-size:11.5px; color:#94A3B8; font-weight:700; margin-top:2px;'>({sign}{kor_str} €)</div>"
+    return f"{sign}€{m_str}m ({sign}{kor_str})"
 
 default_stats = {
     "f_mins": 2206, "f_goals": 16, "f_xg": 17.44, "f_assists": 4, "f_xa": 3.33,
@@ -257,30 +166,23 @@ default_stats = {
     "f_gk_cs": 10, "f_gk_errors": 0, "f_gk_claims": 18
 }
 for k, v in default_stats.items():
-    if k not in st.session_state:
-        st.session_state[k] = v
+    if k not in st.session_state: st.session_state[k] = v
 
 def get_raw_club_logo(team_name, manual_url=""):
     if manual_url and str(manual_url).strip() and not str(manual_url).strip().startswith("data:image"):
         return str(manual_url).strip()
     t_clean = str(team_name).strip()
-    if not t_clean:
-        return ""
+    if not t_clean: return ""
     logo_dict = st.session_state["custom_club_logos"]
-    if t_clean in logo_dict:
-        return logo_dict[t_clean]
+    if t_clean in logo_dict: return logo_dict[t_clean]
     for k_club, v_url in logo_dict.items():
-        if k_club in t_clean or t_clean in k_club:
-            return v_url
+        if k_club in t_clean or t_clean in k_club: return v_url
     return ""
 
 def resolve_club_logo(team_name, manual_url=""):
     raw_u = get_raw_club_logo(team_name, manual_url)
     return url_to_base64_img(raw_u) if raw_u else ""
 
-# =========================================================================
-# [V9 Ultra FM 스카우팅 그래픽 엔진: 미니 포지션 피치 + 90종 정밀 스카우팅 프리셋]
-# =========================================================================
 SUB_POS_OPTIONS = [
     "ST (스트라이커)", "LW (좌측 윙어)", "RW (우측 윙어)", "CAM (공격형 미드필더)",
     "CM (중앙 미드필더)", "CDM (수비형 미드필더)", "LB/LWB (좌측 풀백·윙백)",
@@ -288,98 +190,48 @@ SUB_POS_OPTIONS = [
 ]
 
 def build_fm_mini_pitch_svg(main_pos_str, versatility_str, manual_sub_list, stats_dict):
-    """FM 스타일 미니 포지션 숙련도 맵 (🟢 주포지션 천연 / 🟡 서브포지션 능숙 하이브리드)"""
-    nodes = {
-        "ST":  (80, 22, "ST"),
-        "LW":  (28, 44, "LW"),
-        "CAM": (80, 50, "CAM"),
-        "RW":  (132, 44, "RW"),
-        "CM":  (80, 82, "CM"),
-        "CDM": (80, 112, "CDM"),
-        "LB":  (26, 138, "LB"),
-        "CB":  (80, 144, "CB"),
-        "RB":  (134, 138, "RB"),
-        "GK":  (80, 174, "GK")
-    }
+    nodes = {"ST": (80, 22, "ST"), "LW": (28, 44, "LW"), "CAM": (80, 50, "CAM"), "RW": (132, 44, "RW"), "CM": (80, 82, "CM"), "CDM": (80, 112, "CDM"), "LB": (26, 138, "LB"), "CB": (80, 144, "CB"), "RB": (134, 138, "RB"), "GK": (80, 174, "GK")}
+    primary_nodes, secondary_nodes = set(), set()
+    if "ST/CF" in main_pos_str: primary_nodes.add("ST")
+    elif "WG/CAM" in main_pos_str: primary_nodes.update(["LW", "RW", "CAM"])
+    elif "CM/CDM" in main_pos_str: primary_nodes.update(["CM", "CDM"])
+    elif "RB/LB/WB" in main_pos_str: primary_nodes.update(["LB", "RB"])
+    elif "CB" in main_pos_str: primary_nodes.add("CB")
+    elif "GK" in main_pos_str: primary_nodes.add("GK")
 
-    primary_nodes = set()
-    secondary_nodes = set()
-
-    if "ST/CF" in main_pos_str:
-        primary_nodes.add("ST")
-    elif "WG/CAM" in main_pos_str:
-        primary_nodes.update(["LW", "RW", "CAM"])
-    elif "CM/CDM" in main_pos_str:
-        primary_nodes.update(["CM", "CDM"])
-    elif "RB/LB/WB" in main_pos_str:
-        primary_nodes.update(["LB", "RB"])
-    elif "CB" in main_pos_str:
-        primary_nodes.add("CB")
-    elif "GK" in main_pos_str:
-        primary_nodes.add("GK")
-
-    is_multi = "단일" not in versatility_str
-    if is_multi:
+    if "단일" not in versatility_str:
         if manual_sub_list:
             for item in manual_sub_list:
                 code = item.split(" ")[0].split("/")[0].strip()
-                if code in nodes and code not in primary_nodes:
-                    secondary_nodes.add(code)
+                if code in nodes and code not in primary_nodes: secondary_nodes.add(code)
         else:
-            is_utility_3 = "3개" in versatility_str
-            p_pass = stats_dict.get("pass_pct", 85.0)
-            p_drib = stats_dict.get("p90_drib", 0.5)
-            p_box = stats_dict.get("p90_box", 1.5)
-            p_tkl = stats_dict.get("p90_tkl", 1.2)
-
+            is_u3 = "3개" in versatility_str
+            p_pass, p_drib, p_box, p_tkl = stats_dict.get("pass_pct", 85.0), stats_dict.get("p90_drib", 0.5), stats_dict.get("p90_box", 1.5), stats_dict.get("p90_tkl", 1.2)
             if "ST" in primary_nodes:
                 secondary_nodes.update(["LW", "RW"] if p_drib >= 0.8 else ["CAM"])
-                if is_utility_3: secondary_nodes.update(["LW", "RW", "CAM"])
-            elif "CAM" in primary_nodes:
-                if p_box >= 4.0: secondary_nodes.add("ST")
-                else: secondary_nodes.add("CM")
+                if is_u3: secondary_nodes.update(["LW", "RW", "CAM"])
+            elif "CAM" in primary_nodes: secondary_nodes.add("ST" if p_box >= 4.0 else "CM")
             elif "CM" in primary_nodes:
-                if p_tkl >= 1.8: secondary_nodes.add("CB")
-                else: secondary_nodes.add("CAM")
-                if is_utility_3: secondary_nodes.update(["RB", "LB"])
+                secondary_nodes.add("CB" if p_tkl >= 1.8 else "CAM")
+                if is_u3: secondary_nodes.update(["RB", "LB"])
             elif "LB" in primary_nodes:
                 secondary_nodes.add("CB" if p_tkl >= 1.6 else "LW")
-                if is_utility_3: secondary_nodes.add("CDM")
+                if is_u3: secondary_nodes.add("CDM")
             elif "CB" in primary_nodes:
                 if p_pass >= 88.5: secondary_nodes.add("CDM")
                 else: secondary_nodes.update(["RB", "LB"])
-                if is_utility_3: secondary_nodes.update(["CDM", "RB", "LB"])
+                if is_u3: secondary_nodes.update(["CDM", "RB", "LB"])
 
     dots_svg = ""
     for code, (nx, ny, lbl) in nodes.items():
         if code in primary_nodes:
-            dots_svg += (
-                f'<circle cx="{nx}" cy="{ny}" r="11" fill="#10B981" fill-opacity="0.35"/>'
-                f'<circle cx="{nx}" cy="{ny}" r="7.5" fill="#10B981" stroke="#FFFFFF" stroke-width="1.8"/>'
-                f'<text x="{nx}" y="{ny+18}" text-anchor="middle" fill="#6EE7B7" font-size="8.5" font-weight="900">{lbl}</text>'
-            )
+            dots_svg += f'<circle cx="{nx}" cy="{ny}" r="11" fill="#10B981" fill-opacity="0.35"/><circle cx="{nx}" cy="{ny}" r="7.5" fill="#10B981" stroke="#FFFFFF" stroke-width="1.8"/><text x="{nx}" y="{ny+18}" text-anchor="middle" fill="#6EE7B7" font-size="8.5" font-weight="900">{lbl}</text>'
         elif code in secondary_nodes:
-            dots_svg += (
-                f'<circle cx="{nx}" cy="{ny}" r="9.5" fill="#FBBF24" fill-opacity="0.28"/>'
-                f'<circle cx="{nx}" cy="{ny}" r="6.5" fill="#FBBF24" stroke="#0F172A" stroke-width="1.5"/>'
-                f'<text x="{nx}" y="{ny+17}" text-anchor="middle" fill="#FDE68A" font-size="8" font-weight="800">{lbl}</text>'
-            )
+            dots_svg += f'<circle cx="{nx}" cy="{ny}" r="9.5" fill="#FBBF24" fill-opacity="0.28"/><circle cx="{nx}" cy="{ny}" r="6.5" fill="#FBBF24" stroke="#0F172A" stroke-width="1.5"/><text x="{nx}" y="{ny+17}" text-anchor="middle" fill="#FDE68A" font-size="8" font-weight="800">{lbl}</text>'
         else:
-            dots_svg += (
-                f'<circle cx="{nx}" cy="{ny}" r="4.5" fill="#1E293B" stroke="#475569" stroke-width="1"/>'
-                f'<text x="{nx}" y="{ny+14}" text-anchor="middle" fill="#64748B" font-size="7.5" font-weight="700">{lbl}</text>'
-            )
+            dots_svg += f'<circle cx="{nx}" cy="{ny}" r="4.5" fill="#1E293B" stroke="#475569" stroke-width="1"/><text x="{nx}" y="{ny+14}" text-anchor="middle" fill="#64748B" font-size="7.5" font-weight="700">{lbl}</text>'
 
-    return f"""
-    <svg viewBox="0 0 160 196" width="142" height="174" style="display:block; margin:0 auto;">
-        <rect x="4" y="4" width="152" height="188" rx="10" fill="#064E3B" stroke="#34D399" stroke-width="1.5" stroke-opacity="0.55"/>
-        <line x1="4" y1="98" x2="156" y2="98" stroke="rgba(255,255,255,0.22)" stroke-width="1.2"/>
-        <circle cx="80" cy="98" r="20" fill="none" stroke="rgba(255,255,255,0.22)" stroke-width="1.2"/>
-        <rect x="42" y="4" width="76" height="26" fill="none" stroke="rgba(255,255,255,0.22)" stroke-width="1.2"/>
-        <rect x="42" y="166" width="76" height="26" fill="none" stroke="rgba(255,255,255,0.22)" stroke-width="1.2"/>
-        {dots_svg}
-    </svg>
-    """
+    return f'<svg viewBox="0 0 160 196" width="142" height="174" style="display:block; margin:0 auto;"><rect x="4" y="4" width="152" height="188" rx="10" fill="#064E3B" stroke="#34D399" stroke-width="1.5" stroke-opacity="0.55"/><line x1="4" y1="98" x2="156" y2="98" stroke="rgba(255,255,255,0.22)" stroke-width="1.2"/><circle cx="80" cy="98" r="20" fill="none" stroke="rgba(255,255,255,0.22)" stroke-width="1.2"/><rect x="42" y="4" width="76" height="26" fill="none" stroke="rgba(255,255,255,0.22)" stroke-width="1.2"/><rect x="42" y="166" width="76" height="26" fill="none" stroke="rgba(255,255,255,0.22)" stroke-width="1.2"/>{dots_svg}</svg>'
 
 def generate_fm_scouting_features(
     main_pos, age, rating, goals, xg, assists, xa, shots, sot, chances, big_chances,
@@ -387,18 +239,10 @@ def generate_fm_scouting_features(
     gk_saves, gk_conceded, gk_prev, gk_cs, gk_errors, gk_claims,
     matches, starts, mins, overpay_pct, stage_str, inj_str, reg_str, vers_str, contract_str, urg_str, league_w
 ):
-    """[90종 풀버전 FM 스카우팅 인텔리전스 엔진 - 수비적 행동 스케일 호환 및 직전 1년 메디컬 기준 적용]"""
     p90 = max(1.0, mins / 90.0)
-    p90_g = goals / p90
-    p90_xg = xg / p90
-    p90_xa = xa / p90
-    p90_xg_xa = (xg + xa) / p90
-    p90_shots = shots / p90
-    p90_sot = sot / p90
-    p90_chances = chances / p90
-    p90_bc = big_chances / p90
-    p90_drib = dribbles / p90
-    p90_box = box_touches / p90
+    p90_g, p90_xg, p90_xa, p90_xg_xa = goals / p90, xg / p90, xa / p90, (xg + xa) / p90
+    p90_shots, p90_sot, p90_chances, p90_bc = shots / p90, sot / p90, chances / p90, big_chances / p90
+    p90_drib, p90_box = dribbles / p90, box_touches / p90
     eff_tackles = normalize_tackle_input(tackles)
     p90_tkl = eff_tackles / p90
     is_def_act_mode = tackles > 120
@@ -408,12 +252,7 @@ def generate_fm_scouting_features(
     pk_share = (pk_goals / goals * 100.0) if goals > 0 else 0.0
     duels_avg = (duels_pct + aerial_pct) / 2.0
 
-    is_st = "ST/CF" in main_pos
-    is_wg_cam = "WG/CAM" in main_pos
-    is_cm_cdm = "CM/CDM" in main_pos
-    is_fb = "RB/LB/WB" in main_pos
-    is_cb = "CB" in main_pos
-    is_gk = "GK" in main_pos
+    is_st, is_wg_cam, is_cm_cdm, is_fb, is_cb, is_gk = "ST/CF" in main_pos, "WG/CAM" in main_pos, "CM/CDM" in main_pos, "RB/LB/WB" in main_pos, "CB" in main_pos, "GK" in main_pos
     is_def_mid = is_cm_cdm or is_fb or is_cb
 
     traits = []
@@ -426,77 +265,44 @@ def generate_fm_scouting_features(
         if gk_errors == 0 and mins >= 1800: traits.append("🛡️ 잔실수가 없는 침착한 핸들링 및 안정감")
         if not traits: traits.append("🧤 기본기에 충실한 클래식 골키퍼")
     elif is_st:
-        if p90_g >= 0.45 and p90_chances >= 1.2 and aerial_pct >= 58.0:
-            traits.append("👑 연계·제공권·마무리를 겸비한 만능형 스트라이커 (Complete Forward)")
-        elif p90_box >= 5.0 and p90_chances < 1.0 and goals >= 10:
-            traits.append("🦊 박스 안 위치선정 및 원터치 피니시 특화 (포처 / Poacher)")
-        elif p90_chances >= 1.4 or p90_xa >= 0.18:
-            traits.append("🔗 2선으로 내려와 공격을 연결하는 연계형 포워드 (Deep-Lying Forward)")
-        elif aerial_pct >= 62.0:
-            traits.append("🗼 포스트 플레이 및 공중볼 경합을 즐기는 타겟맨 (Target Forward)")
-        elif p90_drib >= 1.1 and p90_box >= 4.0:
-            traits.append("⚡ 뒷공간 침투 및 드리블 돌파를 즐기는 전진형 포워드 (Advanced Forward)")
-        if goals >= 8 and xg > 0 and (goals / xg) >= 1.15:
-            traits.append("🎯 골키퍼와의 1대1에서 침착한 구석 마무리 선호")
-        if p90_shots >= 3.2:
-            traits.append("🚀 거리와 각도를 가리지 않는 과감한 슈팅 시도")
-        if p90_tkl >= 0.8 or duels_pct >= 55.0:
-            traits.append("🐕 최전방에서 상대 수비진을 괴롭히는 압박형 포워드")
+        if p90_g >= 0.45 and p90_chances >= 1.2 and aerial_pct >= 58.0: traits.append("👑 연계·제공권·마무리를 겸비한 만능형 스트라이커 (Complete Forward)")
+        elif p90_box >= 5.0 and p90_chances < 1.0 and goals >= 10: traits.append("🦊 박스 안 위치선정 및 원터치 피니시 특화 (포처 / Poacher)")
+        elif p90_chances >= 1.4 or p90_xa >= 0.18: traits.append("🔗 2선으로 내려와 공격을 연결하는 연계형 포워드 (Deep-Lying Forward)")
+        elif aerial_pct >= 62.0: traits.append("🗼 포스트 플레이 및 공중볼 경합을 즐기는 타겟맨 (Target Forward)")
+        elif p90_drib >= 1.1 and p90_box >= 4.0: traits.append("⚡ 뒷공간 침투 및 드리블 돌파를 즐기는 전진형 포워드 (Advanced Forward)")
+        if goals >= 8 and xg > 0 and (goals / xg) >= 1.15: traits.append("🎯 골키퍼와의 1대1에서 침착한 구석 마무리 선호")
+        if p90_shots >= 3.2: traits.append("🚀 거리와 각도를 가리지 않는 과감한 슈팅 시도")
+        if p90_tkl >= 0.8 or duels_pct >= 55.0: traits.append("🐕 최전방에서 상대 수비진을 괴롭히는 압박형 포워드")
     elif is_wg_cam:
-        if p90_shots >= 2.3 and p90_box >= 4.2:
-            traits.append("🏹 측면에서 중앙으로 접고 들어와 직접 득점 노림 (인사이드 포워드)")
-        elif p90_xa >= 0.25 or p90_chances >= 2.0:
-            traits.append("🎩 창의적인 스루패스로 수비 라인을 허무는 플레이메이커 (AP)")
-        elif p90_drib >= 1.8 and p90_shots < 2.0:
-            traits.append("⚡ 터치라인을 따라 폭발적인 드리블 돌파 후 컷백/크로스 선호 (클래식 윙어)")
-        elif p90_box >= 4.5 and goals >= 8:
-            traits.append("👻 하프스페이스 빈 공간을 찾아 침투하는 섀도우 스트라이커 (라움도이터)")
-        if p90_drib >= 1.5:
-            traits.append("🏃‍♂️ 1대1 대인 돌파를 자주 시도하며 파울을 유도함")
-        if bc_ratio >= 22.0 and big_chances >= 5:
-            traits.append("🔑 결정적 1대1 빅찬스를 창출하는 킬패스 선호")
-        if pass_pct >= 88.0:
-            traits.append("📐 좁은 공간에서 볼을 잃지 않는 탈압박 및 볼 키핑")
+        if p90_shots >= 2.3 and p90_box >= 4.2: traits.append("🏹 측면에서 중앙으로 접고 들어와 직접 득점 노림 (인사이드 포워드)")
+        elif p90_xa >= 0.25 or p90_chances >= 2.0: traits.append("🎩 창의적인 스루패스로 수비 라인을 허무는 플레이메이커 (AP)")
+        elif p90_drib >= 1.8 and p90_shots < 2.0: traits.append("⚡ 터치라인을 따라 폭발적인 드리블 돌파 후 컷백/크로스 선호 (클래식 윙어)")
+        elif p90_box >= 4.5 and goals >= 8: traits.append("👻 하프스페이스 빈 공간을 찾아 침투하는 섀도우 스트라이커 (라움도이터)")
+        if p90_drib >= 1.5: traits.append("🏃‍♂️ 1대1 대인 돌파를 자주 시도하며 파울을 유도함")
+        if bc_ratio >= 22.0 and big_chances >= 5: traits.append("🔑 결정적 1대1 빅찬스를 창출하는 킬패스 선호")
+        if pass_pct >= 88.0: traits.append("📐 좁은 공간에서 볼을 잃지 않는 탈압박 및 볼 키핑")
     elif is_cm_cdm:
-        if pass_pct >= 89.5 and p90_chances >= 1.2 and p90_box < 2.0:
-            traits.append("🎼 3선 후방에서 장단패스로 경기 템포를 조율하는 사령관 (레지스타 / DLP)")
-        elif p90_tkl >= 1.8 and p90_box >= 2.0:
-            traits.append("🔋 공수 양면 박스부터 박스까지 종횡무진하는 활동량 (Box-to-Box)")
-        elif p90_tkl >= 2.0 and duels_pct >= 60.0 and p90_box < 1.5:
-            traits.append("🛡️ 포백 앞을 철저히 보호하고 상대 맥을 끊는 앵커맨 (Ball-Winning Midfielder)")
-        elif p90_chances >= 1.5 and p90_drib >= 1.0:
-            traits.append("⚡ 중원 하프스페이스를 파고들며 공격을 전개하는 메짤라 (Mezzala)")
-        if pass_pct >= 90.0:
-            traits.append("📐 위험 부담 없는 안전한 볼 순환 및 점유율 유지 선호")
-        if duels_avg >= 62.0:
-            traits.append("🧱 중원 몸싸움과 세컨드볼 경합에 적극적으로 뛰어듦")
+        if pass_pct >= 89.5 and p90_chances >= 1.2 and p90_box < 2.0: traits.append("🎼 3선 후방에서 장단패스로 경기 템포를 조율하는 사령관 (레지스타 / DLP)")
+        elif p90_tkl >= 1.8 and p90_box >= 2.0: traits.append("🔋 공수 양면 박스부터 박스까지 종횡무진하는 활동량 (Box-to-Box)")
+        elif p90_tkl >= 2.0 and duels_pct >= 60.0 and p90_box < 1.5: traits.append("🛡️ 포백 앞을 철저히 보호하고 상대 맥을 끊는 앵커맨 (Ball-Winning Midfielder)")
+        elif p90_chances >= 1.5 and p90_drib >= 1.0: traits.append("⚡ 중원 하프스페이스를 파고들며 공격을 전개하는 메짤라 (Mezzala)")
+        if pass_pct >= 90.0: traits.append("📐 위험 부담 없는 안전한 볼 순환 및 점유율 유지 선호")
+        if duels_avg >= 62.0: traits.append("🧱 중원 몸싸움과 세컨드볼 경합에 적극적으로 뛰어듦")
     elif is_fb:
-        if p90_chances >= 1.3 or p90_xa >= 0.15 or p90_drib >= 1.2:
-            traits.append("⚡ 과감한 오버래핑으로 측면 공격 숫자를 늘리는 공격형 풀백/윙백")
-        elif pass_pct >= 88.0 and p90_tkl >= 1.4:
-            traits.append("🧠 중앙으로 좁혀 들어와 3선 빌드업을 돕는 인버티드 풀백 (Inverted FB)")
-        elif duels_pct >= 62.0 and p90_tkl >= 1.8:
-            traits.append("🔒 상대 윙어와의 1대1 측면 수비 봉쇄에 집중하는 수비형 풀백")
-        if p90_box >= 1.8:
-            traits.append("🏃‍♂️ 상대 페널티 박스 근처까지 깊숙이 언더래핑 침투 시도")
+        if p90_chances >= 1.3 or p90_xa >= 0.15 or p90_drib >= 1.2: traits.append("⚡ 과감한 오버래핑으로 측면 공격 숫자를 늘리는 공격형 풀백/윙백")
+        elif pass_pct >= 88.0 and p90_tkl >= 1.4: traits.append("🧠 중앙으로 좁혀 들어와 3선 빌드업을 돕는 인버티드 풀백 (Inverted FB)")
+        elif duels_pct >= 62.0 and p90_tkl >= 1.8: traits.append("🔒 상대 윙어와의 1대1 측면 수비 봉쇄에 집중하는 수비형 풀백")
+        if p90_box >= 1.8: traits.append("🏃‍♂️ 상대 페널티 박스 근처까지 깊숙이 언더래핑 침투 시도")
     elif is_cb:
-        if pass_pct >= 89.5 and duels_pct >= 60.0:
-            traits.append("📐 정교한 전진 패스로 후방 빌드업의 시발점이 되는 볼 플레잉 디펜더 (BPD)")
-        elif aerial_pct >= 66.0 and p90_tkl >= 1.4:
-            traits.append("🧱 압도적 제공권과 거친 대인 방어로 상대를 제압하는 파이터형 스토퍼")
-        elif duels_pct >= 64.0 and pass_pct >= 87.0:
-            traits.append("🛡️ 빠른 커버 플레이와 침착한 라인 컨트롤을 겸비한 커맨더형 센터백")
-        if aerial_pct >= 68.0 and goals >= 2:
-            traits.append("🗼 공격 세트피스(코너킥) 상황에서 위협적인 헤더 타겟")
+        if pass_pct >= 89.5 and duels_pct >= 60.0: traits.append("📐 정교한 전진 패스로 후방 빌드업의 시발점이 되는 볼 플레잉 디펜더 (BPD)")
+        elif aerial_pct >= 66.0 and p90_tkl >= 1.4: traits.append("🧱 압도적 제공권과 거친 대인 방어로 상대를 제압하는 파이터형 스토퍼")
+        elif duels_pct >= 64.0 and pass_pct >= 87.0: traits.append("🛡️ 빠른 커버 플레이와 침착한 라인 컨트롤을 겸비한 커맨더형 센터백")
+        if aerial_pct >= 68.0 and goals >= 2: traits.append("🗼 공격 세트피스(코너킥) 상황에서 위협적인 헤더 타겟")
 
-    if "만능" in vers_str:
-        traits.append("🔄 경기 중 전술 변화에 맞춰 3개 이상 포지션 스위칭 가능")
-    elif "듀얼" in vers_str:
-        traits.append("🔄 주 포지션과 서브 포지션을 오가는 멀티 롤 소화")
-    if pk_goals >= 3:
-        traits.append(f"🎯 팀 내 전담 페널티킥(PK) 키커 수행 ({pk_goals}골 성공)")
-    if not traits:
-        traits.append("⚖️ 감독의 전술적 지시를 충실히 수행하는 팀 플레이어")
+    if "만능" in vers_str: traits.append("🔄 경기 중 전술 변화에 맞춰 3개 이상 포지션 스위칭 가능")
+    elif "듀얼" in vers_str: traits.append("🔄 주 포지션과 서브 포지션을 오가는 멀티 롤 소화")
+    if pk_goals >= 3: traits.append(f"🎯 팀 내 전담 페널티킥(PK) 키커 수행 ({pk_goals}골 성공)")
+    if not traits: traits.append("⚖️ 감독의 전술적 지시를 충실히 수행하는 팀 플레이어")
 
     pros = []
     if rating >= 7.40: pros.append(f"직전 시즌 리그 최정상급(월드클래스급) 퍼포먼스 입증 (★{rating:.2f})")
@@ -510,117 +316,65 @@ def generate_fm_scouting_features(
         if gk_claims >= 15: pros.append(f"골문 앞 공중볼 크로스 직접 차단 능력 우수 (공중볼 처리 {gk_claims}회)")
         if gk_errors == 0 and mins >= 1500: pros.append("시즌 내내 실점으로 직결된 치명적 실책(Error) 0회 기록")
     elif is_def_mid:
-        if duels_pct >= 63.0 and aerial_pct >= 63.0:
-            pros.append(f"지상({duels_pct:.1f}%)과 공중({aerial_pct:.1f}%) 모두 빈틈없는 완성형 경합 지배력")
-        elif duels_pct >= 63.0:
-            pros.append(f"1대1 지상 대인 방어 및 발밑 경합에서 매우 강한 면모 ({duels_pct:.1f}%)")
-        elif aerial_pct >= 64.0:
-            pros.append(f"세트피스 수비 및 롱볼 대응에 탁월한 공중볼 장악력 ({aerial_pct:.1f}%)")
-        if pass_pct >= 90.0:
-            pros.append(f"상대 압박 속에서도 흔들리지 않는 최상위권 패스 성공률 ({pass_pct:.1f}%)")
-        elif pass_pct >= 87.0:
-            pros.append(f"후방에서 안정적으로 볼을 배급하는 빌드업 정확도 ({pass_pct:.1f}%)")
+        if duels_pct >= 63.0 and aerial_pct >= 63.0: pros.append(f"지상({duels_pct:.1f}%)과 공중({aerial_pct:.1f}%) 모두 빈틈없는 완성형 경합 지배력")
+        elif duels_pct >= 63.0: pros.append(f"1대1 지상 대인 방어 및 발밑 경합에서 매우 강한 면모 ({duels_pct:.1f}%)")
+        elif aerial_pct >= 64.0: pros.append(f"세트피스 수비 및 롱볼 대응에 탁월한 공중볼 장악력 ({aerial_pct:.1f}%)")
+        if pass_pct >= 90.0: pros.append(f"상대 압박 속에서도 흔들리지 않는 최상위권 패스 성공률 ({pass_pct:.1f}%)")
+        elif pass_pct >= 87.0: pros.append(f"후방에서 안정적으로 볼을 배급하는 빌드업 정확도 ({pass_pct:.1f}%)")
         if p90_tkl >= 1.8:
             tkl_lbl = f"수비적 행동 {tackles}회" if is_def_act_mode else f"90분당 태클 {p90_tkl:.2f}회"
             pros.append(f"왕성한 수비 범위와 뛰어난 볼 탈취 생산성 ({tkl_lbl})")
-        if goals + assists >= 5:
-            pros.append(f"수비/중원 자원임에도 쏠쏠한 공격 포인트 생산 가담 ({goals}골 {assists}도움)")
+        if goals + assists >= 5: pros.append(f"수비/중원 자원임에도 쏠쏠한 공격 포인트 생산 가담 ({goals}골 {assists}도움)")
     else:
-        if p90_xg_xa >= 0.65:
-            pros.append(f"유럽 정상급 기대 공격포인트 생산력 (90분당 xG+xA {p90_xg_xa:.2f})")
-        elif p90_xg_xa >= 0.45:
-            pros.append(f"주전 공격 자원으로서 준수한 기회 생산성 (90분당 xG+xA {p90_xg_xa:.2f})")
-        if goals >= 6 and xg > 0 and (goals / xg) >= 1.15:
-            pros.append(f"기대득점(xG {xg:.1f})을 뛰어넘는 순도 높은 결정력 (실제 {goals}골)")
-        if pk_goals == 0 and goals >= 8:
-            pros.append(f"페널티킥(PK) 없이 100% 오픈플레이로만 만들어낸 순수 {goals}골 기록")
-        if sot_ratio >= 48.0 and shots >= 25:
-            pros.append(f"난사 없이 골문 안으로 꽂아 넣는 뛰어난 슈팅 영점 조준 (유효슈팅률 {sot_ratio:.1f}%)")
-        if big_chances >= 8 or (p90_chances >= 1.6):
-            pros.append(f"동료에게 결정적 1대1 찬스를 열어주는 기회 창출 능력 (기회창출 {chances}회 · 빅찬스 {big_chances}회)")
-        if p90_drib >= 1.5:
-            pros.append(f"밀집 수비를 균열내는 개인 전술 및 드리블 돌파력 (성공 {dribbles}회)")
+        if p90_xg_xa >= 0.65: pros.append(f"유럽 정상급 기대 공격포인트 생산력 (90분당 xG+xA {p90_xg_xa:.2f})")
+        elif p90_xg_xa >= 0.45: pros.append(f"주전 공격 자원으로서 준수한 기회 생산성 (90분당 xG+xA {p90_xg_xa:.2f})")
+        if goals >= 6 and xg > 0 and (goals / xg) >= 1.15: pros.append(f"기대득점(xG {xg:.1f})을 뛰어넘는 순도 높은 결정력 (실제 {goals}골)")
+        if pk_goals == 0 and goals >= 8: pros.append(f"페널티킥(PK) 없이 100% 오픈플레이로만 만들어낸 순수 {goals}골 기록")
+        if sot_ratio >= 48.0 and shots >= 25: pros.append(f"난사 없이 골문 안으로 꽂아 넣는 뛰어난 슈팅 영점 조준 (유효슈팅률 {sot_ratio:.1f}%)")
+        if big_chances >= 8 or (p90_chances >= 1.6): pros.append(f"동료에게 결정적 1대1 찬스를 열어주는 기회 창출 능력 (기회창출 {chances}회 · 빅찬스 {big_chances}회)")
+        if p90_drib >= 1.5: pros.append(f"밀집 수비를 균열내는 개인 전술 및 드리블 돌파력 (성공 {dribbles}회)")
 
-    if start_ratio >= 85.0 and mins >= 2300:
-        pros.append(f"직전 소속팀에서 검증된 붙박이 주전 신뢰도 및 풀타임 체력 ({mins:,}분 · 선발률 {start_ratio:.0f}%)")
-    elif "철강왕" in inj_str:
-        pros.append("직전 1년간 부상 공백이 거의 없는 뛰어난 메디컬 내구성 (철강왕)")
-    if overpay_pct <= -8.0:
-        pros.append(f"모델 산출 적정가 대비 매우 유리한 조건에 타결된 가성비 딜 ({overpay_pct:.1f}%)")
-    elif abs(overpay_pct) <= 5.0:
-        pros.append("거품 없는 합리적 시장 적정가 수준에서 성사된 영입")
-    if "UCL" in stage_str:
-        pros.append("챔피언스리그(UCL) 토너먼트 및 메이저 A매치 큰 무대 검증 완료")
-    if "홈그로운" in reg_str or "유스" in reg_str:
-        pros.append("구단 스쿼드 등록 및 엔트리 운영에 필수적인 홈그로운(HG) 프리미엄 보유")
-    if age <= 22:
-        pros.append(f"성장 포텐셜이 열려 있으며 향후 재판매(Resale) 가치 상승이 기대되는 연령대 (만 {age}세)")
-    elif 24 <= age <= 27:
-        pros.append(f"신체 능력과 경험이 정점에 달하는 전성기(Peak Age) 구간 진입 (만 {age}세)")
-
-    if not pros:
-        pros.append("팀 전술 운용 및 스쿼드 뎁스 강화에 즉시 활용 가능한 자원")
+    if start_ratio >= 85.0 and mins >= 2300: pros.append(f"직전 소속팀에서 검증된 붙박이 주전 신뢰도 및 풀타임 체력 ({mins:,}분 · 선발률 {start_ratio:.0f}%)")
+    elif "철강왕" in inj_str: pros.append("직전 1년간 부상 공백이 거의 없는 뛰어난 메디컬 내구성 (철강왕)")
+    if overpay_pct <= -8.0: pros.append(f"모델 산출 적정가 대비 매우 유리한 조건에 타결된 가성비 딜 ({overpay_pct:.1f}%)")
+    elif abs(overpay_pct) <= 5.0: pros.append("거품 없는 합리적 시장 적정가 수준에서 성사된 영입")
+    if "UCL" in stage_str: pros.append("챔피언스리그(UCL) 토너먼트 및 메이저 A매치 큰 무대 검증 완료")
+    if "홈그로운" in reg_str or "유스" in reg_str: pros.append("구단 스쿼드 등록 및 엔트리 운영에 필수적인 홈그로운(HG) 프리미엄 보유")
+    if age <= 22: pros.append(f"성장 포텐셜이 열려 있으며 향후 재판매(Resale) 가치 상승이 기대되는 연령대 (만 {age}세)")
+    elif 24 <= age <= 27: pros.append(f"신체 능력과 경험이 정점에 달하는 전성기(Peak Age) 구간 진입 (만 {age}세)")
+    if not pros: pros.append("팀 전술 운용 및 스쿼드 뎁스 강화에 즉시 활용 가능한 자원")
 
     cons = []
-    if overpay_pct >= 20.0:
-        cons.append(f"적정 가치 대비 과도한 오버페이 지출로 인한 재정적 부담 (+{overpay_pct:.1f}%)")
-    elif overpay_pct >= 10.0:
-        cons.append(f"셀링 클럽의 협상 우위로 인해 적정가 대비 다소 높은 프리미엄 지불 (+{overpay_pct:.1f}%)")
-
-    if "장기 부상" in inj_str:
-        cons.append("직전 1년 내 장기 부상 이력이 존재하여 철저한 메디컬 및 출전 시간 관리가 필수적임")
-    elif "잔부상" in inj_str:
-        cons.append("직전 시즌 간헐적인 근육/잔부상 결장 패턴이 있어 로테이션 백업 대비 필요")
-
-    if age >= 31:
-        cons.append(f"에이징 커브 하락세 진입 구간으로 계약 만료 시 이적료 회수(리세일)가 사실상 어려움 (만 {age}세)")
-    elif age >= 29 and not is_gk and not is_cb:
-        cons.append(f"기동력이 요구되는 포지션 특성상 2~3년 내 에이징 커브 도래 가능성 염두 (만 {age}세)")
-
-    if league_w <= 0.70:
-        cons.append("원소속 리그와의 템포·피지컬 격차가 커서 빅리그 압박 속도에 적응할 시간이 필요함")
-    elif league_w <= 0.80:
-        cons.append("상위 빅리그 스텝업에 따른 초기 공수 전환 템포 적응 변수 존재")
+    if overpay_pct >= 20.0: cons.append(f"적정 가치 대비 과도한 오버페이 지출로 인한 재정적 부담 (+{overpay_pct:.1f}%)")
+    elif overpay_pct >= 10.0: cons.append(f"셀링 클럽의 협상 우위로 인해 적정가 대비 다소 높은 프리미엄 지불 (+{overpay_pct:.1f}%)")
+    if "장기 부상" in inj_str: cons.append("직전 1년 내 장기 부상 이력이 존재하여 철저한 메디컬 및 출전 시간 관리가 필수적임")
+    elif "잔부상" in inj_str: cons.append("직전 시즌 간헐적인 근육/잔부상 결장 패턴이 있어 로테이션 백업 대비 필요")
+    if age >= 31: cons.append(f"에이징 커브 하락세 진입 구간으로 계약 만료 시 이적료 회수(리세일)가 사실상 어려움 (만 {age}세)")
+    elif age >= 29 and not is_gk and not is_cb: cons.append(f"기동력이 요구되는 포지션 특성상 2~3년 내 에이징 커브 도래 가능성 염두 (만 {age}세)")
+    if league_w <= 0.70: cons.append("원소속 리그와의 템포·피지컬 격차가 커서 빅리그 압박 속도에 적응할 시간이 필요함")
+    elif league_w <= 0.80: cons.append("상위 빅리그 스텝업에 따른 초기 공수 전환 템포 적응 변수 존재")
 
     if is_gk:
-        if gk_errors >= 2:
-            cons.append(f"간헐적으로 실점으로 직결되는 치명적인 미스 노출 이력 (골 실수 {gk_errors}회)")
-        if gk_prev < -1.0:
-            cons.append(f"기대 실점 대비 실제 실점이 많아 선방 안정감 개선 필요 ({gk_prev:+.2f})")
+        if gk_errors >= 2: cons.append(f"간헐적으로 실점으로 직결되는 치명적인 미스 노출 이력 (골 실수 {gk_errors}회)")
+        if gk_prev < -1.0: cons.append(f"기대 실점 대비 실제 실점이 많아 선방 안정감 개선 필요 ({gk_prev:+.2f})")
     elif is_def_mid:
-        if duels_pct >= 60.0 and aerial_pct < 52.0:
-            cons.append(f"지상 수비는 준수하나 공중볼 경합({aerial_pct:.1f}%)에서 약점을 보여 타겟맨 상대 시 주의 필요")
-        elif aerial_pct >= 60.0 and duels_pct < 52.0:
-            cons.append(f"제공권은 좋으나 발 빠른 드리블러 상대 지상 1대1 경합({duels_pct:.1f}%)에서 고전 경향")
-        elif duels_avg < 51.0:
-            cons.append(f"거친 중원·수비 몸싸움 및 대인 경합 승률 보완 필요 (평균 {duels_avg:.1f}%)")
-        if pass_pct < 80.0:
-            cons.append(f"강한 전방 압박을 받을 때 후방 패스 미스 리스크 존재 (패스 성공률 {pass_pct:.1f}%)")
+        if duels_pct >= 60.0 and aerial_pct < 52.0: cons.append(f"지상 수비는 준수하나 공중볼 경합({aerial_pct:.1f}%)에서 약점을 보여 타겟맨 상대 시 주의 필요")
+        elif aerial_pct >= 60.0 and duels_pct < 52.0: cons.append(f"제공권은 좋으나 발 빠른 드리블러 상대 지상 1대1 경합({duels_pct:.1f}%)에서 고전 경향")
+        elif duels_avg < 51.0: cons.append(f"거친 중원·수비 몸싸움 및 대인 경합 승률 보완 필요 (평균 {duels_avg:.1f}%)")
+        if pass_pct < 80.0: cons.append(f"강한 전방 압박을 받을 때 후방 패스 미스 리스크 존재 (패스 성공률 {pass_pct:.1f}%)")
     else:
-        if xg >= 5.0 and (goals / xg) < 0.78:
-            cons.append(f"좋은 위치선정으로 찬스(xG {xg:.1f})는 많이 잡으나 마무리 골 결정력({goals}골)에서 아쉬움 노출")
-        if shots >= 35 and sot_ratio < 32.0:
-            cons.append(f"슈팅 볼륨({shots}회) 대비 유효슈팅 연결 비율({sot_ratio:.1f}%)이 낮아 영점 조준 개선 필요")
-        if pk_share >= 35.0 and pk_goals >= 4:
-            cons.append(f"전체 득점({goals}골) 중 페널티킥 비중({pk_goals}골, {pk_share:.0f}%)이 높아 오픈플레이 득점력 검증 필요")
-        if duels_avg < 45.0:
-            cons.append(f"상대 수비수의 강한 피지컬 견제 시 볼 간수 및 경합 열세 ({duels_avg:.1f}%)")
+        if xg >= 5.0 and (goals / xg) < 0.78: cons.append(f"좋은 위치선정으로 찬스(xG {xg:.1f})는 많이 잡으나 마무리 골 결정력({goals}골)에서 아쉬움 노출")
+        if shots >= 35 and sot_ratio < 32.0: cons.append(f"슈팅 볼륨({shots}회) 대비 유효슈팅 연결 비율({sot_ratio:.1f}%)이 낮아 영점 조준 개선 필요")
+        if pk_share >= 35.0 and pk_goals >= 4: cons.append(f"전체 득점({goals}골) 중 페널티킥 비중({pk_goals}골, {pk_share:.0f}%)이 높아 오픈플레이 득점력 검증 필요")
+        if duels_avg < 45.0: cons.append(f"상대 수비수의 강한 피지컬 견제 시 볼 간수 및 경합 열세 ({duels_avg:.1f}%)")
 
-    if mins < 1400:
-        cons.append(f"직전 시즌 실전 출전 시간({mins:,}분)이 적어 풀타임 경기 감각 및 체력 검증 필요")
-    elif start_ratio < 60.0 and matches >= 15:
-        cons.append(f"붙박이 선발보다는 교체/로테이션 비중(선발률 {start_ratio:.0f}%)이 높았던 이력")
-
-    if "비EU" in reg_str:
-        cons.append("구단 내 제한된 비EU(Non-EU) 외국인 등록 쿼터를 1장 소모함")
-    if "패닉바이" in urg_str:
-        cons.append("구단의 급박한 상황에서 추진된 영입으로 오버페이 및 전술 융화 리스크 내포")
-
-    if not cons:
-        cons.append("스탯과 계약 조건 모두 뚜렷한 결격 사유가 없는 로우 리스크(Low-Risk) 영입")
+    if mins < 1400: cons.append(f"직전 시즌 실전 출전 시간({mins:,}분)이 적어 풀타임 경기 감각 및 체력 검증 필요")
+    elif start_ratio < 60.0 and matches >= 15: cons.append(f"붙박이 선발보다는 교체/로테이션 비중(선발률 {start_ratio:.0f}%)이 높았던 이력")
+    if "비EU" in reg_str: cons.append("구단 내 제한된 비EU(Non-EU) 외국인 등록 쿼터를 1장 소모함")
+    if "패닉바이" in urg_str: cons.append("구단의 급박한 상황에서 추진된 영입으로 오버페이 및 전술 융화 리스크 내포")
+    if not cons: cons.append("스탯과 계약 조건 모두 뚜렷한 결격 사유가 없는 로우 리스크(Low-Risk) 영입")
 
     return traits[:4], pros[:4], cons[:3]
-
 
 def build_svg_donut_ring(score, max_score=10.0, color="#10B981", sub_label="DEAL SCORE", size=112):
     r = 44
@@ -629,331 +383,142 @@ def build_svg_donut_ring(score, max_score=10.0, color="#10B981", sub_label="DEAL
     dash = pct * c
     val_disp = f"★{score:.2f}" if max_score == 10.0 else f"{score:.1f}%"
     clean_col_id = color.replace("#", "")
-    return f"""
-    <svg width="{size}" height="{size}" viewBox="0 0 110 110" style="display:block; margin:0 auto; overflow:visible;">
-        <defs>
-            <filter id="ringGlow_{clean_col_id}" x="-20%" y="-20%" width="140%" height="140%">
-                <feDropShadow dx="0" dy="0" stdDeviation="3.5" flood-color="{color}" flood-opacity="0.65"/>
-            </filter>
-        </defs>
-        <circle cx="55" cy="55" r="{r}" fill="rgba(15,23,42,0.85)" stroke="#1E293B" stroke-width="8"/>
-        <circle cx="55" cy="55" r="{r}" fill="none" stroke="{color}" stroke-width="8"
-                stroke-linecap="round" stroke-dasharray="{dash:.1f} {c:.1f}"
-                transform="rotate(-90 55 55)" filter="url(#ringGlow_{clean_col_id})"/>
-        <text x="55" y="49" text-anchor="middle" fill="#FFFFFF" font-size="20" font-weight="900" font-family="Pretendard, sans-serif">{val_disp}</text>
-        <text x="55" y="68" text-anchor="middle" fill="{color}" font-size="9.5" font-weight="800" letter-spacing="0.5">{sub_label}</text>
-    </svg>
-    """
+    return f'<svg width="{size}" height="{size}" viewBox="0 0 110 110" style="display:block; margin:0 auto; overflow:visible;"><defs><filter id="ringGlow_{clean_col_id}" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="0" stdDeviation="3.5" flood-color="{color}" flood-opacity="0.65"/></filter></defs><circle cx="55" cy="55" r="{r}" fill="rgba(15,23,42,0.85)" stroke="#1E293B" stroke-width="8"/><circle cx="55" cy="55" r="{r}" fill="none" stroke="{color}" stroke-width="8" stroke-linecap="round" stroke-dasharray="{dash:.1f} {c:.1f}" transform="rotate(-90 55 55)" filter="url(#ringGlow_{clean_col_id})"/><text x="55" y="49" text-anchor="middle" fill="#FFFFFF" font-size="20" font-weight="900" font-family="Pretendard, sans-serif">{val_disp}</text><text x="55" y="68" text-anchor="middle" fill="{color}" font-size="9.5" font-weight="800" letter-spacing="0.5">{sub_label}</text></svg>'
 
 def build_svg_radar(labels, values_a, color_a="#38BDF8", values_b=None, color_b="#F97316", size=335):
-    cx, cy = size / 2, size / 2
-    max_r = size * 0.285
-    n = len(labels)
+    cx, cy, max_r, n = size / 2, size / 2, size * 0.285, len(labels)
     bg_circles = f'<circle cx="{cx}" cy="{cy}" r="{max_r}" fill="rgba(15, 23, 42, 0.75)" stroke="#1E293B" stroke-width="1.5"/>'
-
     grid_svg = ""
     for idx_l, level in enumerate([0.25, 0.50, 0.75, 1.0]):
         r = max_r * level
-        pts = []
-        for i in range(n):
-            ang = -math.pi / 2 + i * (2 * math.pi / n)
-            pts.append(f"{cx + r * math.cos(ang):.1f},{cy + r * math.sin(ang):.1f}")
-        stroke_col = "#334155" if level < 1.0 else "#475569"
-        fill_col = "rgba(30, 41, 59, 0.22)" if idx_l % 2 == 0 else "none"
-        dash_attr = "3,3" if level < 1.0 else "none"
-        grid_svg += f'<polygon points="{" ".join(pts)}" fill="{fill_col}" stroke="{stroke_col}" stroke-width="1.2" stroke-dasharray="{dash_attr}"/>'
-
-    axes_svg = ""
-    for i in range(n):
-        ang = -math.pi / 2 + i * (2 * math.pi / n)
-        x2 = cx + max_r * math.cos(ang)
-        y2 = cy + max_r * math.sin(ang)
-        axes_svg += f'<line x1="{cx}" y1="{cy}" x2="{x2:.1f}" y2="{y2:.1f}" stroke="#334155" stroke-width="1.2"/>'
-
-    defs_svg = f"""
-    <defs>
-        <filter id="radarGlowA" x="-20%" y="-20%" width="140%" height="140%">
-            <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="{color_a}" flood-opacity="0.55"/>
-        </filter>
-        <linearGradient id="gradPolyA" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stop-color="{color_a}" stop-opacity="0.52"/>
-            <stop offset="100%" stop-color="{color_a}" stop-opacity="0.18"/>
-        </linearGradient>
-        <linearGradient id="gradPolyB" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stop-color="{color_b}" stop-opacity="0.48"/>
-            <stop offset="100%" stop-color="{color_b}" stop-opacity="0.15"/>
-        </linearGradient>
-    </defs>
-    """
+        pts = [f"{cx + r * math.cos(-math.pi / 2 + i * (2 * math.pi / n)):.1f},{cy + r * math.sin(-math.pi / 2 + i * (2 * math.pi / n)):.1f}" for i in range(n)]
+        grid_svg += f'<polygon points="{" ".join(pts)}" fill="{"rgba(30, 41, 59, 0.22)" if idx_l % 2 == 0 else "none"}" stroke="{"#334155" if level < 1.0 else "#475569"}" stroke-width="1.2" stroke-dasharray="{"3,3" if level < 1.0 else "none"}"/>'
+    axes_svg = "".join([f'<line x1="{cx}" y1="{cy}" x2="{cx + max_r * math.cos(-math.pi / 2 + i * (2 * math.pi / n)):.1f}" y2="{cy + max_r * math.sin(-math.pi / 2 + i * (2 * math.pi / n)):.1f}" stroke="#334155" stroke-width="1.2"/>' for i in range(n)])
+    defs_svg = f'<defs><filter id="radarGlowA" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="{color_a}" flood-opacity="0.55"/></filter><linearGradient id="gradPolyA" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="{color_a}" stop-opacity="0.52"/><stop offset="100%" stop-color="{color_a}" stop-opacity="0.18"/></linearGradient><linearGradient id="gradPolyB" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="{color_b}" stop-opacity="0.48"/><stop offset="100%" stop-color="{color_b}" stop-opacity="0.15"/></linearGradient></defs>'
 
     def make_poly(vals, stroke_c, grad_id, use_glow=False):
-        pts = []
-        dots = ""
+        pts, dots = [], ""
         for i, v in enumerate(vals):
             ang = -math.pi / 2 + i * (2 * math.pi / n)
-            norm = max(0.15, min(1.0, (v - 40) / 60.0))
-            r = max_r * norm
-            px = cx + r * math.cos(ang)
-            py = cy + r * math.sin(ang)
+            r = max_r * max(0.15, min(1.0, (v - 40) / 60.0))
+            px, py = cx + r * math.cos(ang), cy + r * math.sin(ang)
             pts.append(f"{px:.1f},{py:.1f}")
-            dots += (
-                f'<circle cx="{px:.1f}" cy="{py:.1f}" r="6.5" fill="{stroke_c}" fill-opacity="0.3"/>'
-                f'<circle cx="{px:.1f}" cy="{py:.1f}" r="4" fill="#FFFFFF" stroke="{stroke_c}" stroke-width="2.5"/>'
-            )
-        flt = 'filter="url(#radarGlowA)"' if use_glow else ''
-        poly = f'<polygon points="{" ".join(pts)}" fill="url(#{grad_id})" stroke="{stroke_c}" stroke-width="2.8" {flt}/>'
-        return poly + dots
+            dots += f'<circle cx="{px:.1f}" cy="{py:.1f}" r="6.5" fill="{stroke_c}" fill-opacity="0.3"/><circle cx="{px:.1f}" cy="{py:.1f}" r="4" fill="#FFFFFF" stroke="{stroke_c}" stroke-width="2.5"/>'
+        return f'<polygon points="{" ".join(pts)}" fill="url(#{grad_id})" stroke="{stroke_c}" stroke-width="2.8" {"filter=\"url(#radarGlowA)\"" if use_glow else ""}/>' + dots
 
-    poly_svg = make_poly(values_a, color_a, "gradPolyA", use_glow=True)
-    if values_b is not None:
-        poly_svg += make_poly(values_b, color_b, "gradPolyB", use_glow=False)
-
+    poly_svg = make_poly(values_a, color_a, "gradPolyA", use_glow=True) + (make_poly(values_b, color_b, "gradPolyB", use_glow=False) if values_b is not None else "")
     labels_svg = ""
     for i, lbl in enumerate(labels):
         ang = -math.pi / 2 + i * (2 * math.pi / n)
-        lr = max_r + 39
-        lx = cx + lr * math.cos(ang)
-        ly = cy + lr * math.sin(ang)
+        lx, ly = cx + (max_r + 39) * math.cos(ang), cy + (max_r + 39) * math.sin(ang)
         val_txt = f"{values_a[i]}점" if values_b is None else f"A:{values_a[i]} · B:{values_b[i]}"
-        badge_w = 54 if values_b is None else 78
-        badge_col = color_a if values_b is None else "#FBBF24"
-        labels_svg += (
-            f'<text x="{lx:.1f}" y="{ly - 9:.1f}" fill="#F8FAFC" font-size="11.5" font-weight="800" text-anchor="middle" dominant-baseline="central">{lbl}</text>'
-            f'<rect x="{lx - badge_w/2:.1f}" y="{ly + 1:.1f}" width="{badge_w}" height="17" rx="8.5" fill="#0F172A" stroke="{badge_col}" stroke-width="1.2"/>'
-            f'<text x="{lx:.1f}" y="{ly + 9.5:.1f}" fill="{badge_col}" font-size="10.5" font-weight="900" text-anchor="middle" dominant-baseline="central">{val_txt}</text>'
-        )
-
+        badge_w, badge_col = (54 if values_b is None else 78), (color_a if values_b is None else "#FBBF24")
+        labels_svg += f'<text x="{lx:.1f}" y="{ly - 9:.1f}" fill="#F8FAFC" font-size="11.5" font-weight="800" text-anchor="middle" dominant-baseline="central">{lbl}</text><rect x="{lx - badge_w/2:.1f}" y="{ly + 1:.1f}" width="{badge_w}" height="17" rx="8.5" fill="#0F172A" stroke="{badge_col}" stroke-width="1.2"/><text x="{lx:.1f}" y="{ly + 9.5:.1f}" fill="{badge_col}" font-size="10.5" font-weight="900" text-anchor="middle" dominant-baseline="central">{val_txt}</text>'
     return f'<svg viewBox="0 0 {size} {size}" width="100%" height="{size}px" style="overflow:visible; display:block; margin:0 auto;">{defs_svg}{bg_circles}{grid_svg}{axes_svg}{poly_svg}{labels_svg}</svg>'
-
 
 def build_tactical_pitch_html(team_in_df):
     zones = {"ST": [], "WG": [], "CM": [], "FB": [], "CB": [], "GK": []}
     if not team_in_df.empty:
         for _, r in team_in_df.iterrows():
-            p_name = str(r.get("선수명", ""))
-            p_pos = str(r.get("포지션", ""))
-            p_fee = float(r.get("실제이적료(만€)", 0))
-            p_sc = float(r.get("이적평점", 7.5))
+            p_name, p_pos = str(r.get("선수명", "")), str(r.get("포지션", ""))
+            p_fee, p_sc = float(r.get("실제이적료(만€)", 0)), float(r.get("이적평점", 7.5))
             from_t = str(r.get("원소속팀명", "")).strip()
             f_logo = resolve_club_logo(from_t)
             f_img = f"<img src='{f_logo}' style='width:13px; height:13px; object-fit:contain; vertical-align:middle; margin-right:3px;'/>" if f_logo else ""
-            chip = (
-                f"<div style='background:rgba(9,13,22,0.92); border:1.5px solid #38BDF8; border-radius:8px; "
-                f"padding:5px 10px; margin:3px; display:inline-block; text-align:center; box-shadow:0 4px 10px rgba(0,0,0,0.5);'>"
-                f"<div style='font-size:12px; font-weight:900; color:#FFFFFF;'>{f_img}{p_name}</div>"
-                f"<div style='font-size:10px; color:#34D399; font-weight:700;'>€{p_fee:,.0f}만 · ★{p_sc:.2f}</div></div>"
-            )
-            if any(k in p_pos for k in ["스트라이커", "센터포워드", "ST", "CF"]):
-                zones["ST"].append(chip)
-            elif any(k in p_pos for k in ["윙어", "공격형", "WG", "CAM"]):
-                zones["WG"].append(chip)
-            elif any(k in p_pos for k in ["중앙", "수비형", "미드필더", "CM", "CDM"]):
-                zones["CM"].append(chip)
-            elif any(k in p_pos for k in ["풀백", "윙백", "RB", "LB", "WB"]):
-                zones["FB"].append(chip)
-            elif any(k in p_pos for k in ["골키퍼", "GK"]):
-                zones["GK"].append(chip)
-            else:
-                zones["CB"].append(chip)
+            chip = f"<div style='background:rgba(9,13,22,0.92); border:1.5px solid #38BDF8; border-radius:8px; padding:5px 10px; margin:3px; display:inline-block; text-align:center; box-shadow:0 4px 10px rgba(0,0,0,0.5);'><div style='font-size:12px; font-weight:900; color:#FFFFFF;'>{f_img}{p_name}</div><div style='font-size:10px; color:#34D399; font-weight:700;'>{fmt_tm_kor(p_fee)} · ★{p_sc:.2f}</div></div>"
+            if any(k in p_pos for k in ["스트라이커", "센터포워드", "ST", "CF"]): zones["ST"].append(chip)
+            elif any(k in p_pos for k in ["윙어", "공격형", "WG", "CAM"]): zones["WG"].append(chip)
+            elif any(k in p_pos for k in ["중앙", "수비형", "미드필더", "CM", "CDM"]): zones["CM"].append(chip)
+            elif any(k in p_pos for k in ["풀백", "윙백", "RB", "LB", "WB"]): zones["FB"].append(chip)
+            elif any(k in p_pos for k in ["골키퍼", "GK"]): zones["GK"].append(chip)
+            else: zones["CB"].append(chip)
 
     def z_html(key, label):
         items = "".join(zones[key]) if zones[key] else f"<span style='font-size:11px; color:rgba(255,255,255,0.35);'>{label} 영입 없음</span>"
         return f"<div style='text-align:center; padding:6px;'><div style='font-size:10px; font-weight:800; color:#A7F3D0; letter-spacing:0.5px; margin-bottom:2px;'>[{label}]</div>{items}</div>"
 
-    return f"""
-    <div style="background:linear-gradient(180deg, #064E3B 0%, #047857 50%, #064E3B 100%); border:2px solid rgba(255,255,255,0.45); border-radius:14px; padding:14px; position:relative; box-shadow:inset 0 0 30px rgba(0,0,0,0.45);">
-        <div style="border:1.5px solid rgba(255,255,255,0.28); border-radius:10px; padding:10px;">
-            {z_html("ST", "ST / CF 최전방 스트라이커")}
-            <hr style="border:0; border-top:1px dashed rgba(255,255,255,0.22); margin:6px 0;">
-            {z_html("WG", "WG / CAM 2선 윙어 · 공격형 미드필더")}
-            <hr style="border:0; border-top:1.5px solid rgba(255,255,255,0.35); margin:8px 0;">
-            {z_html("CM", "CM / CDM 3선 중원 · 수비형 미드필더")}
-            <hr style="border:0; border-top:1px dashed rgba(255,255,255,0.22); margin:6px 0;">
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
-                {z_html("FB", "RB / LB / WB 측면 풀백·윙백")}
-                {z_html("CB", "CB 중앙 센터백")}
-            </div>
-            <hr style="border:0; border-top:1px dashed rgba(255,255,255,0.22); margin:6px 0;">
-            {z_html("GK", "GK 골키퍼")}
-        </div>
-    </div>
-    """
-
+    return f'<div style="background:linear-gradient(180deg, #064E3B 0%, #047857 50%, #064E3B 100%); border:2px solid rgba(255,255,255,0.45); border-radius:14px; padding:14px; position:relative; box-shadow:inset 0 0 30px rgba(0,0,0,0.45);"><div style="border:1.5px solid rgba(255,255,255,0.28); border-radius:10px; padding:10px;">{z_html("ST", "ST / CF 최전방 스트라이커")}<hr style="border:0; border-top:1px dashed rgba(255,255,255,0.22); margin:6px 0;">{z_html("WG", "WG / CAM 2선 윙어 · 공격형 미드필더")}<hr style="border:0; border-top:1.5px solid rgba(255,255,255,0.35); margin:8px 0;">{z_html("CM", "CM / CDM 3선 중원 · 수비형 미드필더")}<hr style="border:0; border-top:1px dashed rgba(255,255,255,0.22); margin:6px 0;"><div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">{z_html("FB", "RB / LB / WB 측면 풀백·윙백")}{z_html("CB", "CB 중앙 센터백")}</div><hr style="border:0; border-top:1px dashed rgba(255,255,255,0.22); margin:6px 0;">{z_html("GK", "GK 골키퍼")}</div></div>'
 
 def render_copyable_infographic(card_inner_html, filename="scouting_infographic", height=880):
-    full_doc = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-    <meta charset="utf-8">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    full_doc = f"""<!DOCTYPE html><html><head><meta charset="utf-8"><script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
         @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
-        * {{
-            box-sizing: border-box;
-            font-family: 'Pretendard', 'Malgun Gothic', -apple-system, BlinkMacSystemFont, sans-serif;
-            word-break: keep-all;
-            overflow-wrap: break-word;
-            -webkit-font-smoothing: antialiased;
-        }}
+        * {{ box-sizing: border-box; font-family: 'Pretendard', 'Malgun Gothic', sans-serif; word-break: keep-all; overflow-wrap: break-word; -webkit-font-smoothing: antialiased; }}
         body {{ margin: 0; padding: 6px; background: transparent; color: #F8FAFC; }}
-        .top-action-bar {{
-            display: flex; gap: 10px; margin-bottom: 14px;
-            background: linear-gradient(90deg, #090D16 0%, #1E293B 100%);
-            padding: 10px 14px; border-radius: 14px;
-            border: 1px solid rgba(56, 189, 248, 0.5);
-            align-items: center; justify-content: space-between;
-            box-shadow: 0 8px 20px rgba(0,0,0,0.45);
-        }}
-        .btn-copy-img {{
-            flex: 1;
-            background: linear-gradient(135deg, #0284C7 0%, #2563EB 50%, #4F46E5 100%);
-            color: #FFFFFF; border: 1px solid rgba(125, 211, 252, 0.6);
-            padding: 13px 20px; border-radius: 10px;
-            font-size: 14.5px; font-weight: 800; cursor: pointer;
-            transition: all 0.2s ease; text-align: center;
-            box-shadow: 0 4px 15px rgba(37, 99, 235, 0.45);
-        }}
-        .btn-copy-img:hover {{ filter: brightness(1.12); transform: translateY(-1px); }}
-        .btn-save-img {{
-            background: rgba(30, 41, 59, 0.9); color: #E2E8F0;
-            border: 1px solid #475569; padding: 13px 18px;
-            border-radius: 10px; font-size: 13.5px; font-weight: 700; cursor: pointer;
-        }}
-        .btn-save-img:hover {{ background: #334155; color: #FFFFFF; }}
-        #capture-board {{
-            position: relative; background-color: #060911;
-            background-image: 
-                radial-gradient(at 0% 0%, rgba(56, 189, 248, 0.14) 0px, transparent 45%),
-                radial-gradient(at 100% 0%, rgba(168, 85, 247, 0.12) 0px, transparent 45%),
-                radial-gradient(at 50% 100%, rgba(16, 185, 129, 0.10) 0px, transparent 50%),
-                radial-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px);
-            background-size: 100% 100%, 100% 100%, 100% 100%, 20px 20px;
-            border: 1.5px solid rgba(148, 163, 184, 0.25);
-            border-radius: 22px; padding: 26px;
-            box-shadow: 0 22px 48px rgba(0, 0, 0, 0.7); overflow: hidden;
-        }}
-        .glass-panel {{
-            background: rgba(15, 23, 42, 0.78); backdrop-filter: blur(12px);
-            border: 1px solid rgba(148, 163, 184, 0.16); border-radius: 16px;
-            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
-        }}
-        .kpi-card {{
-            background: linear-gradient(180deg, rgba(30, 41, 59, 0.55) 0%, rgba(15, 23, 42, 0.85) 100%);
-            border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 14px;
-            padding: 14px 12px; text-align: center; box-shadow: 0 6px 16px rgba(0,0,0,0.25);
-        }}
-        .brand-footer {{
-            margin-top: 16px; padding-top: 10px;
-            border-top: 1px solid rgba(148, 163, 184, 0.14);
-            display: flex; justify-content: space-between; align-items: center;
-            font-size: 10.5px; color: #64748B; font-weight: 600; letter-spacing: 0.4px;
-        }}
-    </style>
-    </head>
-    <body>
+        .top-action-bar {{ display: flex; gap: 10px; margin-bottom: 14px; background: linear-gradient(90deg, #090D16 0%, #1E293B 100%); padding: 10px 14px; border-radius: 14px; border: 1px solid rgba(56, 189, 248, 0.5); align-items: center; justify-content: space-between; box-shadow: 0 8px 20px rgba(0,0,0,0.45); }}
+        .btn-copy-img {{ flex: 1; background: linear-gradient(135deg, #0284C7 0%, #2563EB 50%, #4F46E5 100%); color: #FFFFFF; border: 1px solid rgba(125, 211, 252, 0.6); padding: 13px 20px; border-radius: 10px; font-size: 14.5px; font-weight: 800; cursor: pointer; text-align: center; box-shadow: 0 4px 15px rgba(37, 99, 235, 0.45); }}
+        .btn-save-img {{ background: rgba(30, 41, 59, 0.9); color: #E2E8F0; border: 1px solid #475569; padding: 13px 18px; border-radius: 10px; font-size: 13.5px; font-weight: 700; cursor: pointer; }}
+        #capture-board {{ position: relative; background-color: #060911; background-image: radial-gradient(at 0% 0%, rgba(56, 189, 248, 0.14) 0px, transparent 45%), radial-gradient(at 100% 0%, rgba(168, 85, 247, 0.12) 0px, transparent 45%), radial-gradient(at 50% 100%, rgba(16, 185, 129, 0.10) 0px, transparent 50%), radial-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px); background-size: 100% 100%, 100% 100%, 100% 100%, 20px 20px; border: 1.5px solid rgba(148, 163, 184, 0.25); border-radius: 22px; padding: 26px; box-shadow: 0 22px 48px rgba(0, 0, 0, 0.7); overflow: hidden; }}
+        .glass-panel {{ background: rgba(15, 23, 42, 0.78); backdrop-filter: blur(12px); border: 1px solid rgba(148, 163, 184, 0.16); border-radius: 16px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08); }}
+        .kpi-card {{ background: linear-gradient(180deg, rgba(30, 41, 59, 0.55) 0%, rgba(15, 23, 42, 0.85) 100%); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 14px; padding: 14px 12px; text-align: center; box-shadow: 0 6px 16px rgba(0,0,0,0.25); }}
+        .brand-footer {{ margin-top: 16px; padding-top: 10px; border-top: 1px solid rgba(148, 163, 184, 0.14); display: flex; justify-content: space-between; align-items: center; font-size: 10.5px; color: #64748B; font-weight: 600; letter-spacing: 0.4px; }}
+    </style></head><body>
         <div class="top-action-bar">
-            <button id="copyBtn" class="btn-copy-img" onclick="copyBoardAsImage()">
-                📸 블로그 / 카페용 초고화질 인포그래픽 이미지 한 번에 복사하기 (클릭 후 Ctrl+V 붙여넣기)
-            </button>
-            <button class="btn-save-img" onclick="downloadBoardAsPNG()">
-                💾 고해상도 PNG 저장
-            </button>
+            <button id="copyBtn" class="btn-copy-img" onclick="copyBoardAsImage()">📸 블로그 / 카페용 초고화질 인포그래픽 이미지 한 번에 복사하기 (클릭 후 Ctrl+V 붙여넣기)</button>
+            <button class="btn-save-img" onclick="downloadBoardAsPNG()">💾 고해상도 PNG 저장</button>
         </div>
-        <div id="capture-board">
-            {card_inner_html}
-            <div class="brand-footer">
-                <span>⚽ PRO FOOTBALL SCOUTING & VALUATION ANALYTICS (V9 ULTRA EDITION)</span>
-                <span>DATA SOURCE: TRANSFERMARKT · FOTMOB · 12-FACTOR PROPRIETARY MODEL</span>
-            </div>
-        </div>
+        <div id="capture-board">{card_inner_html}<div class="brand-footer"><span>⚽ PRO FOOTBALL SCOUTING & VALUATION ANALYTICS (V9 ULTRA EDITION)</span><span>DATA SOURCE: TRANSFERMARKT · FOTMOB · 12-FACTOR PROPRIETARY MODEL</span></div></div>
         <script>
         async function copyBoardAsImage() {{
-            const btn = document.getElementById('copyBtn');
-            const origText = btn.innerHTML;
-            btn.innerHTML = '⏳ 3배율(Ultra-HD) 고화질 그래픽 이미지를 생성하여 클립보드에 복사 중입니다...';
-            btn.style.background = '#059669';
+            const btn = document.getElementById('copyBtn'); const origText = btn.innerHTML;
+            btn.innerHTML = '⏳ 3배율(Ultra-HD) 고화질 그래픽 이미지를 생성하여 클립보드에 복사 중입니다...'; btn.style.background = '#059669';
             try {{
-                const el = document.getElementById('capture-board');
-                const canvas = await html2canvas(el, {{ scale: 3.0, backgroundColor: '#060911', useCORS: true, logging: false }});
+                const canvas = await html2canvas(document.getElementById('capture-board'), {{ scale: 3.0, backgroundColor: '#060911', useCORS: true, logging: false }});
                 canvas.toBlob(async function(blob) {{
                     try {{
-                        const item = new ClipboardItem({{ 'image/png': blob }});
-                        await navigator.clipboard.write([item]);
-                        btn.innerHTML = '✅ 초고화질 이미지 복사 완료! 지금 블로그/카페 글쓰기 창에 붙여넣기(Ctrl+V) 하세요!';
-                        btn.style.background = '#10B981';
+                        await navigator.clipboard.write([new ClipboardItem({{ 'image/png': blob }})]);
+                        btn.innerHTML = '✅ 초고화질 이미지 복사 완료! 지금 블로그/카페 글쓰기 창에 붙여넣기(Ctrl+V) 하세요!'; btn.style.background = '#10B981';
                         setTimeout(() => {{ btn.innerHTML = origText; btn.style.background = 'linear-gradient(135deg, #0284C7 0%, #2563EB 50%, #4F46E5 100%)'; }}, 4000);
                     }} catch (err) {{
-                        const link = document.createElement('a');
-                        link.download = '{filename}.png';
-                        link.href = canvas.toDataURL('image/png');
-                        link.click();
+                        const link = document.createElement('a'); link.download = '{filename}.png'; link.href = canvas.toDataURL('image/png'); link.click();
                         btn.innerHTML = '📥 브라우저 보안 정책으로 인해 초고화질 PNG 파일로 즉시 다운로드되었습니다!';
                         setTimeout(() => {{ btn.innerHTML = origText; btn.style.background = 'linear-gradient(135deg, #0284C7 0%, #2563EB 50%, #4F46E5 100%)'; }}, 4000);
                     }}
                 }}, 'image/png');
-            }} catch (e) {{
-                btn.innerHTML = '⚠️ 복사 오류: 우측 고해상도 PNG 저장 버튼을 눌러주세요.';
-            }}
+            }} catch (e) {{ btn.innerHTML = '⚠️ 복사 오류: 우측 고해상도 PNG 저장 버튼을 눌러주세요.'; }}
         }}
         async function downloadBoardAsPNG() {{
-            const el = document.getElementById('capture-board');
-            const canvas = await html2canvas(el, {{ scale: 3.0, backgroundColor: '#060911', useCORS: true, logging: false }});
-            const link = document.createElement('a');
-            link.download = '{filename}.png';
-            link.href = canvas.toDataURL('image/png');
-            link.click();
+            const canvas = await html2canvas(document.getElementById('capture-board'), {{ scale: 3.0, backgroundColor: '#060911', useCORS: true, logging: false }});
+            const link = document.createElement('a'); link.download = '{filename}.png'; link.href = canvas.toDataURL('image/png'); link.click();
         }}
-        </script>
-    </body>
-    </html>
-    """
+        </script></body></html>"""
     components.html(full_doc, height=height, scrolling=True)
 
-
-# 사이드바: 실시간 환율 설정 + 구단 로고 사전 관리/수정 + 영국/국내 금액 변환기
 with st.sidebar:
     st.markdown("### 💱 실시간 환율 기준 설정")
-    st.caption("이적시장 시점의 실제 환율에 맞게 조정할 수 있습니다.")
     rate_krw = st.number_input("1 유로(€) 당 원화(₩) 환율", min_value=1000, max_value=2500, value=1500, step=10, key="sb_rate_krw")
     rate_gbp = st.number_input("1 유로(€) 당 파운드(£) 환율", min_value=0.50, max_value=1.20, value=0.86, step=0.01, format="%.2f", key="sb_rate_gbp")
-
     st.markdown("---")
     st.markdown("### 🛡️ 구단 로고 사전 조회 & 수정")
     st.caption(f"구글 드라이브 폴더 자동 인식 구단: **{len(scanned_drive_logos)}개**")
     if st.button("🔄 드라이브 로고 폴더 새로고침", use_container_width=True, key="sb_refresh_drive_btn"):
         st.cache_data.clear()
         st.rerun()
-
     with st.expander("구단 로고 직접 확인 / 변경하기", expanded=False):
         known_clubs = sorted(list(st.session_state["custom_club_logos"].keys()))
-        sel_club_edit = st.selectbox("등록된 구단 확인 (또는 아래에 직접 입력)", ["+ 새 구단 직접 입력"] + known_clubs, key="sb_logo_sel")
-        target_club_key = st.text_input("구단명 입력", value="" if sel_club_edit == "+ 새 구단 직접 입력" else sel_club_edit, placeholder="예: 아스날", key="sb_logo_name")
+        sel_club_edit = st.selectbox("등록된 구단 확인", ["+ 새 구단 직접 입력"] + known_clubs, key="sb_logo_sel")
+        target_club_key = st.text_input("구단명 입력", value="" if sel_club_edit == "+ 새 구단 직접 입력" else sel_club_edit, key="sb_logo_name")
         curr_logo_val = st.session_state["custom_club_logos"].get(target_club_key.strip(), "")
-        new_logo_val = st.text_input("구단 로고 (구글 드라이브 공유 링크 등)", value=curr_logo_val, placeholder="https://drive.google.com/file/d/...", key="sb_logo_url")
+        new_logo_val = st.text_input("구단 로고 링크", value=curr_logo_val, key="sb_logo_url")
         if curr_logo_val:
             preview_b64 = url_to_base64_img(curr_logo_val)
-            if preview_b64:
-                st.markdown(f"<div style='text-align:center; padding:6px; background:#0F172A; border-radius:8px;'><img src='{preview_b64}' style='height:48px; object-fit:contain;'/></div>", unsafe_allow_html=True)
+            if preview_b64: st.markdown(f"<div style='text-align:center; padding:6px; background:#0F172A; border-radius:8px;'><img src='{preview_b64}' style='height:48px; object-fit:contain;'/></div>", unsafe_allow_html=True)
         if st.button("💾 구단 로고 사전에 저장/수정", use_container_width=True, key="sb_logo_save_btn"):
             if target_club_key.strip() and new_logo_val.strip():
                 st.session_state["custom_club_logos"][target_club_key.strip()] = new_logo_val.strip()
                 st.cache_data.clear()
-                st.success(f"✅ '{target_club_key.strip()}' 로고가 업데이트되었습니다!")
                 st.rerun()
-
     st.markdown("---")
     st.markdown("### 🧮 영국/국내 보도 금액 변환기")
     conv_gbp_m = st.number_input("파운드 이적료 (£m, 백만 파운드)", min_value=0.0, value=0.0, step=1.0, key="sb_conv_gbp_m")
     if conv_gbp_m > 0:
         eur_man_from_gbp = int(round((conv_gbp_m * 100.0) / rate_gbp))
-        st.info(f"➔ **`{eur_man_from_gbp:,}` 만 유로 (€)**")
+        st.info(f"➔ **{fmt_tm_kor(eur_man_from_gbp)}**")
         if st.button("실제 이적료 칸에 바로 적용", use_container_width=True, key="apply_gbp_fee"):
             if "current_form" in st.session_state:
                 st.session_state["current_form"]["fee"] = eur_man_from_gbp
                 st.session_state["form_key_id"] += 1
                 st.rerun()
-
     conv_gbp_k = st.number_input("파운드 주급 (£k/주, 천 파운드)", min_value=0.0, value=0.0, step=5.0, key="sb_conv_gbp_k")
     if conv_gbp_k > 0:
         eur_man_wage_from_gbp = round((conv_gbp_k / 10.0) / rate_gbp, 1)
@@ -963,68 +528,35 @@ with st.sidebar:
                 st.session_state["current_form"]["wage"] = eur_man_wage_from_gbp
                 st.session_state["form_key_id"] += 1
                 st.rerun()
-
     conv_krw_eok = st.number_input("원화 이적료 (억원)", min_value=0.0, value=0.0, step=10.0, key="sb_conv_krw")
     if conv_krw_eok > 0:
         eur_man_from_krw = int(round((conv_krw_eok * 100000000.0) / (rate_krw * 10000.0)))
-        st.info(f"➔ **`{eur_man_from_krw:,}` 만 유로 (€)**")
+        st.info(f"➔ **{fmt_tm_kor(eur_man_from_krw)}**")
 
 st.title("⚽ 프로페셔널 축구 이적시장 12대 가중치 분석 & 스카우팅 데이터룸")
 
-# =========================================================================
-# 2. 가중치 딕셔너리 (스탯 예측용 리그 가중치 vs 이적료 산출용 가중치 분리 & 밸런스 패치)
-# =========================================================================
 LEAGUE_WEIGHTS = {
-    "잉글랜드 프리미어리그 (EPL 1부)": 1.00,
-    "스페인 라리가 (La Liga 1부)": 0.92,
-    "독일 분데스리가 (Bundesliga 1부)": 0.91,
-    "이탈리아 세리에 A (Serie A 1부)": 0.90,
-    "프랑스 리그 1 (Ligue 1 1부)": 0.88,
-    "잉글랜드 챔피언십 (EFL 2부)": 0.80,
-    "포르투갈 프리메이라리가 (1부)": 0.78,
-    "네덜란드 에레디비시 (Eredivisie 1부)": 0.77,
-    "벨기에 주필러 프로 리그 (1부)": 0.75,
-    "브라질 세리에 A (Brasileirão 1부)": 0.68,
-    "독일 2. 분데스리가 (2부)": 0.67,
-    "스페인 라리가 2 (세군다 2부)": 0.66,
-    "튀르키예 쉬페르리그 (1부)": 0.65,
-    "이탈리아 세리에 B (2부)": 0.64,
-    "미국 메이저리그사커 (MLS 1부)": 0.64,
-    "멕시코 리가 MX (1부)": 0.63,
-    "스위스 슈퍼리그 (1부)": 0.62,
-    "오스트리아 분데스리가 (1부)": 0.62,
-    "덴마크 수페르리가 (1부)": 0.61,
-    "스코틀랜드 프리미어십 (1부)": 0.60,
-    "아르헨티나 프리메라 디비시온 (1부)": 0.60,
-    "폴란드 엑스트라클라사 (1부)": 0.55,
-    "프랑스 리그 2 (2부)": 0.55,
-    "그리스 슈퍼리그 (1부)": 0.54,
-    "사우디 프로리그 (SPL 1부)": 0.52,
-    "일본 J1리그 (1부)": 0.50,
-    "대한민국 K리그1 (1부)": 0.48,
-    "스웨덴 알스벤스칸 (1부)": 0.48,
-    "노르웨이 엘리테세리엔 (1부)": 0.47,
-    "일본 J2리그 (2부)": 0.35,
-    "대한민국 K리그2 (2부)": 0.33,
-    "기타 리그": 0.30
+    "잉글랜드 프리미어리그 (EPL 1부)": 1.00, "스페인 라리가 (La Liga 1부)": 0.92, "독일 분데스리가 (Bundesliga 1부)": 0.91,
+    "이탈리아 세리에 A (Serie A 1부)": 0.90, "프랑스 리그 1 (Ligue 1 1부)": 0.88, "잉글랜드 챔피언십 (EFL 2부)": 0.80,
+    "포르투갈 프리메이라리가 (1부)": 0.78, "네덜란드 에레디비시 (Eredivisie 1부)": 0.77, "벨기에 주필러 프로 리그 (1부)": 0.75,
+    "브라질 세리에 A (Brasileirão 1부)": 0.68, "독일 2. 분데스리가 (2부)": 0.67, "스페인 라리가 2 (세군다 2부)": 0.66,
+    "튀르키예 쉬페르리그 (1부)": 0.65, "이탈리아 세리에 B (2부)": 0.64, "미국 메이저리그사커 (MLS 1부)": 0.64,
+    "멕시코 리가 MX (1부)": 0.63, "스위스 슈퍼리그 (1부)": 0.62, "오스트리아 분데스리가 (1부)": 0.62,
+    "덴마크 수페르리가 (1부)": 0.61, "스코틀랜드 프리미어십 (1부)": 0.60, "아르헨티나 프리메라 디비시온 (1부)": 0.60,
+    "폴란드 엑스트라클라사 (1부)": 0.55, "프랑스 리그 2 (2부)": 0.55, "그리스 슈퍼리그 (1부)": 0.54,
+    "사우디 프로리그 (SPL 1부)": 0.52, "일본 J1리그 (1부)": 0.50, "대한민국 K리그1 (1부)": 0.48,
+    "스웨덴 알스벤스칸 (1부)": 0.48, "노르웨이 엘리테세리엔 (1부)": 0.47, "일본 J2리그 (2부)": 0.35,
+    "대한민국 K리그2 (2부)": 0.33, "기타 리그": 0.30
 }
 
 def get_valuation_league_weight(league_key_or_name):
-    """[이적료 산출 전용 리그 가중치] 2번 탭 첫 시즌 스탯 예측에는 영향을 주지 않고 타 리그 출발 이적료 감산 폭만 현실화"""
     raw_w = LEAGUE_WEIGHTS.get(league_key_or_name, None)
-    if raw_w is None:
-        raw_w = next((v for k, v in LEAGUE_WEIGHTS.items() if str(league_key_or_name).strip() and str(league_key_or_name).strip() in k), 0.85)
-    if raw_w >= 0.88:
-        return round(1.0 - (1.0 - raw_w) * 0.45, 3)
-    elif raw_w >= 0.75:
-        return round(1.0 - (1.0 - raw_w) * 0.50, 3)
-    else:
-        return round(1.0 - (1.0 - raw_w) * 0.65, 3)
+    if raw_w is None: raw_w = next((v for k, v in LEAGUE_WEIGHTS.items() if str(league_key_or_name).strip() and str(league_key_or_name).strip() in k), 0.85)
+    if raw_w >= 0.88: return round(1.0 - (1.0 - raw_w) * 0.45, 3)
+    elif raw_w >= 0.75: return round(1.0 - (1.0 - raw_w) * 0.50, 3)
+    else: return round(1.0 - (1.0 - raw_w) * 0.65, 3)
 
-TRACKED_LEAGUE_NAMES = [
-    "프리미어리그", "라리가", "분데스리가", "세리에 A", "리그 1",
-    "에레디비시", "포르투갈", "벨기에", "튀르키예", "챔피언십"
-]
+TRACKED_LEAGUE_NAMES = ["프리미어리그", "라리가", "분데스리가", "세리에 A", "리그 1", "에레디비시", "포르투갈", "벨기에", "튀르키예", "챔피언십"]
 
 CLUB_TIERS = {
     "Tier 1: 엘리트 메가클럽 (레알, 맨시티, 바이에른, PSG 등)": 1.12,
@@ -1035,134 +567,73 @@ CLUB_TIERS = {
 }
 
 CONTRACT_WEIGHTS = {
-    "6개월 이하 (FA 임박/겨울 이적, -20%)": 0.80,
-    "1년 남음 (재계약 분기점, -6%)": 0.94,
-    "2년 남음 (표준 계약 기준선, 1.00)": 1.00,
-    "3년 남음 (구단 협상 우위, +6%)": 1.06,
+    "6개월 이하 (FA 임박/겨울 이적, -20%)": 0.80, "1년 남음 (재계약 분기점, -6%)": 0.94,
+    "2년 남음 (표준 계약 기준선, 1.00)": 1.00, "3년 남음 (구단 협상 우위, +6%)": 1.06,
     "4년 이상 (장기 계약/바이아웃, +12%)": 1.12
 }
 
 POSITION_WEIGHTS = {
-    "스트라이커 / 센터포워드 (ST/CF, +3%)": 1.03,
-    "윙어 / 공격형 미드필더 (WG/CAM, +2%)": 1.02,
-    "중앙 / 수비형 미드필더 (CM/CDM, 기준)": 1.00,
-    "풀백 / 윙백 (RB/LB/WB, -1%)": 0.99,
-    "센터백 (CB, 기준)": 1.00,
-    "골키퍼 (GK, -3%)": 0.97
+    "스트라이커 / 센터포워드 (ST/CF, +3%)": 1.03, "윙어 / 공격형 미드필더 (WG/CAM, +2%)": 1.02,
+    "중앙 / 수비형 미드필더 (CM/CDM, 기준)": 1.00, "풀백 / 윙백 (RB/LB/WB, -1%)": 0.99,
+    "센터백 (CB, 기준)": 1.00, "골키퍼 (GK, -3%)": 0.97
 }
 
 VERSATILITY_WEIGHTS = {
-    "단일 포지션 전담 (1개 포지션, 기준)": 1.00,
-    "듀얼 롤 (2개 포지션 소화, +1%)": 1.01,
-    "만능 유틸리티 (3개 이상 소화, +2%)": 1.02
+    "단일 포지션 전담 (1개 포지션, 기준)": 1.00, "듀얼 롤 (2개 포지션 소화, +1%)": 1.01, "만능 유틸리티 (3개 이상 소화, +2%)": 1.02
 }
 
 REGISTRATION_WEIGHTS = {
-    "일반 (EU 국적자 / 쿼터 이슈 없음, 기준)": 1.00,
-    "🏴󠁧󠁢󠁥󠁮󠁧󠁿 EPL 홈그로운 (Home-Grown 충족, +4%)": 1.04,
-    "🏛️ 구단 자체 유스 출신 (Club-Trained, +2%)": 1.02,
-    "🇪🇸🇮🇹 비EU 쿼터 소모 (Non-EU Quota, -2%)": 0.98
+    "일반 (EU 국적자 / 쿼터 이슈 없음, 기준)": 1.00, "🏴󠁧󠁢󠁥󠁮󠁧󠁿 EPL 홈그로운 (Home-Grown 충족, +4%)": 1.04,
+    "🏛️ 구단 자체 유스 출신 (Club-Trained, +2%)": 1.02, "🇪🇸🇮🇹 비EU 쿼터 소모 (Non-EU Quota, -2%)": 0.98
 }
 
 TRANSFER_TYPE_WEIGHTS = {
-    "일반 완전 이적 (Permanent, 기준)": 1.00,
-    "단순 1년 임대 (Simple Loan, 1년 임대 기준 평가)": 0.20,
-    "임대 후 의무 영입 (Loan w/ Obligation, 총액 완전이적 기준)": 1.00,
-    "임대 후 선택 영입 (Loan w/ Option, 1년 임대+옵션 기준)": 0.20,
-    "바이백 조항 포함 이적 (Buy-back Clause, -5%)": 0.95,
-    "셀온 지분 포함 이적 (Sell-on Clause, -3%)": 0.97,
-    "비공개 이적 (Undisclosed, 시장적정가 1:1 수렴 추정)": 1.00,
-    "FA 자유계약 영입 (Free Transfer, 계약금/주급 기준)": 1.00
+    "일반 완전 이적 (Permanent, 기준)": 1.00, "단순 1년 임대 (Simple Loan, 1년 임대 기준 평가)": 0.20,
+    "임대 후 의무 영입 (Loan w/ Obligation, 총액 완전이적 기준)": 1.00, "임대 후 선택 영입 (Loan w/ Option, 1년 임대+옵션 기준)": 0.20,
+    "바이백 조항 포함 이적 (Buy-back Clause, -5%)": 0.95, "셀온 지분 포함 이적 (Sell-on Clause, -3%)": 0.97,
+    "비공개 이적 (Undisclosed, 시장적정가 1:1 수렴 추정)": 1.00, "FA 자유계약 영입 (Free Transfer, 계약금/주급 기준)": 1.00
 }
 
 BIG_STAGE_WEIGHTS = {
-    "🌟 UCL 본선 16강+ / 주요 A매치 핵심 주전 (+3%)": 1.03,
-    "🔥 UEL/UECL 본선 또는 국대 A매치 주전 (+1%)": 1.01,
-    "⚖️ 유럽대항전 / 메이저 국대 경험 없음 (기준)": 1.00
+    "🌟 UCL 본선 16강+ / 주요 A매치 핵심 주전 (+3%)": 1.03, "🔥 UEL/UECL 본선 또는 국대 A매치 주전 (+1%)": 1.01, "⚖️ 유럽대항전 / 메이저 국대 경험 없음 (기준)": 1.00
 }
 
 INJURY_WEIGHTS = {
-    "🛡️ 철강왕 (직전 1년 결장 거의 없음, +2%)": 1.02,
-    "⚖️ 일반적인 수준 (직전 1년 경미한 1~3주 결장, 기준)": 1.00,
-    "⚠️ 잦은 근육/잔부상 (직전 1년 4~8주 결장, -4%)": 0.96,
-    "🚨 직전 1년 내 장기 부상 이력 (십자인대/골절 등 3개월+, -8%)": 0.92
+    "🛡️ 철강왕 (직전 1년 결장 거의 없음, +2%)": 1.02, "⚖️ 일반적인 수준 (직전 1년 경미한 1~3주 결장, 기준)": 1.00,
+    "⚠️ 잦은 근육/잔부상 (직전 1년 4~8주 결장, -4%)": 0.96, "🚨 직전 1년 내 장기 부상 이력 (십자인대/골절 등 3개월+, -8%)": 0.92
 }
 
 URGENCY_WEIGHTS = {
-    "⚖️ 일반 보강 / 뎁스 자원 (기준)": 1.00,
-    "🔥 최우선 보강 타겟 (선발진 명확한 취약, +4%)": 1.04,
-    "🚨 비상사태 / 대체불가 타겟 (핵심이탈·패닉바이, +8%)": 1.08
+    "⚖️ 일반 보강 / 뎁스 자원 (기준)": 1.00, "🔥 최우선 보강 타겟 (선발진 명확한 취약, +4%)": 1.04, "🚨 비상사태 / 대체불가 타겟 (핵심이탈·패닉바이, +8%)": 1.08
 }
 
 def get_positional_age_weight(age, position_name):
-    """[밸런스 패치 완료] 유망주 포텐셜 프리미엄 현실화 및 28~29세 전성기 조기 감가 폐지"""
-    if "ST/CF" in position_name or "WG/CAM" in position_name or "스트라이커" in position_name or "윙어" in position_name:
-        if age <= 19: return 1.25
-        elif age <= 21: return 1.18
-        elif age <= 23: return 1.12
-        elif age <= 27: return 1.05
-        elif age <= 29: return 1.00
-        elif age <= 31: return 0.94
-        elif age <= 34: return 0.82
-        else: return 0.68
-    elif "GK" in position_name or "CB" in position_name or "골키퍼" in position_name or "센터백" in position_name:
-        if age <= 19: return 1.20
-        elif age <= 21: return 1.14
-        elif age <= 23: return 1.10
-        elif age <= 27: return 1.05
-        elif age <= 29: return 1.03
-        elif age <= 31: return 0.98
-        elif age <= 34: return 0.92
-        else: return 0.80
+    if any(k in position_name for k in ["ST/CF", "WG/CAM", "스트라이커", "윙어"]):
+        return 1.25 if age <= 19 else (1.18 if age <= 21 else (1.12 if age <= 23 else (1.05 if age <= 27 else (1.00 if age <= 29 else (0.94 if age <= 31 else (0.82 if age <= 34 else 0.68))))))
+    elif any(k in position_name for k in ["GK", "CB", "골키퍼", "센터백"]):
+        return 1.20 if age <= 19 else (1.14 if age <= 21 else (1.10 if age <= 23 else (1.05 if age <= 27 else (1.03 if age <= 29 else (0.98 if age <= 31 else (0.92 if age <= 34 else 0.80))))))
     else:
-        if age <= 19: return 1.22
-        elif age <= 21: return 1.16
-        elif age <= 23: return 1.12
-        elif age <= 27: return 1.05
-        elif age <= 29: return 1.01
-        elif age <= 31: return 0.95
-        elif age <= 34: return 0.86
-        else: return 0.72
+        return 1.22 if age <= 19 else (1.16 if age <= 21 else (1.12 if age <= 23 else (1.05 if age <= 27 else (1.01 if age <= 29 else (0.95 if age <= 31 else (0.86 if age <= 34 else 0.72))))))
 
 def compute_loan_evaluation(full_fair_val, loan_fee_in, weekly_wage_in, is_option_loan=False, is_out_side=False):
-    """[단순 1년 임대 & 선택 이적 임대 전용 공정 평가 엔진]
-    - 초기 임대료만 입력하거나 주급만 입력해도 10점 만점이 남발되지 않고 공정하게 평가합니다."""
     annual_wage = weekly_wage_in * 52.0
-    if loan_fee_in > 0 and annual_wage > 0:
-        bench_1yr = max(150.0, full_fair_val * 0.16)
-        actual_1yr = loan_fee_in + annual_wage
-    elif loan_fee_in > 0 and annual_wage == 0:
-        bench_1yr = max(100.0, full_fair_val * 0.08)
-        actual_1yr = loan_fee_in
-    elif loan_fee_in == 0 and annual_wage > 0:
-        bench_1yr = max(100.0, full_fair_val * 0.10)
-        actual_1yr = annual_wage
-    else:
-        return 0.0, 0.0, 0.15 if is_option_loan else 0.0, "⚖️ 무상/조건 미입력 임대 (기준 평점)"
+    if loan_fee_in > 0 and annual_wage > 0: bench_1yr, actual_1yr = max(150.0, full_fair_val * 0.16), loan_fee_in + annual_wage
+    elif loan_fee_in > 0 and annual_wage == 0: bench_1yr, actual_1yr = max(100.0, full_fair_val * 0.08), loan_fee_in
+    elif loan_fee_in == 0 and annual_wage > 0: bench_1yr, actual_1yr = max(100.0, full_fair_val * 0.10), annual_wage
+    else: return 0.0, 0.0, 0.15 if is_option_loan else 0.0, "⚖️ 무상/조건 미입력 임대 (기준 평점)"
 
     diff_loan = actual_1yr - bench_1yr
     overpay_loan_pct = (diff_loan / bench_1yr) * 100.0 if bench_1yr > 0 else 0.0
     mult = 1.0 if is_out_side else -1.0
-    score_delta = max(-2.2, min(1.4, mult * (overpay_loan_pct / 35.0)))
-    if is_option_loan and not is_out_side:
-        score_delta += 0.15
-
+    score_delta = max(-2.2, min(1.4, mult * (overpay_loan_pct / 35.0))) + (0.15 if (is_option_loan and not is_out_side) else 0.0)
     opt_tag = "선택옵션 임대" if is_option_loan else "단순 1년 임대"
-    if abs(overpay_loan_pct) <= 12.0:
-        st_lbl = f"⚖️ 적정 조건 {opt_tag}"
-    elif overpay_loan_pct > 12.0:
-        st_lbl = f"⚠️ {'고수익 임대 방출' if is_out_side else '고비용 임대 영입'} (+{overpay_loan_pct:.1f}%)"
-    else:
-        st_lbl = f"💎 {'저비용 꿀임대 영입' if not is_out_side else '저수익 임대 방출'} ({overpay_loan_pct:.1f}%)"
-
+    st_lbl = f"⚖️ 적정 조건 {opt_tag}" if abs(overpay_loan_pct) <= 12.0 else (f"⚠️ {'고수익 임대 방출' if is_out_side else '고비용 임대 영입'} (+{overpay_loan_pct:.1f}%)" if overpay_loan_pct > 12.0 else f"💎 {'저비용 꿀임대 영입' if not is_out_side else '저수익 임대 방출'} ({overpay_loan_pct:.1f}%)")
     return round(diff_loan, 1), round(overpay_loan_pct, 1), score_delta, st_lbl
 
 def format_currency_desc(eur_man_euro):
     if eur_man_euro <= 0: return "₩0억 | £0만"
     total_eur = eur_man_euro * 10000
-    krw_eok = (total_eur * rate_krw) / 100000000.0
-    gbp_man = eur_man_euro * rate_gbp
-    return f"약 {krw_eok:,.1f}억원 | £{gbp_man:,.1f}만"
+    return f"약 {(total_eur * rate_krw) / 100000000.0:,.1f}억원 | £{eur_man_euro * rate_gbp:,.1f}만"
 
 def to_public_index(weight_val, min_w=0.65, max_w=1.18):
     norm = (weight_val - min_w) / (max_w - min_w) if max_w > min_w else 0.5
@@ -1174,33 +645,23 @@ def find_val(row_dict, candidates, default=0):
             if c.lower() in k.lower().replace(" ", "").replace("_", ""):
                 val = row_dict[k]
                 if pd.notnull(val) and str(val).strip() not in ["", "nan", "None"]:
-                    try:
-                        return float(val) if isinstance(default, float) else int(float(val))
-                    except:
-                        return val
+                    try: return float(val) if isinstance(default, float) else int(float(val))
+                    except: return val
     return default
 
 def recalculate_row_with_new_balance(row_dict):
-    """[시트 저장 선수 자동 재계산 엔진] 기존 시트에 저장된 선수 데이터를 새 밸런스 패치 기준으로 즉시 재산출"""
     try:
         tm_v = float(find_val(row_dict, ["시장가치", "tm"], 0.0))
-        if tm_v <= 0:
-            return None
+        if tm_v <= 0: return None
         fee_v = float(find_val(row_dict, ["실제이적료", "이적료", "fee"], 0.0))
         wage_v = float(find_val(row_dict, ["선수주급", "주급", "wage"], 0.0))
         age_v = int(find_val(row_dict, ["나이", "age"], 25))
-        pos_v = str(row_dict.get("포지션", "CM"))
-        from_l_v = str(row_dict.get("원소속리그", "프리미어리그"))
-        tier_v = str(row_dict.get("영입구단규모", "Tier 2"))
-        ttype_v = str(row_dict.get("이적형태", "일반 완전 이적"))
-        season_v = str(row_dict.get("이적시즌", "26/27 여름"))
-        notes_v = str(row_dict.get("스카우팅메모", ""))
-        trade_dir = str(row_dict.get("거래구분", "IN")).strip()
-        is_out_r = (trade_dir == "OUT") or ("[방출|" in notes_v)
+        pos_v, from_l_v, tier_v = str(row_dict.get("포지션", "CM")), str(row_dict.get("원소속리그", "프리미어리그")), str(row_dict.get("영입구단규모", "Tier 2"))
+        ttype_v, season_v, notes_v = str(row_dict.get("이적형태", "일반 완전 이적")), str(row_dict.get("이적시즌", "26/27 여름")), str(row_dict.get("스카우팅메모", ""))
+        is_out_r = (str(row_dict.get("거래구분", "IN")).strip() == "OUT") or ("[방출|" in notes_v)
         rat_v = float(find_val(row_dict, ["이전_FotMob평점", "직전_평점", "이전평점", "FotMob평점", "평점"], 7.10))
 
-        lw_r = get_valuation_league_weight(from_l_v)
-        aw_r = get_positional_age_weight(age_v, pos_v)
+        lw_r, aw_r = get_valuation_league_weight(from_l_v), get_positional_age_weight(age_v, pos_v)
         cw_r = next((v for k, v in CLUB_TIERS.items() if tier_v and tier_v in k), 1.08)
         ctw_r = next((v for k, v in CONTRACT_WEIGHTS.items() if k.split(" (")[0] in notes_v), 1.00)
         pw_r = next((v for k, v in POSITION_WEIGHTS.items() if pos_v and pos_v.split(" (")[0] in k), 1.00)
@@ -1208,67 +669,39 @@ def recalculate_row_with_new_balance(row_dict):
         vw_r = 1.02 if len(sub_p) >= 2 else (1.01 if len(sub_p) == 1 else 1.00)
         rw_r = next((v for k, v in REGISTRATION_WEIGHTS.items() if k.split(" (")[0] in notes_v), 1.00)
         uw_r = next((v for k, v in URGENCY_WEIGHTS.items() if k.split(" (")[0] in notes_v), 1.00)
-
-        m_ucl = re.search(r"UCL:([0-9.]+)", notes_v)
+        m_ucl, m_med = re.search(r"UCL:([0-9.]+)", notes_v), re.search(r"메디컬:([0-9.]+)", notes_v)
         sw_r = float(m_ucl.group(1)) if m_ucl else 1.01
-        m_med = re.search(r"메디컬:([0-9.]+)", notes_v)
-        if m_med:
-            old_m = float(m_med.group(1))
-            iw_r = 1.02 if old_m >= 1.01 else (0.96 if abs(old_m - 0.97) < 0.005 else (0.92 if old_m <= 0.94 else 1.00))
-        else:
-            iw_r = 1.00
-
+        iw_r = (1.02 if float(m_med.group(1)) >= 1.01 else (0.96 if abs(float(m_med.group(1)) - 0.97) < 0.005 else (0.92 if float(m_med.group(1)) <= 0.94 else 1.00))) if m_med else 1.00
         opta_r = 1.06 if rat_v >= 7.38 else (1.03 if rat_v >= 7.10 else (1.00 if rat_v >= 6.75 else 0.97))
         sf_r = 1.10 if "겨울" in season_v else 1.00
-
-        is_simple_loan_r = ("임대" in ttype_v) and ("의무" not in ttype_v)
-        is_opt_loan_r = "선택" in ttype_v
-        is_fa_r = "FA" in ttype_v
-        is_undisc_r = "비공개" in ttype_v
         tt_w_r = 0.95 if "바이백" in ttype_v else (0.97 if "셀온" in ttype_v else 1.00)
 
         full_fair_r = tm_v * lw_r * aw_r * cw_r * ctw_r * pw_r * vw_r * rw_r * opta_r * tt_w_r * sw_r * iw_r * uw_r * sf_r
-
-        if is_simple_loan_r:
+        if ("임대" in ttype_v) and ("의무" not in ttype_v):
             fair_r = round(full_fair_r * 0.16, 1)
-            diff_r, ov_r, v_delta, st_r = compute_loan_evaluation(full_fair_r, fee_v, wage_v, is_opt_loan_r, is_out_r)
+            diff_r, ov_r, v_delta, st_r = compute_loan_evaluation(full_fair_r, fee_v, wage_v, "선택" in ttype_v, is_out_r)
             base_sc = 7.50
-        elif is_fa_r:
+        elif "FA" in ttype_v:
             fair_r = round(full_fair_r, 1)
             exp_w = max(3.0, fair_r * 0.0025)
             if wage_v > 0:
-                ov_r = ((wage_v - exp_w) / exp_w) * 100.0
-                diff_r = round((wage_v - exp_w) * 52.0, 1)
+                ov_r, diff_r = ((wage_v - exp_w) / exp_w) * 100.0, round((wage_v - exp_w) * 52.0, 1)
                 v_delta = max(-3.0, min(1.5, -(ov_r / 30.0)))
                 st_r = "⚖️ 적정 주급 FA 영입" if abs(ov_r) <= 10.0 else (f"⚠️ 주급 오버페이 FA (+{ov_r:.1f}%)" if ov_r > 0 else f"💎 주급 혜자 FA ({ov_r:.1f}%)")
-            else:
-                ov_r, diff_r, v_delta, st_r = 0.0, 0.0, 0.5, "💎 FA 자유계약 영입"
+            else: ov_r, diff_r, v_delta, st_r = 0.0, 0.0, 0.5, "💎 FA 자유계약 영입"
             base_sc = 8.00
         else:
             fair_r = round(full_fair_r, 1)
-            act_f = fair_r if is_undisc_r else fee_v
+            act_f = fair_r if "비공개" in ttype_v else fee_v
             diff_r = round(act_f - fair_r, 1)
             ov_r = (diff_r / fair_r * 100.0) if fair_r > 0 else 0.0
-            mult = 1.0 if is_out_r else -1.0
-            v_delta = 0.0 if is_undisc_r else max(-3.5, min(2.5, mult * (ov_r / 20.0)))
+            v_delta = 0.0 if "비공개" in ttype_v else max(-3.5, min(2.5, (1.0 if is_out_r else -1.0) * (ov_r / 20.0)))
             base_sc = 7.50
-            if is_undisc_r:
-                st_r = "⚖️ 비공개 (적정가 추정)"
-            elif abs(diff_r) <= (fair_r * 0.05):
-                st_r = "⚖️ 적정가 (Fair Deal)"
-            elif diff_r > 0:
-                st_r = f"⚠️ {'고가 매각 성공' if is_out_r else '고평가/오버페이'} (+{ov_r:.1f}%)"
-            else:
-                st_r = f"💎 {'헐값 매각 손해' if is_out_r else '저평가/혜자'} ({ov_r:.1f}%)"
+            st_r = "⚖️ 비공개 (적정가 추정)" if "비공개" in ttype_v else ("⚖️ 적정가 (Fair Deal)" if abs(diff_r) <= (fair_r * 0.05) else (f"⚠️ {'고가 매각 성공' if is_out_r else '고평가/오버페이'} (+{ov_r:.1f}%)" if diff_r > 0 else f"💎 {'헐값 매각 손해' if is_out_r else '저평가/혜자'} ({ov_r:.1f}%)"))
 
-        r_delta = max(-0.8, min(1.0, (rat_v - 7.00) * 1.5))
-        a_delta = max(-0.8, min(0.8, (aw_r - 1.00) * 3.2))
-        rk_delta = (sw_r - 1.00) * 4.0 + (iw_r - 1.00) * 3.5 + (rw_r - 1.00) * 2.5 + (uw_r - 1.00) * 1.5
-        sc_r = round(max(1.00, min(10.00, base_sc + v_delta + r_delta + a_delta + rk_delta)), 2)
-
+        sc_r = round(max(1.00, min(10.00, base_sc + v_delta + max(-0.8, min(1.0, (rat_v - 7.00) * 1.5)) + max(-0.8, min(0.8, (aw_r - 1.00) * 3.2)) + (sw_r - 1.00) * 4.0 + (iw_r - 1.00) * 3.5 + (rw_r - 1.00) * 2.5 + (uw_r - 1.00) * 1.5)), 2)
         return {"fair_val": fair_r, "diff": diff_r, "status": st_r, "deal_score": sc_r}
-    except Exception:
-        return None
+    except Exception: return None
 
 @st.cache_data(ttl=60)
 def fetch_sheet_history():
@@ -1283,34 +716,27 @@ def fetch_sheet_history():
                     if "평가판정" in df.columns: df.at[idx, "평가판정"] = recalc["status"]
                     if "이적평점" in df.columns: df.at[idx, "이적평점"] = recalc["deal_score"]
         return df
-    except Exception:
-        return pd.DataFrame()
+    except Exception: return pd.DataFrame()
 
 history_df = fetch_sheet_history()
 
 if not history_df.empty and "스카우팅메모" in history_df.columns:
     for _, r_hist in history_df.iterrows():
         nt_raw = str(r_hist.get("스카우팅메모", ""))
-        f_team_h = str(r_hist.get("원소속팀명", "")).strip()
-        t_team_h = str(r_hist.get("이적팀명", "")).strip()
+        f_team_h, t_team_h = str(r_hist.get("원소속팀명", "")).strip(), str(r_hist.get("이적팀명", "")).strip()
         f_logo_h, t_logo_h = extract_logos_from_notes(nt_raw)
-        if f_team_h and f_logo_h and "fotmob.com" not in f_logo_h:
-            st.session_state["custom_club_logos"][f_team_h] = f_logo_h
-        if t_team_h and t_logo_h and "fotmob.com" not in t_logo_h:
-            st.session_state["custom_club_logos"][t_team_h] = t_logo_h
+        if f_team_h and f_logo_h and "fotmob.com" not in f_logo_h: st.session_state["custom_club_logos"][f_team_h] = f_logo_h
+        if t_team_h and t_logo_h and "fotmob.com" not in t_logo_h: st.session_state["custom_club_logos"][t_team_h] = t_logo_h
 
-# 3. 메인 7개 탭 구성
 tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
-    "💰 적정 이적료 평가", 
-    "📱 FotMob 시즌 성적 & 이적 예측",
-    "🔍 과거 유사 이적 사례 비교 (Comps)",
-    "🎯 시즌 종료 최종 성적 & 모델 검증",
-    "⏱️ 시즌 중 라운드별 중간 점검 (메모장)",
-    "👥 과거 선수 대조 & 후보 A vs B 비교",
-    "🏆 구단/리그별 결산 & 전술판 데이터룸"
+    "💰 적정 이적료 평가", "📱 FotMob 시즌 성적 & 이적 예측", "🔍 과거 유사 이적 사례 비교 (Comps)",
+    "🎯 시즌 종료 최종 성적 & 모델 검증", "⏱️ 시즌 중 라운드별 중간 점검 (메모장)",
+    "👥 과거 선수 대조 & 후보 A vs B 비교", "🏆 구단/리그별 결산 & 전술판 데이터룸"
 ])
-
-# ================= TAB 1: 적정 이적료 평가 =================
+_part1a_end = True
+# ==============================================================================
+# [PART 1-B] TAB 1: 적정 이적료 평가 (m + 억·만 동시 표기 & 밸런스 패치 적용판)
+# ==============================================================================
 with tab1:
     if st.session_state["last_saved_msg"]:
         st.success(st.session_state["last_saved_msg"])
@@ -1613,7 +1039,7 @@ with tab1:
                 st.markdown(f"- **공격 실적**: `{st.session_state['f_goals']}골 {st.session_state['f_assists']}도움` (xG `{st.session_state['f_xg']:.2f}` / xA `{st.session_state['f_xa']:.2f}`) | **평점**: `★ {cur_rating:.2f}` ({opta_desc})")
 
         tm_market_value = st.number_input("트랜스퍼마르크트 시장 가치 (만 유로, €)", min_value=0, value=cf.get("tm", 4500), step=50, key=f"tm_{k_id}")
-        if tm_market_value > 0: st.caption(f"💡 시장가치 환산: **{format_currency_desc(tm_market_value)}**")
+        if tm_market_value > 0: st.caption(f"💡 시장가치 환산: **{fmt_tm_kor(tm_market_value)}** ({format_currency_desc(tm_market_value)})")
 
         is_loan_type = "임대" in transfer_type and "의무" not in transfer_type
         is_option_loan = "선택" in transfer_type
@@ -1635,7 +1061,7 @@ with tab1:
         elif is_loan_type:
             st.caption("💡 **단순/선택 임대 안내**: 초기 임대료만 입력하거나 아래 주급만 입력해도 1년 적정 임대 가치와 공정하게 비교하여 평점이 산출됩니다.")
         elif actual_transfer_fee > 0:
-            st.caption(f"💡 실제금액 환산: **{format_currency_desc(actual_transfer_fee)}**")
+            st.caption(f"💡 실제금액 환산: **{fmt_tm_kor(actual_transfer_fee)}** ({format_currency_desc(actual_transfer_fee)})")
 
         with st.expander("💼 [선택/수정 입력] 주급(Weekly Wage) & 연간 총비용 분석", expanded=True if cf.get("wage", 0.0) > 0 or is_fa or is_loan_type else False):
             weekly_wage_in = st.number_input("선수 주급 (만 유로, €/주 · 임대 시 구단 실제 부담 주급 입력)", min_value=0.0, value=float(cf.get("wage", 0.0)), step=0.5, key=f"wage_{k_id}")
@@ -1643,11 +1069,10 @@ with tab1:
             annual_transfer_amort = (actual_transfer_fee / 4.0) if (actual_transfer_fee > 0 and not is_loan_type) else actual_transfer_fee
             total_annual_cost = annual_transfer_amort + annual_wage_eur
             if weekly_wage_in > 0:
-                st.caption(f"📌 **주급 환산**: 주당 약 {weekly_wage_in*10000*rate_krw/100000000:.1f}억원 (£{weekly_wage_in*rate_gbp:.1f}만) | **1년 총 부담 비용**: `€{total_annual_cost:,.1f}만`")
+                st.caption(f"📌 **주급 환산**: 주당 약 {weekly_wage_in*10000*rate_krw/100000000:.1f}억원 (£{weekly_wage_in*rate_gbp:.1f}만) | **1년 총 부담 비용**: `{fmt_tm_kor(total_annual_cost)}`")
 
         player_notes = st.text_area("개인 메모 / 스카우팅 코멘트 (시트 저장 전용 · 인포그래픽 미표시)", value=cf.get("notes", ""), placeholder="예: 대인 방어 및 후방 빌드업 우수 (구글 시트에만 기록됩니다)", key=f"note_{k_id}")
 
-    # [이적료 산출 전용 리그 가중치 적용 - 2번 탭 스탯 예측과는 완전 분리]
     league_w = get_valuation_league_weight(selling_league)
     raw_stat_league_w = LEAGUE_WEIGHTS[selling_league]
     age_w = get_positional_age_weight(player_age, main_position)
@@ -1665,7 +1090,6 @@ with tab1:
     season_factor = 1.10 if is_winter else 1.00
 
     full_permanent_fair_val = tm_market_value * league_w * age_w * club_w * contract_w * pos_w * vers_w * reg_w * opta_w * ttype_w * stage_w * inj_w * urg_w * season_factor
-    base_calc_val = full_permanent_fair_val / season_factor
 
     if is_loan_type:
         fair_value = round(full_permanent_fair_val * 0.16, 1)
@@ -1750,7 +1174,6 @@ with tab1:
     else:
         future_age, proj_3yr_val, recovery_pct = player_age + 3, 0.0, 0.0
 
-    # [2번 탭 연동 첫 시즌 스탯 예측은 기존 엄격한 LEAGUE_WEIGHTS(raw_stat_league_w) 그대로 사용]
     is_gk = "GK" in main_position
     f_target_mins_t1 = 1440 if is_winter else 3036
     raw_lf_t1 = raw_stat_league_w / (LEAGUE_WEIGHTS.get(in_to_league_choice, 1.0))
@@ -1797,7 +1220,7 @@ with tab1:
         to_t_disp = in_to_team.strip() if in_to_team.strip() else "영입구단"
         tag_badge_txt = "TRANSFER OUT · 방출/매각" if is_out_trade else "TRANSFER IN · 영입/보강"
         badge_bg = "linear-gradient(90deg, #E11D48, #BE123C)" if is_out_trade else "linear-gradient(90deg, #2563EB, #4F46E5)"
-        fee_display = "비공개 (추정)" if is_undisclosed else (f"임대료 €{calc_actual_fee:,.0f}만" if is_loan_type else (f"€{calc_actual_fee:,.1f}만" if not is_fa else "FA (€0)"))
+        fee_display = "비공개 (추정)" if is_undisclosed else (f"임대료 {fmt_tm_kor(calc_actual_fee)}" if is_loan_type else (fmt_tm_kor(calc_actual_fee) if not is_fa else "FA (€0)"))
 
         idx_league = to_public_index(raw_stat_league_w, 0.45, 1.00)
         idx_age = to_public_index(age_w, 0.72, 1.25)
@@ -1879,6 +1302,7 @@ with tab1:
         ])
 
         fair_lbl_top = "1년 적정 임대가치" if is_loan_type else "모델 산출 적정가"
+        kpi_fee_val = "비공개" if is_undisclosed else ("FA (€0)" if is_fa else fmt_tm_kor(calc_actual_fee, multiline=True))
 
         tab1_board_html = f"""
         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:16px; padding-bottom:12px; border-bottom:1px solid rgba(148,163,184,0.18);">
@@ -1915,23 +1339,24 @@ with tab1:
         <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:12px; margin-bottom:16px;">
             <div class="kpi-card" style="border-top:3px solid #64748B;">
                 <div style="font-size:11px; color:#94A3B8; font-weight:700;">TM 기준 시장가치</div>
-                <div style="font-size:21px; font-weight:900; color:#F8FAFC; margin-top:5px;">€{tm_market_value:,.0f}만</div>
-                <div style="font-size:11px; color:#64748B; margin-top:3px;">{format_currency_desc(tm_market_value).split(' | ')[0]}</div>
+                <div style="font-size:19px; font-weight:900; color:#F8FAFC; margin-top:4px;">{fmt_tm_kor(tm_market_value, multiline=True)}</div>
+                <div style="font-size:11px; color:#64748B; margin-top:2px;">{format_currency_desc(tm_market_value).split(' | ')[0]}</div>
             </div>
             <div class="kpi-card" style="border-top:3px solid #10B981;">
                 <div style="font-size:11px; color:#6EE7B7; font-weight:700;">{fair_lbl_top}</div>
-                <div style="font-size:21px; font-weight:900; color:#10B981; margin-top:5px;">€{fair_value:,.1f}만</div>
-                <div style="font-size:11px; color:#64748B; margin-top:3px;">{format_currency_desc(fair_value).split(' | ')[0]}</div>
+                <div style="font-size:19px; font-weight:900; color:#10B981; margin-top:4px;">{fmt_tm_kor(fair_value, multiline=True)}</div>
+                <div style="font-size:11px; color:#64748B; margin-top:2px;">{format_currency_desc(fair_value).split(' | ')[0]}</div>
             </div>
             <div class="kpi-card" style="border-top:3px solid #38BDF8;">
                 <div style="font-size:11px; color:#7DD3FC; font-weight:700;">실제 거래 금액</div>
-                <div style="font-size:21px; font-weight:900; color:#38BDF8; margin-top:5px;">{fee_display}</div>
-                <div style="font-size:11px; color:#94A3B8; margin-top:3px;">적정 기준 대비 {diff:+,.1f}만 €</div>
+                <div style="font-size:19px; font-weight:900; color:#38BDF8; margin-top:4px;">{kpi_fee_val}</div>
+                <div style="font-size:11px; color:#94A3B8; margin-top:2px;">적정 대비 {fmt_tm_kor(diff, signed=True)}</div>
             </div>
             <div class="kpi-card" style="border-top:3px solid #F59E0B;">
                 <div style="font-size:11px; color:#FCD34D; font-weight:700;">현실 시장 적정 범위</div>
-                <div style="font-size:17px; font-weight:900; color:#FBBF24; margin-top:7px;">€{market_min:,.0f}~{market_max:,.0f}만</div>
-                <div style="font-size:11px; color:#E2E8F0; margin-top:4px;">{status_label.split(' (')[0]} ({overpay_pct:+.1f}%)</div>
+                <div style="font-size:16px; font-weight:900; color:#FBBF24; margin-top:6px;">€{market_min/100:.1f}m ~ €{market_max/100:.1f}m</div>
+                <div style="font-size:11px; color:#94A3B8; margin-top:2px;">({int(market_min):,}만~{int(market_max):,}만)</div>
+                <div style="font-size:11px; color:#E2E8F0; margin-top:2px;">{status_label.split(' (')[0]} ({overpay_pct:+.1f}%)</div>
             </div>
         </div>
 
@@ -1944,19 +1369,19 @@ with tab1:
                 <div>
                     <div style="font-size:13.5px; font-weight:900; color:#10B981; margin-bottom:14px;">💰 이적료 밸류에이션 & 3년 후(만 {future_age}세) 가치 비교</div>
                     <div style="margin-bottom:12px;">
-                        <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:5px;"><span style="color:#94A3B8; font-weight:700;">TM 시장가치 (기준점)</span><b style="color:#F8FAFC;">€{tm_market_value:,.0f}만 ({format_currency_desc(tm_market_value).split(' | ')[0]})</b></div>
+                        <div style="display:flex; justify-content:space-between; font-size:11.5px; margin-bottom:5px;"><span style="color:#94A3B8; font-weight:700;">TM 시장가치</span><b style="color:#F8FAFC;">{fmt_tm_kor(tm_market_value)} ({format_currency_desc(tm_market_value).split(' | ')[0]})</b></div>
                         <div style="background:#090D16; height:12px; border-radius:6px; overflow:hidden; border:1px solid #1E293B;"><div style="width:{w_tm}%; background:linear-gradient(90deg, #475569, #94A3B8); height:100%; border-radius:6px;"></div></div>
                     </div>
                     <div style="margin-bottom:12px;">
-                        <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:5px;"><span style="color:#6EE7B7; font-weight:700;">{fair_lbl_top}</span><b style="color:#10B981;">€{fair_value:,.1f}만 ({format_currency_desc(fair_value).split(' | ')[0]})</b></div>
+                        <div style="display:flex; justify-content:space-between; font-size:11.5px; margin-bottom:5px;"><span style="color:#6EE7B7; font-weight:700;">{fair_lbl_top}</span><b style="color:#10B981;">{fmt_tm_kor(fair_value)} ({format_currency_desc(fair_value).split(' | ')[0]})</b></div>
                         <div style="background:#090D16; height:12px; border-radius:6px; overflow:hidden; border:1px solid #1E293B;"><div style="width:{w_fair}%; background:linear-gradient(90deg, #059669, #34D399); height:100%; border-radius:6px;"></div></div>
                     </div>
                     <div style="margin-bottom:12px;">
-                        <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:5px;"><span style="color:#7DD3FC; font-weight:700;">실제 거래 금액 ({status_label.split(' (')[0]})</span><b style="color:#38BDF8;">{fee_display}</b></div>
+                        <div style="display:flex; justify-content:space-between; font-size:11.5px; margin-bottom:5px;"><span style="color:#7DD3FC; font-weight:700;">실제 거래 금액 ({status_label.split(' (')[0]})</span><b style="color:#38BDF8;">{fee_display}</b></div>
                         <div style="background:#090D16; height:12px; border-radius:6px; overflow:hidden; border:1px solid #1E293B;"><div style="width:{w_act}%; background:{act_bar_bg}; height:100%; border-radius:6px;"></div></div>
                     </div>
                     <div style="margin-bottom:14px;">
-                        <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:5px;"><span style="color:#D8B4FE; font-weight:700;">3년 후 예상 리세일 가치 (회수율 {recovery_pct:.0f}%)</span><b style="color:#C084FC;">€{proj_3yr_val:,.1f}만</b></div>
+                        <div style="display:flex; justify-content:space-between; font-size:11.5px; margin-bottom:5px;"><span style="color:#D8B4FE; font-weight:700;">3년 후 예상 리세일 (회수율 {recovery_pct:.0f}%)</span><b style="color:#C084FC;">{fmt_tm_kor(proj_3yr_val)}</b></div>
                         <div style="background:#090D16; height:12px; border-radius:6px; overflow:hidden; border:1px solid #1E293B;"><div style="width:{w_3yr}%; background:linear-gradient(90deg, #7E22CE, #C084FC); height:100%; border-radius:6px;"></div></div>
                     </div>
                 </div>
@@ -2013,7 +1438,7 @@ with tab1:
             </div>
         </div>
         """
-        render_copyable_infographic(tab1_board_html, filename=f"scouting_{display_name}", height=1135)
+        render_copyable_infographic(tab1_board_html, filename=f"scouting_{display_name}", height=1145)
 
         with st.expander("🔍 [내부 관리용] 12대 세부 가중치 적용 현황표 & 누적 배율 (외부 비공개 확인용)", expanded=False):
             eff_ttype_disp = 0.16 if is_loan_type else ttype_w
@@ -2116,9 +1541,9 @@ with tab1:
                     else: st.error(f"⚠️ 저장 실패: {res_json.get('message', '통신 오류')}")
                 except Exception as e: st.error(f"⚠️ 저장 오류: {e}")
 
-_part1_end = True
-    # ==============================================================================
-# [PART 2 / 4] TAB 2 (FotMob 예측) · TAB 3 (유사 사례 Comps) · TAB 4 (사후 검증)
+_part1b_end = True
+# ==============================================================================
+# [PART 2] TAB 2 (FotMob 예측) · TAB 3 (유사 사례 Comps) · TAB 4 (사후 검증)
 # ==============================================================================
 
 # ================= TAB 2: FotMob 시즌 성적 & 이적 예측 =================
@@ -2340,7 +1765,7 @@ with tab2:
         """
         render_copyable_infographic(gk_board_html, filename=f"gk_projection_{display_name}", height=360)
 
-# ================= TAB 3: 과거 유사 이적 사례 비교 (구단 로고 + 6각형 레이더 + 듀얼 게이지 바 탑재) =================
+# ================= TAB 3: 과거 유사 이적 사례 비교 (m + 억·만 동시 표기 탑재) =================
 with tab3:
     st.subheader("🔍 과거 유사 이적 사례 검색 및 벤치마크 비교 (Comps TOP 5 & 10 · 하이엔드 인포그래픽)")
 
@@ -2410,7 +1835,6 @@ with tab3:
             match_df = pd.DataFrame(valid_rows).sort_values(by="유사도(%)", ascending=False).head(10)
             top5_df = match_df.head(5).reset_index(drop=True)
 
-            # TOP 1 유사 선수 추출 및 현재 선수와의 6각형 오버레이 레이더 차트 생성
             top1_row = top5_df.iloc[0]
             avg_sim_top5 = round(top5_df["유사도(%)"].mean(), 1)
             avg_fee_top5 = round(top5_df["실제이적료(만€)"].mean(), 0)
@@ -2479,9 +1903,9 @@ with tab3:
                         </div>
                     </div>
                     <div style="background:#090D16; padding:9px 12px; border-radius:10px; border:1px solid #1E293B;">
-                        <div style="display:flex; justify-content:space-between; font-size:11.5px; margin-bottom:4px;">
-                            <span style="color:#94A3B8;">산출 적정가 <b style="color:#10B981;">€{fair_c:,.1f}만</b></span>
-                            <span style="color:#E2E8F0;">실제 이적료 <b style="color:#38BDF8;">€{fee_c:,.0f}만</b> <span style="color:{ov_col}; font-weight:800;">({ov_c:+.1f}%)</span></span>
+                        <div style="display:flex; justify-content:space-between; font-size:11px; margin-bottom:4px;">
+                            <span style="color:#94A3B8;">적정 <b style="color:#10B981;">{fmt_tm_kor(fair_c)}</b></span>
+                            <span style="color:#E2E8F0;">실제 <b style="color:#38BDF8;">{fmt_tm_kor(fee_c)}</b> <span style="color:{ov_col}; font-weight:800;">({ov_c:+.1f}%)</span></span>
                         </div>
                         <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
                             <div style="background:#1E293B; height:7px; border-radius:4px; overflow:hidden;"><div style="width:{w_frc}%; background:linear-gradient(90deg, #059669, #34D399); height:100%;"></div></div>
@@ -2508,7 +1932,7 @@ with tab3:
                     <div>
                         <div style="font-size:11px; font-weight:900; color:#38BDF8; letter-spacing:1px;">HISTORICAL TRANSFER COMPARABLES & BENCHMARK ANALYTICS</div>
                         <div style="font-size:26px; font-weight:900; color:#FFFFFF; margin-top:2px;">🔍 '{display_name}' 과거 유사 이적 사례 TOP {len(top5_df)} 비교 보드</div>
-                        <div style="font-size:13px; color:#94A3B8; margin-top:4px;">{route_with_logos_html} &nbsp;|&nbsp; 기준액: <b style="color:#38BDF8;">€{target_fee:,.0f}만</b> ({target_overpay:+.1f}%)</div>
+                        <div style="font-size:13px; color:#94A3B8; margin-top:4px;">{route_with_logos_html} &nbsp;|&nbsp; 기준액: <b style="color:#38BDF8;">{fmt_tm_kor(target_fee)}</b> ({target_overpay:+.1f}%)</div>
                     </div>
                 </div>
                 <div style="display:flex; gap:12px;">
@@ -2520,8 +1944,8 @@ with tab3:
             <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:12px; margin-bottom:16px;">
                 <div class="kpi-card" style="border-top:3px solid #38BDF8;">
                     <div style="font-size:11px; color:#94A3B8;">비교 기준 이적료 (현재)</div>
-                    <div style="font-size:21px; font-weight:900; color:#38BDF8; margin-top:4px;">€{target_fee:,.0f}만</div>
-                    <div style="font-size:11px; color:#64748B;">산출 적정가 €{fair_value:,.0f}만</div>
+                    <div style="font-size:19px; font-weight:900; color:#38BDF8; margin-top:4px;">{fmt_tm_kor(target_fee, multiline=True)}</div>
+                    <div style="font-size:11px; color:#64748B;">적정가 {fmt_tm_kor(fair_value)}</div>
                 </div>
                 <div class="kpi-card" style="border-top:3px solid #F59E0B;">
                     <div style="font-size:11px; color:#94A3B8;">1순위 최유사 사례 (Best Match)</div>
@@ -2530,8 +1954,8 @@ with tab3:
                 </div>
                 <div class="kpi-card" style="border-top:3px solid #10B981;">
                     <div style="font-size:11px; color:#94A3B8;">유사 TOP {len(top5_df)} 평균 이적료</div>
-                    <div style="font-size:21px; font-weight:900; color:#10B981; margin-top:4px;">€{avg_fee_top5:,.0f}만</div>
-                    <div style="font-size:11px; color:#64748B;">현재 거래 대비 {target_fee - avg_fee_top5:+,.0f}만 €</div>
+                    <div style="font-size:19px; font-weight:900; color:#10B981; margin-top:4px;">{fmt_tm_kor(avg_fee_top5, multiline=True)}</div>
+                    <div style="font-size:11px; color:#64748B;">현재 대비 {fmt_tm_kor(target_fee - avg_fee_top5, signed=True)}</div>
                 </div>
                 <div class="kpi-card" style="border-top:3px solid #A855F7;">
                     <div style="font-size:11px; color:#94A3B8;">유사 TOP {len(top5_df)} 평균 평점</div>
@@ -2551,12 +1975,12 @@ with tab3:
             </div>
             {bottom_cards_html}
             """
-            render_copyable_infographic(tab3_board_html, filename=f"comps_{display_name}", height=860 if len(top5_df) >= 3 else 680)
+            render_copyable_infographic(tab3_board_html, filename=f"comps_{display_name}", height=870 if len(top5_df) >= 3 else 690)
 
             st.markdown("##### 📋 과거 유사 이적 사례 TOP 10 상세 데이터 테이블")
             st.dataframe(match_df.drop(columns=["_from_logo", "_to_logo", "_lw"], errors="ignore"), use_container_width=True)
 
-# ================= TAB 4: 이적 첫 시즌 최종 성적 입력 & 모델 검증 (풀사이즈 듀얼 인포그래픽 탑재) =================
+# ================= TAB 4: 이적 첫 시즌 최종 성적 입력 & 모델 검증 =================
 with tab4:
     st.subheader("🎯 시즌 종료 후 최종 실제 성적 입력 & 모델 예측 정확도 사후 검증")
 
@@ -2822,7 +2246,7 @@ with tab4:
             kpi4_val = f"{act_assists_val}도움 <span style='font-size:12px; color:#D8B4FE;'>(xA {act_xa_val:.2f})</span>" if not is_gk_target else f"{act_gk_cs_val} 경기"
             kpi4_sub = f"시즌전 예측 {proj_a:.1f}도움 ({act_assists_val - proj_a:+.1f})" if not is_gk_target else f"공중볼 처리 {act_gk_claims_val}회"
 
-            fee_tag_str = f" · 이적료 €{hist_match_fee:,.0f}만" if hist_match_fee > 0 else ""
+            fee_tag_str = f" · 이적료 {fmt_tm_kor(hist_match_fee)}" if hist_match_fee > 0 else ""
             notes_banner_txt = act_notes_val.strip() if act_notes_val.strip() else f"평점 적중률 {rating_accuracy:.1f}% · 출전시간 적중률 {mins_accuracy:.1f}% 기록 ({val_verdict_txt})"
 
             val_board_html = f"""
@@ -2908,11 +2332,11 @@ with tab4:
         st.dataframe(val_df, use_container_width=True)
 
 _part2_end = True
-    # ==============================================================================
-# [PART 3 / 4] TAB 5 (중간 점검) · TAB 6 (A vs B 비교) · TAB 7 (구단/리그 결산 & 일괄 업데이트)
+# ==============================================================================
+# [PART 3] TAB 5 (중간 점검) · TAB 6 (A vs B 비교) · TAB 7 (구단/리그 결산 & 일괄 업데이트)
 # ==============================================================================
 
-# ================= TAB 5: 시즌 중 라운드별 중간 점검 시뮬레이터 (2번 탭 급 고화질 듀얼 인포그래픽 탑재) =================
+# ================= TAB 5: 시즌 중 라운드별 중간 점검 시뮬레이터 =================
 with tab5:
     st.subheader("⏱️ 시즌 중 라운드별 중간 점검 시뮬레이터 (In-Season Pace Tracker · 시트 미저장)")
     st.info("💡 **구글 시트에 저장하지 않고** 시즌 도중(예: 10R, 19R 반환점, 25R 등)에 선수의 현재 기록을 넣으면, **2번 탭처럼 [좌측: 현재 라운드 기대 목표치 vs 우측: 현재 실제 기록] 듀얼 비교 바 & 6각형 레이더 차트**가 장착된 초고화질 인포그래픽을 생성합니다.")
@@ -2970,7 +2394,7 @@ with tab5:
     with r_col5: ms_full_g = st.number_input("1시즌 목표 득점", 0.0, 80.0, value=float(ms_proj_g_def), step=0.5, key=f"ms_fg_{ms_ukey}")
     with r_col6: ms_full_a = st.number_input("1시즌 목표 도움", 0.0, 60.0, value=float(ms_proj_a_def), step=0.5, key=f"ms_fa_{ms_ukey}")
 
-    with st.expander("⚙️ 세부 스탯(슈팅·기회창출·드리블·박스터치·태클/수비행동) 1시즌 목표치 확인 / 수정 (시트·2번탭 자동 연동됨)", expanded=False):
+    with st.expander("⚙️ 세부 스탯(슈팅·기회창출·드리블·박스터치·태클/수비행동) 1시즌 목표치 확인 / 수정", expanded=False):
         sub_c1, sub_c2, sub_c3, sub_c4, sub_c5, sub_c6 = st.columns(6)
         with sub_c1: ms_full_sh = st.number_input("1시즌 목표 총슈팅", 0, 350, value=min(ms_proj_sh_def, 350), key=f"ms_fsh_{ms_ukey}")
         with sub_c2: ms_full_sot = st.number_input("1시즌 목표 유효슈팅", 0, 200, value=min(ms_proj_sot_def, 200), key=f"ms_fsot_{ms_ukey}")
@@ -3088,7 +2512,7 @@ with tab5:
             <div>
                 <div style="font-size:11px; font-weight:900; color:#38BDF8; letter-spacing:1px;">IN-SEASON PACE & PERFORMANCE TRACKER ({ms_curr_r}R / {ms_total_r}R · 진행률 {prog_ratio*100:.1f}%)</div>
                 <div style="font-size:26px; font-weight:900; color:#FFFFFF; margin-top:2px;">⏱️ {ms_name} · {ms_curr_r}라운드 중간 점검 리포트</div>
-                <div style="font-size:13px; color:#94A3B8; margin-top:4px;">소속: <b style="color:#F8FAFC;">{ms_team_def}</b> ({ms_pos_def} · 이적료 €{ms_fee_def:,.0f}만) &nbsp;|&nbsp; 판정: <b style="color:{ms_col};">{ms_verdict}</b></div>
+                <div style="font-size:13px; color:#94A3B8; margin-top:4px;">소속: <b style="color:#F8FAFC;">{ms_team_def}</b> ({ms_pos_def} · 이적료 {fmt_tm_kor(ms_fee_def)}) &nbsp;|&nbsp; 판정: <b style="color:{ms_col};">{ms_verdict}</b></div>
             </div>
         </div>
         <div style="display:flex; gap:12px;">
@@ -3213,7 +2637,7 @@ with tab6:
         with col_a:
             st.markdown(f"##### 🔵 **후보 A: {p_curr_name}** *(1번·2번 탭 자동 연동)*")
             st.write(f"- **나이 / 포지션**: 만 `{p_curr_age}세` / `{p_curr_pos}` | **리그**: `{selling_league.split(' (')[0]}`")
-            st.write(f"- **산출 적정가**: `€{fair_value:,.1f}만` vs **요구액**: `€{p_curr_fee:,.0f}만` (`{overpay_pct:+.1f}%`)")
+            st.write(f"- **산출 적정가**: `{fmt_tm_kor(fair_value)}` vs **요구액**: `{fmt_tm_kor(p_curr_fee)}` (`{overpay_pct:+.1f}%`)")
             st.write(f"- **포지션 핵심 지표 ({a_axis_label})**: `{a_stat_summary}` (지수 `{a_pos_metric_idx}점`)")
             st.write(f"- **최종 거래 평점**: **`★ {p_curr_score:.2f} / 10.00`**")
 
@@ -3300,8 +2724,8 @@ with tab6:
                 <div style="font-size:23px; font-weight:900; color:#FFFFFF; margin-top:4px;">{p_curr_name}</div>
                 <div style="font-size:12px; color:#94A3B8; margin-bottom:12px;">만 {p_curr_age}세 · {p_curr_pos}<br>{selling_league.split(' (')[0]}</div>
                 <div style="margin-bottom:10px;">{donut_a}</div>
-                <div style="background:#090D16; padding:8px; border-radius:8px; font-size:12px; margin-bottom:6px;">산출 적정가: <b style="color:#10B981;">€{fair_value:,.0f}만</b></div>
-                <div style="background:#090D16; padding:8px; border-radius:8px; font-size:12px; margin-bottom:6px;">요구 이적료: <b style="color:#38BDF8;">€{p_curr_fee:,.0f}만</b> ({overpay_pct:+.1f}%)</div>
+                <div style="background:#090D16; padding:8px; border-radius:8px; font-size:11.5px; margin-bottom:6px;">적정가: <b style="color:#10B981;">{fmt_tm_kor(fair_value)}</b></div>
+                <div style="background:#090D16; padding:8px; border-radius:8px; font-size:11.5px; margin-bottom:6px;">요구액: <b style="color:#38BDF8;">{fmt_tm_kor(p_curr_fee)}</b> ({overpay_pct:+.1f}%)</div>
                 <div style="background:#090D16; padding:8px; border-radius:8px; font-size:11.5px;">직전 ★{p_curr_rating:.2f} | {a_stat_summary}</div>
             </div>
             <div class="glass-panel" style="padding:12px; text-align:center;">
@@ -3313,8 +2737,8 @@ with tab6:
                 <div style="font-size:23px; font-weight:900; color:#FFFFFF; margin-top:4px;">{b_name}</div>
                 <div style="font-size:12px; color:#94A3B8; margin-bottom:12px;">만 {b_age}세 · {b_pos_short}<br>{b_from_l.split(' (')[0]}</div>
                 <div style="margin-bottom:10px;">{donut_b}</div>
-                <div style="background:#090D16; padding:8px; border-radius:8px; font-size:12px; margin-bottom:6px;">산출 적정가: <b style="color:#10B981;">€{b_fair:,.0f}만</b></div>
-                <div style="background:#090D16; padding:8px; border-radius:8px; font-size:12px; margin-bottom:6px;">요구 이적료: <b style="color:#F97316;">€{b_fee:,.0f}만</b> ({b_overpay:+.1f}%)</div>
+                <div style="background:#090D16; padding:8px; border-radius:8px; font-size:11.5px; margin-bottom:6px;">적정가: <b style="color:#10B981;">{fmt_tm_kor(b_fair)}</b></div>
+                <div style="background:#090D16; padding:8px; border-radius:8px; font-size:11.5px; margin-bottom:6px;">요구액: <b style="color:#F97316;">{fmt_tm_kor(b_fee)}</b> ({b_overpay:+.1f}%)</div>
                 <div style="background:#090D16; padding:8px; border-radius:8px; font-size:11.5px;">직전 ★{b_rating:.2f} | {b_stat_summary}</div>
             </div>
         </div>
@@ -3361,8 +2785,8 @@ with tab6:
                         <div style="font-size:11px; color:#38BDF8; font-weight:800;">🔵 신규 분석 대상</div>
                         <div style="font-size:22px; font-weight:900; color:#FFFFFF; margin-top:4px;">{p_curr_name}</div>
                         <div style="font-size:12px; color:#94A3B8; margin-bottom:12px;">만 {p_curr_age}세 · {p_curr_pos}</div>
-                        <div style="background:#090D16; padding:8px; border-radius:8px; font-size:12px; margin-bottom:6px;">적정가: <b style="color:#10B981;">€{fair_value:,.0f}만</b></div>
-                        <div style="background:#090D16; padding:8px; border-radius:8px; font-size:12px; margin-bottom:6px;">실제 거래액: <b style="color:#38BDF8;">€{p_curr_fee:,.0f}만</b></div>
+                        <div style="background:#090D16; padding:8px; border-radius:8px; font-size:11.5px; margin-bottom:6px;">적정가: <b style="color:#10B981;">{fmt_tm_kor(fair_value)}</b></div>
+                        <div style="background:#090D16; padding:8px; border-radius:8px; font-size:11.5px; margin-bottom:6px;">실제액: <b style="color:#38BDF8;">{fmt_tm_kor(p_curr_fee)}</b></div>
                         <div style="background:#090D16; padding:7px; border-radius:8px; font-size:11.5px; color:#CBD5E1;">★{p_curr_rating:.2f} | {a_stat_summary}</div>
                         <div style="font-size:24px; font-weight:900; color:#38BDF8; margin-top:8px;">★ {final_deal_score:.2f}</div>
                     </div>
@@ -3374,8 +2798,8 @@ with tab6:
                         <div style="font-size:11px; color:#F97316; font-weight:800;">🟠 과거 비교 사례 ({t_season})</div>
                         <div style="font-size:22px; font-weight:900; color:#FFFFFF; margin-top:4px;">{t_name}</div>
                         <div style="font-size:12px; color:#94A3B8; margin-bottom:12px;">만 {t_age}세 · {t_pos}</div>
-                        <div style="background:#090D16; padding:8px; border-radius:8px; font-size:12px; margin-bottom:6px;">적정가: <b style="color:#10B981;">€{t_fair:,.0f}만</b></div>
-                        <div style="background:#090D16; padding:8px; border-radius:8px; font-size:12px; margin-bottom:6px;">실제 거래액: <b style="color:#F97316;">€{t_fee:,.0f}만</b></div>
+                        <div style="background:#090D16; padding:8px; border-radius:8px; font-size:11.5px; margin-bottom:6px;">적정가: <b style="color:#10B981;">{fmt_tm_kor(t_fair)}</b></div>
+                        <div style="background:#090D16; padding:8px; border-radius:8px; font-size:11.5px; margin-bottom:6px;">실제액: <b style="color:#F97316;">{fmt_tm_kor(t_fee)}</b></div>
                         <div style="background:#090D16; padding:7px; border-radius:8px; font-size:11.5px; color:#CBD5E1;">★{t_rating:.2f} | {t_stat_summary}</div>
                         <div style="font-size:24px; font-weight:900; color:#F97316; margin-top:8px;">★ {t_score:.2f}</div>
                     </div>
@@ -3383,7 +2807,7 @@ with tab6:
                 """
                 render_copyable_infographic(h2h_board_html, filename=f"h2h_{p_curr_name}_vs_{t_name}", height=530)
 
-# ================= TAB 7: 구단/리그별 결산 & 전술판 데이터룸 (6각형 구단 레이더 + TOP3 포디움 + 일괄 재계산 탑재) =================
+# ================= TAB 7: 구단/리그별 결산 & 전술판 데이터룸 (227.1m + 2억 2,710만 동시 표기판) =================
 with tab7:
     st.subheader("🏆 이적시장 구단별 종합 성적표 (6각형 구단 레이더 & 전술판) & 리그 파워 랭킹 (TOP 3 포디움)")
 
@@ -3437,7 +2861,6 @@ with tab7:
                 elif weighted_avg_score >= 6.0: club_grade, cg_col = "⚠️ C등급 (다소 아쉬운 이적시장)", "#F97316"
                 else: club_grade, cg_col = "🚨 D등급 (패닉 / 재정 낭비)", "#EF4444"
 
-                # 구단 이적시장 6각형 밸런스 지표 산출
                 in_avg_sc = float(team_in_df["이적평점"].mean()) if not team_in_df.empty else 7.50
                 out_avg_sc = float(team_out_df["이적평점"].mean()) if not team_out_df.empty else 7.50
                 in_fair_sum = float(team_in_df["산출적정가(만€)"].astype(float).sum()) if not team_in_df.empty and "산출적정가(만€)" in team_in_df.columns else total_in_spent
@@ -3482,9 +2905,9 @@ with tab7:
                         w_sc_bar = int(min(100, max(20, p_sc_v * 10)))
                         in_badges_html += (
                             f"<div style='background:#090D16; border:1px solid #1E293B; border-left:3.5px solid #38BDF8; padding:8px 12px; border-radius:8px; margin-bottom:7px;'>"
-                            f"<div style='display:flex; justify-content:space-between; align-items:center; font-size:12.5px; margin-bottom:4px;'>"
+                            f"<div style='display:flex; justify-content:space-between; align-items:center; font-size:12px; margin-bottom:4px;'>"
                             f"<span><b>{r.get('선수명','')}</b> <span style='color:#94A3B8; font-size:11px;'>({r.get('포지션','')} · From {f_img_tag}{f_t_name if f_t_name else '원소속'})</span></span>"
-                            f"<span><span style='color:#94A3B8; font-size:11px;'>적정 €{p_fair_v:,.0f}만</span> · <b style='color:#38BDF8;'>€{p_fee_v:,.0f}만</b> · <b style='color:#FBBF24;'>★{p_sc_v:.2f}</b></span></div>"
+                            f"<span><span style='color:#94A3B8; font-size:11px;'>적정 {fmt_tm_kor(p_fair_v)}</span> · <b style='color:#38BDF8;'>{fmt_tm_kor(p_fee_v)}</b> · <b style='color:#FBBF24;'>★{p_sc_v:.2f}</b></span></div>"
                             f"<div style='background:#1E293B; height:5px; border-radius:3px; overflow:hidden;'><div style='width:{w_sc_bar}%; background:linear-gradient(90deg, #0284C7, #38BDF8); height:100%;'></div></div></div>"
                         )
                 else:
@@ -3503,9 +2926,9 @@ with tab7:
                         w_sc_bar = int(min(100, max(20, p_sc_v * 10)))
                         out_badges_html += (
                             f"<div style='background:#090D16; border:1px solid #1E293B; border-left:3.5px solid #F43F5E; padding:8px 12px; border-radius:8px; margin-bottom:7px;'>"
-                            f"<div style='display:flex; justify-content:space-between; align-items:center; font-size:12.5px; margin-bottom:4px;'>"
+                            f"<div style='display:flex; justify-content:space-between; align-items:center; font-size:12px; margin-bottom:4px;'>"
                             f"<span><b>{r.get('선수명','')}</b> <span style='color:#94A3B8; font-size:11px;'>({r.get('포지션','')} · To {t_img_tag}{t_t_name if t_t_name else '이적팀'})</span></span>"
-                            f"<span><span style='color:#94A3B8; font-size:11px;'>적정 €{p_fair_v:,.0f}만</span> · <b style='color:#10B981;'>€{p_fee_v:,.0f}만</b> · <b style='color:#FBBF24;'>★{p_sc_v:.2f}</b></span></div>"
+                            f"<span><span style='color:#94A3B8; font-size:11px;'>적정 {fmt_tm_kor(p_fair_v)}</span> · <b style='color:#10B981;'>{fmt_tm_kor(p_fee_v)}</b> · <b style='color:#FBBF24;'>★{p_sc_v:.2f}</b></span></div>"
                             f"<div style='background:#1E293B; height:5px; border-radius:3px; overflow:hidden;'><div style='width:{w_sc_bar}%; background:linear-gradient(90deg, #E11D48, #FB7185); height:100%;'></div></div></div>"
                         )
                 else:
@@ -3530,10 +2953,10 @@ with tab7:
                 </div>
 
                 <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:12px; text-align:center; margin-bottom:16px;">
-                    <div class="kpi-card" style="border-top:3px solid #38BDF8;"><div style="font-size:11px; color:#94A3B8;">총 영입 지출액 (IN · {len(team_in_df)}명)</div><div style="font-size:21px; font-weight:900; color:#38BDF8; margin-top:4px;">€{total_in_spent:,.0f}만</div><div style="font-size:11px; color:#64748B;">{format_currency_desc(total_in_spent).split(' | ')[0]}</div></div>
-                    <div class="kpi-card" style="border-top:3px solid #10B981;"><div style="font-size:11px; color:#94A3B8;">총 방출 수익 (OUT · {len(team_out_df)}명)</div><div style="font-size:21px; font-weight:900; color:#10B981; margin-top:4px;">€{total_out_income:,.0f}만</div><div style="font-size:11px; color:#64748B;">{format_currency_desc(total_out_income).split(' | ')[0]}</div></div>
-                    <div class="kpi-card" style="border-top:3px solid #F59E0B;"><div style="font-size:11px; color:#94A3B8;">순지출 (Net Spend)</div><div style="font-size:21px; font-weight:900; color:#FBBF24; margin-top:4px;">€{net_spend:+,.0f}만</div><div style="font-size:11px; color:#64748B;">{format_currency_desc(abs(net_spend)).split(' | ')[0]} {net_type_txt}</div></div>
-                    <div class="kpi-card" style="border-top:3px solid #A855F7;"><div style="font-size:11px; color:#94A3B8;">영입생 평균 연령</div><div style="font-size:21px; font-weight:900; color:#C084FC; margin-top:4px;">만 {in_avg_age:.1f}세</div><div style="font-size:11px; color:#64748B;">총 {len(all_team_trades)}건 거래 완료</div></div>
+                    <div class="kpi-card" style="border-top:3px solid #38BDF8;"><div style="font-size:11px; color:#94A3B8;">총 영입 지출액 (IN · {len(team_in_df)}명)</div><div style="font-size:19px; font-weight:900; color:#38BDF8; margin-top:4px;">{fmt_tm_kor(total_in_spent, multiline=True)}</div><div style="font-size:11px; color:#64748B; margin-top:2px;">{format_currency_desc(total_in_spent).split(' | ')[0]}</div></div>
+                    <div class="kpi-card" style="border-top:3px solid #10B981;"><div style="font-size:11px; color:#94A3B8;">총 방출 수익 (OUT · {len(team_out_df)}명)</div><div style="font-size:19px; font-weight:900; color:#10B981; margin-top:4px;">{fmt_tm_kor(total_out_income, multiline=True)}</div><div style="font-size:11px; color:#64748B; margin-top:2px;">{format_currency_desc(total_out_income).split(' | ')[0]}</div></div>
+                    <div class="kpi-card" style="border-top:3px solid #F59E0B;"><div style="font-size:11px; color:#94A3B8;">순지출 (Net Spend)</div><div style="font-size:19px; font-weight:900; color:#FBBF24; margin-top:4px;">{fmt_tm_kor(net_spend, signed=True, multiline=True)}</div><div style="font-size:11px; color:#64748B; margin-top:2px;">{format_currency_desc(abs(net_spend)).split(' | ')[0]} {net_type_txt}</div></div>
+                    <div class="kpi-card" style="border-top:3px solid #A855F7;"><div style="font-size:11px; color:#94A3B8;">영입생 평균 연령</div><div style="font-size:21px; font-weight:900; color:#C084FC; margin-top:8px;">만 {in_avg_age:.1f}세</div><div style="font-size:11px; color:#64748B; margin-top:6px;">총 {len(all_team_trades)}건 거래 완료</div></div>
                 </div>
 
                 <div style="display:grid; grid-template-columns: 0.92fr 1.08fr; gap:14px; margin-bottom:16px; align-items:stretch;">
@@ -3558,7 +2981,7 @@ with tab7:
                     </div>
                 </div>
                 """
-                render_copyable_infographic(html_club_board, filename=f"club_report_{sel_team_name}", height=960)
+                render_copyable_infographic(html_club_board, filename=f"club_report_{sel_team_name}", height=980)
 
         elif "리그별" in rank_mode:
             c_rk1, c_rk2 = st.columns(2)
@@ -3603,7 +3026,7 @@ with tab7:
                         else: w_score = 7.50
 
                         t_league_label = str(in_trades["이적팀리그"].iloc[0]).strip() if not in_trades.empty and "이적팀리그" in in_trades.columns else ""
-                        team_stat_rows.append({"이적팀명": t_name, "소속리그": t_league_label, "가중이적평점": round(w_score, 2), "영입(IN)": len(in_trades), "방출(OUT)": len(out_trades), "총영입액(만€)": int(in_spent), "총방출액(만€)": int(out_income), "순지출(만€)": int(in_spent - out_income)})
+                        team_stat_rows.append({"이적팀명": t_name, "소속리그": t_league_label, "가중이적평점": round(w_score, 2), "영입(IN)": len(in_trades), "방출(OUT)": len(out_trades), "총영입액": fmt_tm_kor(in_spent), "총방출액": fmt_tm_kor(out_income), "순지출": fmt_tm_kor(in_spent - out_income, signed=True), "_in_raw": int(in_spent), "_out_raw": int(out_income), "_net_raw": int(in_spent - out_income)})
 
                     ranked_df = pd.DataFrame(team_stat_rows).sort_values(by="가중이적평점", ascending=False).reset_index(drop=True)
                     ranked_df.index = ranked_df.index + 1
@@ -3611,7 +3034,6 @@ with tab7:
                     best_deal_row = l_target_df.sort_values(by="이적평점", ascending=False).iloc[0]
                     worst_deal_row = l_target_df.sort_values(by="이적평점", ascending=True).iloc[0]
 
-                    # 🥇 1위 · 🥈 2위 · 🥉 3위 포디움(시상대) 카드 생성
                     podium_cards_html = ""
                     podium_cnt = min(3, len(ranked_df))
                     medals = [("🥇 1ST PLACE", "#FBBF24"), ("🥈 2ND PLACE", "#94A3B8"), ("🥉 3RD PLACE", "#F97316")]
@@ -3635,31 +3057,31 @@ with tab7:
                             <div style="font-size:11px; color:#94A3B8; margin-bottom:6px;">{p_row['소속리그']} · IN {p_row['영입(IN)']} / OUT {p_row['방출(OUT)']}</div>
                             {p_donut}
                             <div style="background:#090D16; padding:6px 8px; border-radius:8px; font-size:11.5px; margin-top:8px; color:#CBD5E1;">
-                                순지출 <b style="color:#38BDF8;">€{p_row['순지출(만€)']:+,.0f}만</b>
+                                순지출 <b style="color:#38BDF8;">{fmt_tm_kor(p_row['_net_raw'], signed=True)}</b>
                             </div>
                         </div>
                         """
 
-                    max_club_spend = max(1500.0, float(ranked_df["총영입액(만€)"].max()) if not ranked_df.empty else 5000.0)
+                    max_club_spend = max(1500.0, float(ranked_df["_in_raw"].max()) if not ranked_df.empty else 5000.0)
                     rk_rows_html = ""
                     for rk_i, (_, rk_r) in enumerate(ranked_df.head(10).iterrows(), start=1):
                         w_bar = int(min(100, max(20, rk_r["가중이적평점"] * 10)))
-                        w_sp_bar = int(min(100, max(8, float(rk_r["총영입액(만€)"]) / max_club_spend * 100)))
+                        w_sp_bar = int(min(100, max(8, float(rk_r["_in_raw"]) / max_club_spend * 100)))
                         t_nm = rk_r["이적팀명"]
                         l_nm = rk_r["소속리그"]
                         in_c = rk_r["영입(IN)"]
                         out_c = rk_r["방출(OUT)"]
-                        in_sp = rk_r["총영입액(만€)"]
-                        out_inc = rk_r["총방출액(만€)"]
-                        net_v = rk_r["순지출(만€)"]
+                        in_sp = rk_r["_in_raw"]
+                        out_inc = rk_r["_out_raw"]
+                        net_v = rk_r["_net_raw"]
                         w_sc = rk_r["가중이적평점"]
                         rk_logo = resolve_club_logo(t_nm)
                         rk_logo_img = f"<img src='{rk_logo}' style='width:22px; height:22px; object-fit:contain; vertical-align:middle; margin-right:7px; filter:drop-shadow(0 1px 2px rgba(0,0,0,0.6));'/>" if rk_logo else "🛡️ "
                         rk_rows_html += (
                             f"<div style='background:#090D16; border:1px solid #1E293B; padding:10px 14px; border-radius:10px; margin-bottom:7px;'>"
-                            f"<div style='display:flex; justify-content:space-between; align-items:center; font-size:13px; margin-bottom:5px;'>"
+                            f"<div style='display:flex; justify-content:space-between; align-items:center; font-size:12.5px; margin-bottom:5px; flex-wrap:wrap; gap:6px;'>"
                             f"<span><b style='color:#38BDF8;'>{rk_i:02d}위.</b> {rk_logo_img}<b style='color:#FFFFFF; font-size:14px;'>{t_nm}</b> <span style='font-size:11px; color:#94A3B8;'>({l_nm} · IN {in_c} / OUT {out_c})</span></span>"
-                            f"<span><span style='font-size:11.5px; color:#94A3B8;'>영입 €{in_sp:,.0f}만 / 방출 €{out_inc:,.0f}만</span> &nbsp;|&nbsp; 순지출 <b style='color:#7DD3FC;'>€{net_v:+,.0f}만</b> &nbsp;|&nbsp; <b style='color:#10B981; font-size:14px;'>★ {w_sc:.2f}</b></span></div>"
+                            f"<span><span style='font-size:11px; color:#94A3B8;'>영입 {fmt_tm_kor(in_sp)} / 방출 {fmt_tm_kor(out_inc)}</span> &nbsp;|&nbsp; 순지출 <b style='color:#7DD3FC;'>{fmt_tm_kor(net_v, signed=True)}</b> &nbsp;|&nbsp; <b style='color:#10B981; font-size:14px;'>★ {w_sc:.2f}</b></span></div>"
                             f"<div style='display:grid; grid-template-columns:1.2fr 0.8fr; gap:8px;'>"
                             f"<div style='background:#1E293B; height:6px; border-radius:3px; overflow:hidden;'><div style='width:{w_bar}%; background:linear-gradient(90deg, #0284C7, #10B981); height:100%;'></div></div>"
                             f"<div style='background:#1E293B; height:6px; border-radius:3px; overflow:hidden;'><div style='width:{w_sp_bar}%; background:linear-gradient(90deg, #6366F1, #A855F7); height:100%;'></div></div>"
@@ -3693,45 +3115,45 @@ with tab7:
                     </div>
 
                     <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
-                        <div style="background:rgba(6,78,59,0.55); border:1px solid #10B981; border-radius:12px; padding:11px 15px; font-size:12.5px;">
-                            💎 <b>최고의 영입 (Best Deal):</b> {b_logo_tag}<b>{best_deal_row.get('선수명','-')}</b> ({best_deal_row.get('이적팀명','-')} · €{float(best_deal_row.get('실제이적료(만€)',0)):,.0f}만) · <b style="color:#34D399;">★ {float(best_deal_row.get('이적평점',0)):.2f}</b>
+                        <div style="background:rgba(6,78,59,0.55); border:1px solid #10B981; border-radius:12px; padding:11px 15px; font-size:12px;">
+                            💎 <b>최고의 영입:</b> {b_logo_tag}<b>{best_deal_row.get('선수명','-')}</b> ({best_deal_row.get('이적팀명','-')} · {fmt_tm_kor(best_deal_row.get('실제이적료(만€)',0))}) · <b style="color:#34D399;">★ {float(best_deal_row.get('이적평점',0)):.2f}</b>
                         </div>
-                        <div style="background:rgba(69,10,10,0.55); border:1px solid #EF4444; border-radius:12px; padding:11px 15px; font-size:12.5px;">
-                            ⚠️ <b>아쉬운 영입 (Worst Deal):</b> {w_logo_tag}<b>{worst_deal_row.get('선수명','-')}</b> ({worst_deal_row.get('이적팀명','-')} · €{float(worst_deal_row.get('실제이적료(만€)',0)):,.0f}만) · <b style="color:#FCA5A5;">★ {float(worst_deal_row.get('이적평점',0)):.2f}</b>
+                        <div style="background:rgba(69,10,10,0.55); border:1px solid #EF4444; border-radius:12px; padding:11px 15px; font-size:12px;">
+                            ⚠️ <b>아쉬운 영입:</b> {w_logo_tag}<b>{worst_deal_row.get('선수명','-')}</b> ({worst_deal_row.get('이적팀명','-')} · {fmt_tm_kor(worst_deal_row.get('실제이적료(만€)',0))}) · <b style="color:#FCA5A5;">★ {float(worst_deal_row.get('이적평점',0)):.2f}</b>
                         </div>
                     </div>
                     """
-                    render_copyable_infographic(rk_board_html, filename=f"power_ranking_{title_prefix}", height=940)
+                    render_copyable_infographic(rk_board_html, filename=f"power_ranking_{title_prefix}", height=960)
 
-                    st.dataframe(ranked_df, use_container_width=True)
+                    st.dataframe(ranked_df.drop(columns=["_in_raw", "_out_raw", "_net_raw"], errors="ignore"), use_container_width=True)
 
                     if len(ranked_df) >= 2:
                         st.markdown("---")
                         st.markdown("##### 📈 **구단별 이적시장 효율성 매트릭스 (순지출 vs 가중 평점 4분면)**")
                         scatter_fig = go.Figure()
                         scatter_fig.add_trace(go.Scatter(
-                            x=ranked_df["순지출(만€)"],
+                            x=ranked_df["_net_raw"] / 100.0,
                             y=ranked_df["가중이적평점"],
                             mode="markers+text",
                             text=ranked_df["이적팀명"],
                             textposition="top center",
                             textfont=dict(color="#F8FAFC", size=12),
                             marker=dict(
-                                size=np.clip(ranked_df["총영입액(만€)"] / 1500 + 12, 12, 34),
+                                size=np.clip(ranked_df["_in_raw"] / 1500 + 12, 12, 34),
                                 color=ranked_df["가중이적평점"],
                                 colorscale="RdYlGn",
                                 showscale=True,
                                 line=dict(color="#FFFFFF", width=1.5),
                                 colorbar=dict(title="가중평점")
                             ),
-                            hovertemplate="<b>%{text}</b><br>순지출: €%{x:,.0f}만<br>가중평점: ★%{y:.2f}<extra></extra>"
+                            hovertemplate="<b>%{text}</b><br>순지출: €%{x:,.1f}m<br>가중평점: ★%{y:.2f}<extra></extra>"
                         ))
                         scatter_fig.add_hline(y=7.50, line_dash="dash", line_color="#94A3B8", annotation_text="평점 기준선 (★7.50)", annotation_font_color="#38BDF8")
-                        scatter_fig.add_vline(x=0, line_dash="dash", line_color="#94A3B8", annotation_text="손익분기 (Net Spend €0)", annotation_font_color="#10B981")
+                        scatter_fig.add_vline(x=0, line_dash="dash", line_color="#94A3B8", annotation_text="손익분기 (Net Spend €0m)", annotation_font_color="#10B981")
                         scatter_fig.update_layout(
-                            title=dict(text=f"<b>🌍 {title_prefix} 구단별 순지출 vs 이적 평점 매트릭스 ({sel_season_rk})</b>", font=dict(size=17, color="#F8FAFC"), x=0.02),
+                            title=dict(text=f"<b>🌍 {title_prefix} 구단별 순지출(€m) vs 이적 평점 매트릭스 ({sel_season_rk})</b>", font=dict(size=17, color="#F8FAFC"), x=0.02),
                             paper_bgcolor="#0B0F19", plot_bgcolor="#0B0F19", font=dict(color="#F8FAFC"),
-                            xaxis=dict(title="순지출 (Net Spend, 만 €) [음수(-) = 판매 흑자 / 양수(+) = 영입 지출]", gridcolor="#1E293B"),
+                            xaxis=dict(title="순지출 (Net Spend, 백만 유로 €m) [음수(-) = 판매 흑자 / 양수(+) = 영입 지출]", gridcolor="#1E293B"),
                             yaxis=dict(title="가중 이적 평점 (★ 1~10)", gridcolor="#1E293B"),
                             height=460,
                             margin=dict(l=40, r=40, t=70, b=40)
@@ -3845,8 +3267,8 @@ with tab7:
             st.dataframe(history_df, use_container_width=True)
 
 _part3_end = True
-    # ==============================================================================
-# [PART 4 / 4] 부록: 탭 1~7 데이터 산출 기준 & 알고리즘 공식 가이드북 이미지 생성기 (밸런스 패치 반영)
+# ==============================================================================
+# [PART 4] 부록: 탭 1~7 데이터 산출 기준 & 알고리즘 공식 가이드북 이미지 생성기 (밸런스 패치 반영)
 # - 앞선 _part3_end = True 바로 아래에 이어서 붙여넣으시면 작동합니다!
 # ==============================================================================
 with st.sidebar:
