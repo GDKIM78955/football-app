@@ -2333,7 +2333,7 @@ with tab4:
 
 _part2_end = True
 # ==============================================================================
-# [PART 3] TAB 5 (중간 점검) · TAB 6 (A vs B 비교) · TAB 7 (구단/리그 결산 & 일괄 업데이트)
+# [PART 3] TAB 5 (중간 점검) · TAB 6 (A vs B 비교) · TAB 7 (이적시장 수지 +/- & 골드/로즈 컬러 적용판)
 # ==============================================================================
 
 # ================= TAB 5: 시즌 중 라운드별 중간 점검 시뮬레이터 =================
@@ -2807,7 +2807,7 @@ with tab6:
                 """
                 render_copyable_infographic(h2h_board_html, filename=f"h2h_{p_curr_name}_vs_{t_name}", height=530)
 
-# ================= TAB 7: 구단/리그별 결산 & 전술판 데이터룸 (227.1m + 2억 2,710만 동시 표기판) =================
+# ================= TAB 7: 구단/리그별 결산 & 전술판 데이터룸 (이적시장 수지 +/- 및 골드/로즈 컬러 적용판) =================
 with tab7:
     st.subheader("🏆 이적시장 구단별 종합 성적표 (6각형 구단 레이더 & 전술판) & 리그 파워 랭킹 (TOP 3 포디움)")
 
@@ -2835,7 +2835,12 @@ with tab7:
 
                 total_in_spent = team_in_df["실제이적료(만€)"].astype(float).sum() if not team_in_df.empty and "실제이적료(만€)" in team_in_df.columns else 0.0
                 total_out_income = team_out_df["실제이적료(만€)"].astype(float).sum() if not team_out_df.empty and "실제이적료(만€)" in team_out_df.columns else 0.0
-                net_spend = total_in_spent - total_out_income
+                
+                # [핵심 개편] 이적시장 수지 (Transfer Balance = 방출 수익 - 영입 지출)
+                # 돈을 벌었으면 +(골드 옐로우 #FBBF24), 돈을 더 썼으면 -(네온 로즈 #FB7185)
+                transfer_balance = total_out_income - total_in_spent
+                bal_col = "#FBBF24" if transfer_balance >= 0 else "#FB7185"
+                bal_type_txt = "판매 흑자 (수익)" if transfer_balance >= 0 else "영입 지출 (적자)"
 
                 def get_adjusted_deal_score(row, is_buy_side):
                     recorded_score = float(row.get("이적평점", 7.50))
@@ -2934,8 +2939,6 @@ with tab7:
                 else:
                     out_badges_html = "<div style='color:#64748B; font-size:12px; padding:8px;'>등록된 방출(OUT) 내역이 없습니다.</div>"
 
-                net_type_txt = "순지출" if net_spend >= 0 else "순수익 흑자"
-
                 html_club_board = f"""
                 <div class="glass-panel" style="padding:16px 22px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; margin-bottom:16px; gap:12px;">
                     <div style="display:flex; align-items:center;">
@@ -2955,7 +2958,7 @@ with tab7:
                 <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:12px; text-align:center; margin-bottom:16px;">
                     <div class="kpi-card" style="border-top:3px solid #38BDF8;"><div style="font-size:11px; color:#94A3B8;">총 영입 지출액 (IN · {len(team_in_df)}명)</div><div style="font-size:19px; font-weight:900; color:#38BDF8; margin-top:4px;">{fmt_tm_kor(total_in_spent, multiline=True)}</div><div style="font-size:11px; color:#64748B; margin-top:2px;">{format_currency_desc(total_in_spent).split(' | ')[0]}</div></div>
                     <div class="kpi-card" style="border-top:3px solid #10B981;"><div style="font-size:11px; color:#94A3B8;">총 방출 수익 (OUT · {len(team_out_df)}명)</div><div style="font-size:19px; font-weight:900; color:#10B981; margin-top:4px;">{fmt_tm_kor(total_out_income, multiline=True)}</div><div style="font-size:11px; color:#64748B; margin-top:2px;">{format_currency_desc(total_out_income).split(' | ')[0]}</div></div>
-                    <div class="kpi-card" style="border-top:3px solid #F59E0B;"><div style="font-size:11px; color:#94A3B8;">순지출 (Net Spend)</div><div style="font-size:19px; font-weight:900; color:#FBBF24; margin-top:4px;">{fmt_tm_kor(net_spend, signed=True, multiline=True)}</div><div style="font-size:11px; color:#64748B; margin-top:2px;">{format_currency_desc(abs(net_spend)).split(' | ')[0]} {net_type_txt}</div></div>
+                    <div class="kpi-card" style="border-top:3px solid {bal_col};"><div style="font-size:11px; color:#94A3B8;">이적시장 수지 (Balance)</div><div style="font-size:19px; font-weight:900; color:{bal_col}; margin-top:4px;">{fmt_tm_kor(transfer_balance, signed=True, multiline=True)}</div><div style="font-size:11px; color:{bal_col}; font-weight:700; margin-top:2px;">{format_currency_desc(abs(transfer_balance)).split(' | ')[0]} {bal_type_txt}</div></div>
                     <div class="kpi-card" style="border-top:3px solid #A855F7;"><div style="font-size:11px; color:#94A3B8;">영입생 평균 연령</div><div style="font-size:21px; font-weight:900; color:#C084FC; margin-top:8px;">만 {in_avg_age:.1f}세</div><div style="font-size:11px; color:#64748B; margin-top:6px;">총 {len(all_team_trades)}건 거래 완료</div></div>
                 </div>
 
@@ -3026,7 +3029,9 @@ with tab7:
                         else: w_score = 7.50
 
                         t_league_label = str(in_trades["이적팀리그"].iloc[0]).strip() if not in_trades.empty and "이적팀리그" in in_trades.columns else ""
-                        team_stat_rows.append({"이적팀명": t_name, "소속리그": t_league_label, "가중이적평점": round(w_score, 2), "영입(IN)": len(in_trades), "방출(OUT)": len(out_trades), "총영입액": fmt_tm_kor(in_spent), "총방출액": fmt_tm_kor(out_income), "순지출": fmt_tm_kor(in_spent - out_income, signed=True), "_in_raw": int(in_spent), "_out_raw": int(out_income), "_net_raw": int(in_spent - out_income)})
+                        # 방출 수익 - 영입 지출 (돈 벌면 +, 돈 쓰면 -)
+                        bal_raw = int(out_income - in_spent)
+                        team_stat_rows.append({"이적팀명": t_name, "소속리그": t_league_label, "가중이적평점": round(w_score, 2), "영입(IN)": len(in_trades), "방출(OUT)": len(out_trades), "총영입액": fmt_tm_kor(in_spent), "총방출액": fmt_tm_kor(out_income), "이적수지(Balance)": fmt_tm_kor(bal_raw, signed=True), "_in_raw": int(in_spent), "_out_raw": int(out_income), "_bal_raw": bal_raw})
 
                     ranked_df = pd.DataFrame(team_stat_rows).sort_values(by="가중이적평점", ascending=False).reset_index(drop=True)
                     ranked_df.index = ranked_df.index + 1
@@ -3049,6 +3054,8 @@ with tab7:
                             f"<div style='width:54px; height:54px; margin:6px auto; border-radius:14px; background:#090D16; border:1.5px solid {m_col}; display:flex; align-items:center; justify-content:center; font-size:22px;'>🏆</div>"
                         )
                         p_donut = build_svg_donut_ring(float(p_row["가중이적평점"]), 10.0, m_col, "가중 평점", size=88)
+                        p_bal_v = p_row["_bal_raw"]
+                        p_bal_col = "#FBBF24" if p_bal_v >= 0 else "#FB7185"
                         podium_cards_html += f"""
                         <div class="glass-panel" style="padding:14px; text-align:center; border-top:3.5px solid {m_col};">
                             <div style="font-size:11px; font-weight:900; color:{m_col}; letter-spacing:0.5px;">{m_lbl}</div>
@@ -3057,7 +3064,7 @@ with tab7:
                             <div style="font-size:11px; color:#94A3B8; margin-bottom:6px;">{p_row['소속리그']} · IN {p_row['영입(IN)']} / OUT {p_row['방출(OUT)']}</div>
                             {p_donut}
                             <div style="background:#090D16; padding:6px 8px; border-radius:8px; font-size:11.5px; margin-top:8px; color:#CBD5E1;">
-                                순지출 <b style="color:#38BDF8;">{fmt_tm_kor(p_row['_net_raw'], signed=True)}</b>
+                                이적수지 <b style="color:{p_bal_col};">{fmt_tm_kor(p_bal_v, signed=True)}</b>
                             </div>
                         </div>
                         """
@@ -3073,7 +3080,8 @@ with tab7:
                         out_c = rk_r["방출(OUT)"]
                         in_sp = rk_r["_in_raw"]
                         out_inc = rk_r["_out_raw"]
-                        net_v = rk_r["_net_raw"]
+                        bal_v = rk_r["_bal_raw"]
+                        rk_bal_col = "#FBBF24" if bal_v >= 0 else "#FB7185"
                         w_sc = rk_r["가중이적평점"]
                         rk_logo = resolve_club_logo(t_nm)
                         rk_logo_img = f"<img src='{rk_logo}' style='width:22px; height:22px; object-fit:contain; vertical-align:middle; margin-right:7px; filter:drop-shadow(0 1px 2px rgba(0,0,0,0.6));'/>" if rk_logo else "🛡️ "
@@ -3081,7 +3089,7 @@ with tab7:
                             f"<div style='background:#090D16; border:1px solid #1E293B; padding:10px 14px; border-radius:10px; margin-bottom:7px;'>"
                             f"<div style='display:flex; justify-content:space-between; align-items:center; font-size:12.5px; margin-bottom:5px; flex-wrap:wrap; gap:6px;'>"
                             f"<span><b style='color:#38BDF8;'>{rk_i:02d}위.</b> {rk_logo_img}<b style='color:#FFFFFF; font-size:14px;'>{t_nm}</b> <span style='font-size:11px; color:#94A3B8;'>({l_nm} · IN {in_c} / OUT {out_c})</span></span>"
-                            f"<span><span style='font-size:11px; color:#94A3B8;'>영입 {fmt_tm_kor(in_sp)} / 방출 {fmt_tm_kor(out_inc)}</span> &nbsp;|&nbsp; 순지출 <b style='color:#7DD3FC;'>{fmt_tm_kor(net_v, signed=True)}</b> &nbsp;|&nbsp; <b style='color:#10B981; font-size:14px;'>★ {w_sc:.2f}</b></span></div>"
+                            f"<span><span style='font-size:11px; color:#94A3B8;'>영입 {fmt_tm_kor(in_sp)} / 방출 {fmt_tm_kor(out_inc)}</span> &nbsp;|&nbsp; 이적수지 <b style='color:{rk_bal_col};'>{fmt_tm_kor(bal_v, signed=True)}</b> &nbsp;|&nbsp; <b style='color:#10B981; font-size:14px;'>★ {w_sc:.2f}</b></span></div>"
                             f"<div style='display:grid; grid-template-columns:1.2fr 0.8fr; gap:8px;'>"
                             f"<div style='background:#1E293B; height:6px; border-radius:3px; overflow:hidden;'><div style='width:{w_bar}%; background:linear-gradient(90deg, #0284C7, #10B981); height:100%;'></div></div>"
                             f"<div style='background:#1E293B; height:6px; border-radius:3px; overflow:hidden;'><div style='width:{w_sp_bar}%; background:linear-gradient(90deg, #6366F1, #A855F7); height:100%;'></div></div>"
@@ -3108,7 +3116,7 @@ with tab7:
 
                     <div class="glass-panel" style="padding:14px 16px; margin-bottom:14px;">
                         <div style="display:flex; justify-content:space-between; font-size:12px; font-weight:800; color:#94A3B8; margin-bottom:8px;">
-                            <span>📊 구단별 이적시장 파워 랭킹 TOP 10</span>
+                            <span>📊 구단별 이적시장 파워 랭킹 TOP 10 (이적수지: 🟡+흑자 / 🌹-지출)</span>
                             <span>좌측 바: 구단 가중 평점(청록) &nbsp;|&nbsp; 우측 바: 총 영입 지출 규모(보라)</span>
                         </div>
                         {rk_rows_html}
@@ -3125,14 +3133,14 @@ with tab7:
                     """
                     render_copyable_infographic(rk_board_html, filename=f"power_ranking_{title_prefix}", height=960)
 
-                    st.dataframe(ranked_df.drop(columns=["_in_raw", "_out_raw", "_net_raw"], errors="ignore"), use_container_width=True)
+                    st.dataframe(ranked_df.drop(columns=["_in_raw", "_out_raw", "_bal_raw"], errors="ignore"), use_container_width=True)
 
                     if len(ranked_df) >= 2:
                         st.markdown("---")
-                        st.markdown("##### 📈 **구단별 이적시장 효율성 매트릭스 (순지출 vs 가중 평점 4분면)**")
+                        st.markdown("##### 📈 **구단별 이적시장 효율성 매트릭스 (이적수지 Balance vs 가중 평점 4분면)**")
                         scatter_fig = go.Figure()
                         scatter_fig.add_trace(go.Scatter(
-                            x=ranked_df["_net_raw"] / 100.0,
+                            x=ranked_df["_bal_raw"] / 100.0,
                             y=ranked_df["가중이적평점"],
                             mode="markers+text",
                             text=ranked_df["이적팀명"],
@@ -3146,14 +3154,14 @@ with tab7:
                                 line=dict(color="#FFFFFF", width=1.5),
                                 colorbar=dict(title="가중평점")
                             ),
-                            hovertemplate="<b>%{text}</b><br>순지출: €%{x:,.1f}m<br>가중평점: ★%{y:.2f}<extra></extra>"
+                            hovertemplate="<b>%{text}</b><br>이적수지: %{x:+,.1f}m €<br>가중평점: ★%{y:.2f}<extra></extra>"
                         ))
                         scatter_fig.add_hline(y=7.50, line_dash="dash", line_color="#94A3B8", annotation_text="평점 기준선 (★7.50)", annotation_font_color="#38BDF8")
-                        scatter_fig.add_vline(x=0, line_dash="dash", line_color="#94A3B8", annotation_text="손익분기 (Net Spend €0m)", annotation_font_color="#10B981")
+                        scatter_fig.add_vline(x=0, line_dash="dash", line_color="#94A3B8", annotation_text="손익분기 (Balance €0m)", annotation_font_color="#FBBF24")
                         scatter_fig.update_layout(
-                            title=dict(text=f"<b>🌍 {title_prefix} 구단별 순지출(€m) vs 이적 평점 매트릭스 ({sel_season_rk})</b>", font=dict(size=17, color="#F8FAFC"), x=0.02),
+                            title=dict(text=f"<b>🌍 {title_prefix} 구단별 이적수지(€m) vs 이적 평점 매트릭스 ({sel_season_rk})</b>", font=dict(size=17, color="#F8FAFC"), x=0.02),
                             paper_bgcolor="#0B0F19", plot_bgcolor="#0B0F19", font=dict(color="#F8FAFC"),
-                            xaxis=dict(title="순지출 (Net Spend, 백만 유로 €m) [음수(-) = 판매 흑자 / 양수(+) = 영입 지출]", gridcolor="#1E293B"),
+                            xaxis=dict(title="이적시장 수지 (Transfer Balance, 백만 유로 €m) [음수(-) = 영입 지출 / 양수(+) = 판매 흑자]", gridcolor="#1E293B"),
                             yaxis=dict(title="가중 이적 평점 (★ 1~10)", gridcolor="#1E293B"),
                             height=460,
                             margin=dict(l=40, r=40, t=70, b=40)
