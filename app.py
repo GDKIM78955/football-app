@@ -735,7 +735,7 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
 ])
 _part1a_end = True
 # ==============================================================================
-# [PART 1-B] TAB 1: 적정 이적료 평가 (m + 억·만 동시 표기 & 밸런스 패치 적용판)
+# [PART 1-B] TAB 1: 적정 이적료 평가 (3년 리세일 3갈래 시나리오 + m·억만 동시 표기)
 # ==============================================================================
 with tab1:
     if st.session_state["last_saved_msg"]:
@@ -1105,7 +1105,7 @@ with tab1:
         if weekly_wage_in > 0:
             overpay_pct = ((weekly_wage_in - expected_fair_weekly_wage) / expected_fair_weekly_wage) * 100
             diff = (weekly_wage_in - expected_fair_weekly_wage) * 52
-            status_label = "⚖️ 적정 주급 FA 영입" if abs(overpay_pct) <= 10.0 else (f"⚠️ 주급 오버페이 FA (+{overpay_pct:.1f}%)" if overpay_pct > 0 else f"💎 주급 혜자 FA ({overpay_pct:.1f}%)")
+            status_label = "⚖️ 적정 주급 FA 영입" if abs(overpay_pct) <= 10.0 else (f"⚠️ 주급 오버페이 FA (+{overpay_pct:.1f}%)" if overpay_pct > 0 else f"💎 주급 혜자 FA ({ov_r:.1f}%)" if 'ov_r' in locals() else f"💎 주급 혜자 FA ({overpay_pct:.1f}%)")
         else:
             overpay_pct, diff, status_label = 0.0, 0.0, "💎 FA 자유계약 영입"
     else:
@@ -1164,6 +1164,7 @@ with tab1:
         deal_grade, grade_hex_color = "분석 대기 중", "#94A3B8"
         ext_deal_grade, ext_hex_color = "분석 대기 중", "#94A3B8"
 
+    # [신규 3번 기능] 3년 후(만 +3세) 리세일 3갈래 시나리오 (대폭발 / 현상유지 / 부진·부상)
     if not is_loan_type and fair_value > 0:
         future_age = player_age + 3
         future_age_w = get_positional_age_weight(future_age, main_position)
@@ -1171,8 +1172,15 @@ with tab1:
         pot_growth_bonus = 1.30 if player_age <= 22 else (1.15 if player_age <= 25 else (1.00 if player_age <= 28 else 0.92))
         proj_3yr_val = fair_value * age_retention_ratio * pot_growth_bonus
         recovery_pct = (proj_3yr_val / calc_actual_fee * 100.0) if calc_actual_fee > 0 else 100.0
+
+        boom_mult = 1.38 if player_age <= 23 else (1.25 if player_age <= 27 else 1.12)
+        proj_3yr_boom = proj_3yr_val * boom_mult
+        proj_3yr_slump = proj_3yr_val * 0.58
+        rec_boom_pct = (proj_3yr_boom / calc_actual_fee * 100.0) if calc_actual_fee > 0 else 135.0
+        rec_slump_pct = (proj_3yr_slump / calc_actual_fee * 100.0) if calc_actual_fee > 0 else 58.0
     else:
         future_age, proj_3yr_val, recovery_pct = player_age + 3, 0.0, 0.0
+        proj_3yr_boom, proj_3yr_slump, rec_boom_pct, rec_slump_pct = 0.0, 0.0, 0.0, 0.0
 
     is_gk = "GK" in main_position
     f_target_mins_t1 = 1440 if is_winter else 3036
@@ -1260,6 +1268,30 @@ with tab1:
             if not is_gk else
             f"골키퍼 첫 시즌 예상 FotMob 평점 <b style='color:#FBBF24;'>★{pj_rating_t1:.2f}</b> (직전 선방 {st.session_state.get('f_gk_saves', 78)}회 · 클린시트 {st.session_state.get('f_gk_cs', 10)}회)"
         )
+
+        # 3년 리세일 3갈래 시나리오 HTML 박스
+        if not is_loan_type and fair_value > 0:
+            resale_scenarios_html = f"""
+            <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; margin-bottom:12px; text-align:center;">
+                <div style="background:#090D16; border:1px solid rgba(16,185,129,0.4); border-radius:8px; padding:6px 4px;">
+                    <div style="font-size:10px; color:#34D399; font-weight:800;">🔥 대폭발 (★7.4+)</div>
+                    <div style="font-size:12px; font-weight:900; color:#FFFFFF; margin-top:2px;">€{proj_3yr_boom/100:.1f}m</div>
+                    <div style="font-size:9.5px; color:#6EE7B7; font-weight:700;">회수율 {rec_boom_pct:.0f}%</div>
+                </div>
+                <div style="background:#090D16; border:1px solid rgba(192,132,252,0.45); border-radius:8px; padding:6px 4px;">
+                    <div style="font-size:10px; color:#D8B4FE; font-weight:800;">⚖️ 기대치 부합</div>
+                    <div style="font-size:12px; font-weight:900; color:#FFFFFF; margin-top:2px;">€{proj_3yr_val/100:.1f}m</div>
+                    <div style="font-size:9.5px; color:#C084FC; font-weight:700;">회수율 {recovery_pct:.0f}%</div>
+                </div>
+                <div style="background:#090D16; border:1px solid rgba(251,113,133,0.4); border-radius:8px; padding:6px 4px;">
+                    <div style="font-size:10px; color:#FB7185; font-weight:800;">⚠️ 부진·부상</div>
+                    <div style="font-size:12px; font-weight:900; color:#FFFFFF; margin-top:2px;">€{proj_3yr_slump/100:.1f}m</div>
+                    <div style="font-size:9.5px; color:#FDA4AF; font-weight:700;">회수율 {rec_slump_pct:.0f}%</div>
+                </div>
+            </div>
+            """
+        else:
+            resale_scenarios_html = ""
 
         fm_mini_pitch_svg = build_fm_mini_pitch_svg(
             main_position, versatility, manual_sub_positions,
@@ -1367,27 +1399,28 @@ with tab1:
             </div>
             <div class="glass-panel" style="padding:18px; display:flex; flex-direction:column; justify-content:space-between;">
                 <div>
-                    <div style="font-size:13.5px; font-weight:900; color:#10B981; margin-bottom:14px;">💰 이적료 밸류에이션 & 3년 후(만 {future_age}세) 가치 비교</div>
-                    <div style="margin-bottom:12px;">
-                        <div style="display:flex; justify-content:space-between; font-size:11.5px; margin-bottom:5px;"><span style="color:#94A3B8; font-weight:700;">TM 시장가치</span><b style="color:#F8FAFC;">{fmt_tm_kor(tm_market_value)} ({format_currency_desc(tm_market_value).split(' | ')[0]})</b></div>
-                        <div style="background:#090D16; height:12px; border-radius:6px; overflow:hidden; border:1px solid #1E293B;"><div style="width:{w_tm}%; background:linear-gradient(90deg, #475569, #94A3B8); height:100%; border-radius:6px;"></div></div>
+                    <div style="font-size:13.5px; font-weight:900; color:#10B981; margin-bottom:12px;">💰 이적료 밸류에이션 & 3년 후(만 {future_age}세) 시나리오</div>
+                    <div style="margin-bottom:10px;">
+                        <div style="display:flex; justify-content:space-between; font-size:11.5px; margin-bottom:4px;"><span style="color:#94A3B8; font-weight:700;">TM 시장가치</span><b style="color:#F8FAFC;">{fmt_tm_kor(tm_market_value)} ({format_currency_desc(tm_market_value).split(' | ')[0]})</b></div>
+                        <div style="background:#090D16; height:10px; border-radius:5px; overflow:hidden; border:1px solid #1E293B;"><div style="width:{w_tm}%; background:linear-gradient(90deg, #475569, #94A3B8); height:100%; border-radius:5px;"></div></div>
                     </div>
-                    <div style="margin-bottom:12px;">
-                        <div style="display:flex; justify-content:space-between; font-size:11.5px; margin-bottom:5px;"><span style="color:#6EE7B7; font-weight:700;">{fair_lbl_top}</span><b style="color:#10B981;">{fmt_tm_kor(fair_value)} ({format_currency_desc(fair_value).split(' | ')[0]})</b></div>
-                        <div style="background:#090D16; height:12px; border-radius:6px; overflow:hidden; border:1px solid #1E293B;"><div style="width:{w_fair}%; background:linear-gradient(90deg, #059669, #34D399); height:100%; border-radius:6px;"></div></div>
+                    <div style="margin-bottom:10px;">
+                        <div style="display:flex; justify-content:space-between; font-size:11.5px; margin-bottom:4px;"><span style="color:#6EE7B7; font-weight:700;">{fair_lbl_top}</span><b style="color:#10B981;">{fmt_tm_kor(fair_value)} ({format_currency_desc(fair_value).split(' | ')[0]})</b></div>
+                        <div style="background:#090D16; height:10px; border-radius:5px; overflow:hidden; border:1px solid #1E293B;"><div style="width:{w_fair}%; background:linear-gradient(90deg, #059669, #34D399); height:100%; border-radius:5px;"></div></div>
                     </div>
-                    <div style="margin-bottom:12px;">
-                        <div style="display:flex; justify-content:space-between; font-size:11.5px; margin-bottom:5px;"><span style="color:#7DD3FC; font-weight:700;">실제 거래 금액 ({status_label.split(' (')[0]})</span><b style="color:#38BDF8;">{fee_display}</b></div>
-                        <div style="background:#090D16; height:12px; border-radius:6px; overflow:hidden; border:1px solid #1E293B;"><div style="width:{w_act}%; background:{act_bar_bg}; height:100%; border-radius:6px;"></div></div>
+                    <div style="margin-bottom:10px;">
+                        <div style="display:flex; justify-content:space-between; font-size:11.5px; margin-bottom:4px;"><span style="color:#7DD3FC; font-weight:700;">실제 거래 금액 ({status_label.split(' (')[0]})</span><b style="color:#38BDF8;">{fee_display}</b></div>
+                        <div style="background:#090D16; height:10px; border-radius:5px; overflow:hidden; border:1px solid #1E293B;"><div style="width:{w_act}%; background:{act_bar_bg}; height:100%; border-radius:5px;"></div></div>
                     </div>
-                    <div style="margin-bottom:14px;">
-                        <div style="display:flex; justify-content:space-between; font-size:11.5px; margin-bottom:5px;"><span style="color:#D8B4FE; font-weight:700;">3년 후 예상 리세일 (회수율 {recovery_pct:.0f}%)</span><b style="color:#C084FC;">{fmt_tm_kor(proj_3yr_val)}</b></div>
-                        <div style="background:#090D16; height:12px; border-radius:6px; overflow:hidden; border:1px solid #1E293B;"><div style="width:{w_3yr}%; background:linear-gradient(90deg, #7E22CE, #C084FC); height:100%; border-radius:6px;"></div></div>
+                    <div style="margin-bottom:8px;">
+                        <div style="display:flex; justify-content:space-between; font-size:11.5px; margin-bottom:4px;"><span style="color:#D8B4FE; font-weight:700;">3년 후 기준 리세일 (회수율 {recovery_pct:.0f}%)</span><b style="color:#C084FC;">{fmt_tm_kor(proj_3yr_val)}</b></div>
+                        <div style="background:#090D16; height:10px; border-radius:5px; overflow:hidden; border:1px solid #1E293B;"><div style="width:{w_3yr}%; background:linear-gradient(90deg, #7E22CE, #C084FC); height:100%; border-radius:5px;"></div></div>
                     </div>
+                    {resale_scenarios_html}
                 </div>
-                <div style="background:linear-gradient(135deg, rgba(2,132,199,0.18), rgba(15,23,42,0.9)); border:1px solid rgba(56,189,248,0.35); border-radius:12px; padding:12px 14px;">
-                    <div style="font-size:11.5px; font-weight:900; color:#38BDF8; margin-bottom:5px;">📱 FOTMOB 이적 첫 시즌 예상 성적 ({f_target_mins_t1:,}분 출전 기준)</div>
-                    <div style="font-size:12.5px; color:#F8FAFC; line-height:1.5;">{proj_stat_line}</div>
+                <div style="background:linear-gradient(135deg, rgba(2,132,199,0.18), rgba(15,23,42,0.9)); border:1px solid rgba(56,189,248,0.35); border-radius:12px; padding:11px 13px;">
+                    <div style="font-size:11px; font-weight:900; color:#38BDF8; margin-bottom:4px;">📱 FOTMOB 이적 첫 시즌 예상 성적 ({f_target_mins_t1:,}분 출전 기준)</div>
+                    <div style="font-size:12px; color:#F8FAFC; line-height:1.45;">{proj_stat_line}</div>
                 </div>
             </div>
         </div>
@@ -1438,7 +1471,7 @@ with tab1:
             </div>
         </div>
         """
-        render_copyable_infographic(tab1_board_html, filename=f"scouting_{display_name}", height=1145)
+        render_copyable_infographic(tab1_board_html, filename=f"scouting_{display_name}", height=1170)
 
         with st.expander("🔍 [내부 관리용] 12대 세부 가중치 적용 현황표 & 누적 배율 (외부 비공개 확인용)", expanded=False):
             eff_ttype_disp = 0.16 if is_loan_type else ttype_w
@@ -2333,7 +2366,7 @@ with tab4:
 
 _part2_end = True
 # ==============================================================================
-# [PART 3] TAB 5 (중간 점검) · TAB 6 (A vs B 비교) · TAB 7 (이적시장 수지 & 4대 카드 풀옵션 팩트 지표 탑재판)
+# [PART 3] TAB 5 · TAB 6 · TAB 7 (포지션/연령 투자 비중 바 + 구단 간 협상 손익 영수증 탑재판)
 # ==============================================================================
 
 # ================= TAB 5: 시즌 중 라운드별 중간 점검 시뮬레이터 =================
@@ -2807,14 +2840,23 @@ with tab6:
                 """
                 render_copyable_infographic(h2h_board_html, filename=f"h2h_{p_curr_name}_vs_{t_name}", height=530)
 
-# ================= TAB 7: 구단/리그별 결산 & 전술판 데이터룸 (풀옵션 팩트 지표 + 이적시장 수지 탑재판) =================
+# ================= TAB 7: 구단/리그별 결산 & 전술판 데이터룸 + 협상 손익 영수증 + 포지션/연령 투자 비중 바 =================
 with tab7:
-    st.subheader("🏆 이적시장 구단별 종합 성적표 (6각형 구단 레이더 & 전술판) & 리그 파워 랭킹 (TOP 3 포디움)")
+    st.subheader("🏆 이적시장 구단별 종합 성적표 · 협상 손익 영수증 · 리그 파워 랭킹 데이터룸")
 
     if history_df.empty or "이적시즌" not in history_df.columns:
         st.info("💡 아직 구글 시트에 누적된 이적 데이터가 없습니다.")
     else:
-        rank_mode = st.radio("분석 모드 선택", ["🏢 구단별 이적시장 성적표 & 영입 전술판 (Club Report & Tactical Pitch)", "🌍 리그별 / 10대 리그 통합 파워 랭킹 (Power Rankings & Podium)", "🛠️ 저장 데이터 조회 · 일괄 밸런스 패치 업데이트 및 삭제 관리"], horizontal=True)
+        rank_mode = st.radio(
+            "분석 모드 선택",
+            [
+                "🏢 구단별 이적시장 성적표 & 영입 전술판 (Club Report & Tactical Pitch)",
+                "🤝 구단 간 협상 손익 영수증 (Buy vs Sell Deal Matchup)",
+                "🌍 리그별 / 10대 리그 통합 파워 랭킹 (Power Rankings & Podium)",
+                "🛠️ 저장 데이터 조회 · 일괄 밸런스 패치 업데이트 및 삭제 관리"
+            ],
+            horizontal=True
+        )
         st.markdown("---")
 
         if "구단별" in rank_mode:
@@ -2836,8 +2878,6 @@ with tab7:
                 total_in_spent = team_in_df["실제이적료(만€)"].astype(float).sum() if not team_in_df.empty and "실제이적료(만€)" in team_in_df.columns else 0.0
                 total_out_income = team_out_df["실제이적료(만€)"].astype(float).sum() if not team_out_df.empty and "실제이적료(만€)" in team_out_df.columns else 0.0
 
-                # [핵심 개편] 이적시장 수지 (Transfer Balance = 방출 수익 - 영입 지출)
-                # 돈을 벌었으면 +(골드 옐로우 #FBBF24), 돈을 더 썼으면 -(네온 로즈 #FB7185)
                 transfer_balance = total_out_income - total_in_spent
                 bal_col = "#FBBF24" if transfer_balance >= 0 else "#FB7185"
                 bal_type_txt = "판매 흑자" if transfer_balance >= 0 else "영입 적자"
@@ -2874,8 +2914,6 @@ with tab7:
                 youth_idx = int(min(98, max(52, (32.0 - in_avg_age) * 5.2 + 45)))
                 squad_depth_idx = int(min(98, max(58, 65 + len(team_in_df) * 6 + len(team_out_df) * 3)))
 
-                # [4대 KPI 카드 하단 풀옵션 팩트 지표 자동 산출]
-                # 1번 카드: 최고 지출 선수 & 적정가 대비 총 절감/오버페이
                 if not team_in_df.empty and total_in_spent > 0:
                     top_in_r = team_in_df.loc[team_in_df["실제이적료(만€)"].astype(float).idxmax()]
                     top_in_txt = f"최고지출: {top_in_r.get('선수명','-')} (€{float(top_in_r.get('실제이적료(만€)',0))/100:.1f}m)"
@@ -2885,7 +2923,6 @@ with tab7:
                 else:
                     top_in_txt, gap_lbl, gap_col = "유상 영입 없음", "적정가 차액 €0m", "#64748B"
 
-                # 2번 카드: 최고 매각 선수 & 유상/무상 방출 인원
                 if not team_out_df.empty:
                     paid_out_cnt = int((team_out_df["실제이적료(만€)"].astype(float) > 0).sum())
                     free_out_cnt = len(team_out_df) - paid_out_cnt
@@ -2898,11 +2935,9 @@ with tab7:
                 else:
                     top_out_txt, out_split_txt = "방출 내역 없음", "총 0명 방출"
 
-                # 3번 카드: 영입자금 자체 조달률 (방출 수익 / 영입 지출)
                 self_fund_pct = (total_out_income / total_in_spent * 100.0) if total_in_spent > 0 else (100.0 if total_out_income > 0 else 0.0)
                 fund_desc_txt = f"영입자금 자체 조달률 {self_fund_pct:.1f}%"
 
-                # 4번 카드: 연령대 구성 (U-23 영건 / 전성기 / 베테랑) & 세대교체 폭
                 if not team_in_df.empty and "나이" in team_in_df.columns:
                     in_ages_s = team_in_df["나이"].astype(float)
                     u23_cnt = int((in_ages_s <= 23).sum())
@@ -2916,7 +2951,59 @@ with tab7:
                     else:
                         age_shift_txt = f"총 {len(all_team_trades)}건 이적 거래 완료"
                 else:
+                    u23_cnt = prime_cnt = vet_cnt = 0
                     age_comp_txt, age_shift_txt = "영입 선수 없음", f"총 {len(all_team_trades)}건 거래 완료"
+
+                # [신규 5번 기능] 포지션별 지출 비중 & 연령대 비중 스택 바 생성
+                att_sp = mid_sp = def_sp = gk_sp = 0.0
+                if not team_in_df.empty:
+                    for _, r_sp in team_in_df.iterrows():
+                        f_sp = max(float(r_sp.get("실제이적료(만€)", 0)), 100.0) if total_in_spent == 0 else float(r_sp.get("실제이적료(만€)", 0))
+                        p_sp = str(r_sp.get("포지션", ""))
+                        if any(k in p_sp for k in ["스트라이커", "센터포워드", "윙어", "공격형", "ST", "CF", "WG", "CAM"]): att_sp += f_sp
+                        elif any(k in p_sp for k in ["중앙", "수비형", "미드필더", "CM", "CDM"]): mid_sp += f_sp
+                        elif any(k in p_sp for k in ["골키퍼", "GK"]): gk_sp += f_sp
+                        else: def_sp += f_sp
+                tot_sp_den = max(1.0, att_sp + mid_sp + def_sp + gk_sp)
+                p_att_pct = round(att_sp / tot_sp_den * 100.0, 1)
+                p_mid_pct = round(mid_sp / tot_sp_den * 100.0, 1)
+                p_def_pct = round(def_sp / tot_sp_den * 100.0, 1)
+                p_gk_pct = round(max(0.0, 100.0 - p_att_pct - p_mid_pct - p_def_pct), 1)
+
+                tot_in_cnt = max(1, len(team_in_df))
+                a_u23_pct = round(u23_cnt / tot_in_cnt * 100.0, 1)
+                a_prm_pct = round(prime_cnt / tot_in_cnt * 100.0, 1)
+                a_vet_pct = round(max(0.0, 100.0 - a_u23_pct - a_prm_pct), 1)
+
+                squad_diag_bar_html = f"""
+                <div class="glass-panel" style="padding:14px 18px; margin-bottom:16px;">
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:18px;">
+                        <div>
+                            <div style="display:flex; justify-content:space-between; font-size:11.5px; font-weight:800; margin-bottom:6px;">
+                                <span style="color:#E2E8F0;">🧩 포지션별 영입 예산 투자 비중</span>
+                                <span style="font-size:11px; color:#94A3B8;"><b style="color:#F43F5E;">공격 {p_att_pct:.0f}%</b> · <b style="color:#38BDF8;">중원 {p_mid_pct:.0f}%</b> · <b style="color:#10B981;">수비 {p_def_pct:.0f}%</b> · <b style="color:#FBBF24;">GK {p_gk_pct:.0f}%</b></span>
+                            </div>
+                            <div style="display:flex; height:11px; border-radius:6px; overflow:hidden; background:#090D16; border:1px solid #1E293B;">
+                                <div style="width:{p_att_pct}%; background:#F43F5E;"></div>
+                                <div style="width:{p_mid_pct}%; background:#38BDF8;"></div>
+                                <div style="width:{p_def_pct}%; background:#10B981;"></div>
+                                <div style="width:{p_gk_pct}%; background:#FBBF24;"></div>
+                            </div>
+                        </div>
+                        <div>
+                            <div style="display:flex; justify-content:space-between; font-size:11.5px; font-weight:800; margin-bottom:6px;">
+                                <span style="color:#E2E8F0;">🎂 영입생 연령대 포트폴리오 비중</span>
+                                <span style="font-size:11px; color:#94A3B8;"><b style="color:#34D399;">U-23 영건 {a_u23_pct:.0f}%</b> · <b style="color:#C084FC;">전성기(24~28) {a_prm_pct:.0f}%</b> · <b style="color:#FB923C;">베테랑 {a_vet_pct:.0f}%</b></span>
+                            </div>
+                            <div style="display:flex; height:11px; border-radius:6px; overflow:hidden; background:#090D16; border:1px solid #1E293B;">
+                                <div style="width:{a_u23_pct}%; background:#10B981;"></div>
+                                <div style="width:{a_prm_pct}%; background:#A855F7;"></div>
+                                <div style="width:{a_vet_pct}%; background:#F97316;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                """
 
                 club_rad_cats = ['영입 타겟 평점', '매각 협상 수완', '영입 가성비 효율', '즉시 전력 보강', '선수단 젊음/포텐', '스쿼드 밸런스']
                 club_rad_vals = [
@@ -3026,6 +3113,8 @@ with tab7:
                     </div>
                 </div>
 
+                {squad_diag_bar_html}
+
                 <div style="display:grid; grid-template-columns: 0.92fr 1.08fr; gap:14px; margin-bottom:16px; align-items:stretch;">
                     <div class="glass-panel" style="padding:14px; text-align:center; display:flex; flex-direction:column; justify-content:center;">
                         <div style="font-size:13px; font-weight:900; color:#38BDF8; margin-bottom:4px;">💠 {sel_team_name} 이적시장 6각형 밸런스</div>
@@ -3048,7 +3137,119 @@ with tab7:
                     </div>
                 </div>
                 """
-                render_copyable_infographic(html_club_board, filename=f"club_report_{sel_team_name}", height=1000)
+                render_copyable_infographic(html_club_board, filename=f"club_report_{sel_team_name}", height=1060)
+
+        elif "협상 손익 영수증" in rank_mode:
+            # [신규 2번 기능] 구단 간 협상 손익 영수증 (Buy vs Sell Deal Matchup)
+            c_bs1, c_bs2 = st.columns([1, 2])
+            all_s_bs = list(history_df["이적시즌"].dropna().unique())
+            with c_bs1: sel_s_bs = st.selectbox("조회할 이적 시즌", ["전체 시즌"] + all_s_bs, index=0, key="bs_season_sel")
+            bs_pool_df = history_df if sel_s_bs == "전체 시즌" else history_df[history_df["이적시즌"] == sel_s_bs]
+            bs_players = list(bs_pool_df["선수명"].dropna().unique())
+            with c_bs2: sel_p_bs = st.selectbox("협상 영수증을 확인할 선수 선택", bs_players, key="bs_player_sel") if bs_players else None
+
+            if sel_p_bs:
+                bs_r = bs_pool_df[bs_pool_df["선수명"] == sel_p_bs].iloc[-1].to_dict()
+                p_nm_bs = str(bs_r.get("선수명", ""))
+                p_age_bs = int(find_val(bs_r, ["나이"], 25))
+                p_pos_bs = str(bs_r.get("포지션", "CM"))
+                p_tm_bs = float(find_val(bs_r, ["시장가치", "tm"], 4000.0))
+                p_fair_bs = float(find_val(bs_r, ["산출적정가", "적정가"], 4500.0))
+                p_fee_bs = float(find_val(bs_r, ["실제이적료", "이적료"], 5000.0))
+                p_rat_bs = float(find_val(bs_r, ["이전_FotMob평점", "직전_평점", "이전평점", "FotMob평점"], 7.15))
+                p_ttype_bs = str(bs_r.get("이적형태", "일반 완전 이적"))
+                from_t_bs = str(bs_r.get("원소속팀명", "판매 구단")).strip() or "판매 구단"
+                to_t_bs = str(bs_r.get("이적팀명", "영입 구단")).strip() or "영입 구단"
+                fl_sv, tl_sv = extract_logos_from_notes(str(bs_r.get("스카우팅메모", "")))
+                sell_logo = resolve_club_logo(from_t_bs, fl_sv)
+                buy_logo = resolve_club_logo(to_t_bs, tl_sv)
+
+                rec_sc_bs = float(bs_r.get("이적평점", 7.50))
+                orig_dir_bs = str(bs_r.get("거래구분", "IN")).strip()
+                buy_sc = round(max(1.0, min(10.0, 15.00 - rec_sc_bs)), 2) if orig_dir_bs == "OUT" else rec_sc_bs
+                sell_sc = round(max(1.0, min(10.0, 15.00 - rec_sc_bs)), 2) if orig_dir_bs == "IN" else rec_sc_bs
+
+                diff_bs = p_fee_bs - p_fair_bs
+                ov_pct_bs = (diff_bs / p_fair_bs * 100.0) if p_fair_bs > 0 else 0.0
+
+                if buy_sc > sell_sc + 0.35:
+                    bs_winner = f"🏆 협상 승자: {to_t_bs} (영입 구단 +{buy_sc - sell_sc:.2f}점 우위 · 알짜 영입 성공!)"
+                    bs_w_col = "#38BDF8"
+                elif sell_sc > buy_sc + 0.35:
+                    bs_winner = f"🏆 협상 승자: {from_t_bs} (판매 구단 +{sell_sc - buy_sc:.2f}점 우위 · 거상 매각 성공!)"
+                    bs_w_col = "#FBBF24"
+                else:
+                    bs_winner = f"🤝 협상 결과: {from_t_bs} & {to_t_bs} 상호 윈-윈 (Win-Win Fair Deal)"
+                    bs_w_col = "#10B981"
+
+                sell_emblem = f"<div style='width:64px; height:64px; margin:0 auto 8px; border-radius:16px; background:#090D16; border:2px solid #FBBF24; display:flex; align-items:center; justify-content:center; padding:6px;'><img src='{sell_logo}' style='width:100%; height:100%; object-fit:contain;'/></div>" if sell_logo else "<div style='font-size:32px; margin-bottom:6px;'>🏟️</div>"
+                buy_emblem = f"<div style='width:64px; height:64px; margin:0 auto 8px; border-radius:16px; background:#090D16; border:2px solid #38BDF8; display:flex; align-items:center; justify-content:center; padding:6px;'><img src='{buy_logo}' style='width:100%; height:100%; object-fit:contain;'/></div>" if buy_logo else "<div style='font-size:32px; margin-bottom:6px;'>🛡️</div>"
+
+                donut_sell = build_svg_donut_ring(sell_sc, 10.0, "#FBBF24", "판매구단 매각평점", size=105)
+                donut_buy = build_svg_donut_ring(buy_sc, 10.0, "#38BDF8", "영입구단 영입평점", size=105)
+
+                sell_profit_txt = f"적정가 대비 +{fmt_tm_kor(diff_bs)} 초과 수익 (+{ov_pct_bs:.1f}%)" if diff_bs >= 0 else f"적정가 대비 {fmt_tm_kor(diff_bs, signed=True)} 할인 매각 ({ov_pct_bs:.1f}%)"
+                buy_cost_txt = f"적정가 대비 {fmt_tm_kor(abs(diff_bs))} 절감 영입 ({ov_pct_bs:.1f}%)" if diff_bs <= 0 else f"적정가 대비 +{fmt_tm_kor(diff_bs)} 프리미엄 지불 (+{ov_pct_bs:.1f}%)"
+
+                bs_board_html = f"""
+                <div style="text-align:center; background:linear-gradient(90deg, rgba(15,23,42,0.9), rgba(30,41,59,0.95), rgba(15,23,42,0.9)); border:1.5px solid {bs_w_col}; border-radius:14px; padding:12px 18px; font-size:18px; font-weight:900; color:{bs_w_col}; margin-bottom:16px;">
+                    {bs_winner}
+                </div>
+                <div style="display:grid; grid-template-columns: 1fr 1.1fr 1fr; gap:14px; align-items:stretch;">
+                    <div class="glass-panel" style="border-top:3.5px solid #FBBF24; padding:18px; text-align:center; display:flex; flex-direction:column; justify-content:space-between;">
+                        <div>
+                            <div style="font-size:11px; color:#FBBF24; font-weight:900; letter-spacing:1px;">📤 SELLING CLUB (방출/매각)</div>
+                            <div style="margin-top:8px;">{sell_emblem}</div>
+                            <div style="font-size:22px; font-weight:900; color:#FFFFFF;">{from_t_bs}</div>
+                            <div style="font-size:11.5px; color:#94A3B8; margin-bottom:10px;">{bs_r.get('원소속리그','')}</div>
+                            {donut_sell}
+                        </div>
+                        <div style="margin-top:10px;">
+                            <div style="background:#090D16; padding:9px; border-radius:8px; font-size:12px; margin-bottom:6px; border-left:3px solid #FBBF24;">매각 수입: <b style="color:#FBBF24;">+{fmt_tm_kor(p_fee_bs)}</b></div>
+                            <div style="background:#090D16; padding:9px; border-radius:8px; font-size:11.5px; color:#E2E8F0;">{sell_profit_txt}</div>
+                        </div>
+                    </div>
+
+                    <div class="glass-panel" style="padding:18px; display:flex; flex-direction:column; justify-content:space-between; text-align:center;">
+                        <div>
+                            <div style="font-size:11px; font-weight:900; color:#10B981; letter-spacing:1px;">🧾 OFFICIAL DEAL RECEIPT</div>
+                            <div style="font-size:25px; font-weight:900; color:#FFFFFF; margin-top:4px;">{p_nm_bs}</div>
+                            <div style="font-size:12px; color:#94A3B8; margin-top:2px;">만 {p_age_bs}세 · {p_pos_bs} · 직전 ★{p_rat_bs:.2f}</div>
+                            <div style="font-size:11.5px; color:#7DD3FC; font-weight:700; margin-top:4px;">[{p_ttype_bs}]</div>
+                        </div>
+                        <div style="background:#090D16; border:1px solid #1E293B; border-radius:12px; padding:14px; text-align:left; font-size:12.5px; line-height:1.8; margin:12px 0;">
+                            <div style="display:flex; justify-content:space-between; border-bottom:1px dashed #1E293B; padding-bottom:4px;">
+                                <span style="color:#94A3B8;">TM 기준 시장가치</span><b style="color:#F8FAFC;">{fmt_tm_kor(p_tm_bs)}</b>
+                            </div>
+                            <div style="display:flex; justify-content:space-between; border-bottom:1px dashed #1E293B; padding:4px 0;">
+                                <span style="color:#6EE7B7;">12대 가중치 산출 적정가</span><b style="color:#10B981;">{fmt_tm_kor(p_fair_bs)}</b>
+                            </div>
+                            <div style="display:flex; justify-content:space-between; border-bottom:1px dashed #1E293B; padding:4px 0;">
+                                <span style="color:#7DD3FC;">실제 타결 이적료</span><b style="color:#38BDF8;">{fmt_tm_kor(p_fee_bs)}</b>
+                            </div>
+                            <div style="display:flex; justify-content:space-between; padding-top:4px;">
+                                <span style="color:#FCD34D;">적정가 대비 프리미엄</span><b style="color:{'#FB7185' if diff_bs > 0 else '#34D399'};">{fmt_tm_kor(diff_bs, signed=True)} ({ov_pct_bs:+.1f}%)</b>
+                            </div>
+                        </div>
+                        <div style="font-size:11.5px; color:#94A3B8;">원화 환산: <b style="color:#E2E8F0;">{format_currency_desc(p_fee_bs)}</b></div>
+                    </div>
+
+                    <div class="glass-panel" style="border-top:3.5px solid #38BDF8; padding:18px; text-align:center; display:flex; flex-direction:column; justify-content:space-between;">
+                        <div>
+                            <div style="font-size:11px; color:#38BDF8; font-weight:900; letter-spacing:1px;">📥 BUYING CLUB (영입/보강)</div>
+                            <div style="margin-top:8px;">{buy_emblem}</div>
+                            <div style="font-size:22px; font-weight:900; color:#FFFFFF;">{to_t_bs}</div>
+                            <div style="font-size:11.5px; color:#94A3B8; margin-bottom:10px;">{bs_r.get('이적팀리그','')}</div>
+                            {donut_buy}
+                        </div>
+                        <div style="margin-top:10px;">
+                            <div style="background:#090D16; padding:9px; border-radius:8px; font-size:12px; margin-bottom:6px; border-left:3px solid #38BDF8;">영입 지출: <b style="color:#38BDF8;">-{fmt_tm_kor(p_fee_bs)}</b></div>
+                            <div style="background:#090D16; padding:9px; border-radius:8px; font-size:11.5px; color:#E2E8F0;">{buy_cost_txt}</div>
+                        </div>
+                    </div>
+                </div>
+                """
+                render_copyable_infographic(bs_board_html, filename=f"deal_receipt_{p_nm_bs}", height=560)
 
         elif "리그별" in rank_mode:
             c_rk1, c_rk2 = st.columns(2)
@@ -3340,7 +3541,7 @@ with tab7:
 
 _part3_end = True
 # ==============================================================================
-# [PART 4] 부록: 탭 1~7 데이터 산출 기준 & 알고리즘 공식 가이드북 이미지 생성기 (밸런스 패치 반영)
+# [PART 4] 부록: 탭 1~7 데이터 산출 기준 & 알고리즘 공식 가이드북 이미지 생성기 (신규 기능 반영판)
 # - 앞선 _part3_end = True 바로 아래에 이어서 붙여넣으시면 작동합니다!
 # ==============================================================================
 with st.sidebar:
@@ -3355,13 +3556,13 @@ if show_manual_guide:
     guide_choice = st.radio(
         "이미지로 저장할 설명서 페이지 선택 (총 7장)",
         [
-            "📌 Page 1. [TAB 1] 적정 이적료 12대 가중치(밸런스 패치) & 임대/이적 평점 산출 기준",
+            "📌 Page 1. [TAB 1] 적정 이적료 12대 가중치 · 3년 리세일 3갈래 시나리오 · 임대/이적 평점 기준",
             "📌 Page 2. [TAB 1] 90종 FM 스카우팅 리포트 & 미니 포지션 맵 기준",
             "📌 Page 3. [TAB 2] FotMob 첫 시즌 성적 예측(Projection) 알고리즘",
             "📌 Page 4. [TAB 3] 과거 유사 이적 사례(Comps) 일치도 산출 기준",
             "📌 Page 5. [TAB 4] 시즌 종료 최종 성적 & 모델 적중률 사후 검증 기준",
             "📌 Page 6. [TAB 5 & 6] 라운드별 중간 점검 & 포지션 맞춤형 A vs B 비교 기준",
-            "📌 Page 7. [TAB 7] 구단별 가중 평점 · 예산 효율지수 · 파워 랭킹 기준"
+            "📌 Page 7. [TAB 7] 구단 가중 평점 · 협상 가성비 · 협상 손익 영수증 · 파워 랭킹 기준"
         ],
         horizontal=False, key="guide_page_radio"
     )
@@ -3370,15 +3571,15 @@ if show_manual_guide:
         g_html = """
         <div class="glass-panel" style="padding:18px 22px; margin-bottom:16px; border-left:5px solid #38BDF8;">
             <div style="font-size:11px; font-weight:900; color:#38BDF8; letter-spacing:1px;">OFFICIAL METHODOLOGY GUIDELINE · PAGE 01 / 07</div>
-            <div style="font-size:26px; font-weight:900; color:#FFFFFF; margin-top:3px;">💰 [TAB 1] 적정 이적료 12대 가중치 & 거래 평점 산출 기준 (밸런스 패치판)</div>
-            <div style="font-size:13px; color:#94A3B8; margin-top:4px;">트랜스퍼마르크트(TM) 기준 시장가치에 12대 현실 변수를 곱연산하여 적정 가치와 오버페이율, 임대 효율성을 도출합니다.</div>
+            <div style="font-size:26px; font-weight:900; color:#FFFFFF; margin-top:3px;">💰 [TAB 1] 적정 이적료 12대 가중치 · 3년 리세일 시나리오 · 평점 기준</div>
+            <div style="font-size:13px; color:#94A3B8; margin-top:4px;">트랜스퍼마르크트(TM) 기준 시장가치에 12대 현실 변수를 곱연산하여 적정 가치와 3년 후 3갈래 리세일 시나리오를 도출합니다.</div>
         </div>
         <div class="glass-panel" style="padding:16px 20px; margin-bottom:14px;">
-            <div style="font-size:14px; font-weight:900; color:#10B981; margin-bottom:8px;">📐 1. 모델 산출 적정가 (Fair Value) & 3년 후 리세일 가치 핵심 공식</div>
+            <div style="font-size:14px; font-weight:900; color:#10B981; margin-bottom:8px;">📐 1. 모델 산출 적정가 (Fair Value) & 3년 후 리세일 3갈래 시나리오 공식</div>
             <div style="background:#090D16; border:1px solid #1E293B; padding:12px 16px; border-radius:10px; font-size:13.5px; color:#F8FAFC; font-weight:800; text-align:center;">
                 모델 산출 적정가 = TM 시장가치 × (W₁ × W₂ × W₃ × W₄ × W₅ × W₆ × W₇ × W₈ × W₉ × W₁₀ × W₁₁ × W₁₂) × 계절 프리미엄(여름 1.00 / 겨울 1.10)
             </div>
-            <div style="font-size:12px; color:#94A3B8; margin-top:8px;">• <b>3년 후 리세일 보너스:</b> 22세 이하(1.30x) · 23~25세(1.15x) · 26~28세(1.00x) &nbsp;|&nbsp; <b>임대 3종:</b> 단순/선택 임대는 1년 적정 임대가치(총비용 16% / 단독 8~10%) 기준 공정 비교, 의무 임대는 완전이적과 동일 평가</div>
+            <div style="font-size:12px; color:#94A3B8; margin-top:8px;">• <b>3년 후 3갈래 리세일 시나리오:</b> 기본 기대치(연령 보존율 × 성장보너스 0.92~1.30x)를 기준으로 <b>🔥대폭발(1.12~1.38x 추가 상승)</b> / <b>⚖️기대치 부합(1.00x)</b> / <b>⚠️부진·부상(0.58x 하락)</b> 시 원금 회수율을 동시 산출합니다.</div>
         </div>
         <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; margin-bottom:14px; font-size:11.5px;">
             <div class="glass-panel" style="padding:12px;"><b style="color:#38BDF8;">01. 원소속 리그 이원화 (W₁)</b><br><span style="color:#CBD5E1;">• 스탯 예측용(2번탭)은 엄격 기준 유지<br>• 이적료 산출 시 타리그 감산폭 50% 완화<br>• 라리가/분데스/세리에: 약 0.96x<br>• 포르투갈/네덜란드/챔피언십: 약 0.89x</span></div>
@@ -3654,31 +3855,27 @@ if show_manual_guide:
         g_html = """
         <div class="glass-panel" style="padding:18px 22px; margin-bottom:16px; border-left:5px solid #38BDF8;">
             <div style="font-size:11px; font-weight:900; color:#38BDF8; letter-spacing:1px;">OFFICIAL METHODOLOGY GUIDELINE · PAGE 07 / 07</div>
-            <div style="font-size:26px; font-weight:900; color:#FFFFFF; margin-top:3px;">🏆 [TAB 7] 구단별 가중 평점 · 예산 효율지수 · 파워 랭킹 기준</div>
-            <div style="font-size:13px; color:#94A3B8; margin-top:4px;">구단 단위의 영입(IN)·방출(OUT) 총결산 성적표 및 리그 전체 파워 랭킹 포디움을 산출하는 기준입니다.</div>
+            <div style="font-size:26px; font-weight:900; color:#FFFFFF; margin-top:3px;">🏆 [TAB 7] 구단 가중 평점 · 협상 가성비 · 협상 영수증 · 파워 랭킹 기준</div>
+            <div style="font-size:13px; color:#94A3B8; margin-top:4px;">구단 단위의 이적시장 수지(+흑자/-지출), 포지션/연령 투자 비중 진단, 양 구단 협상 손익 영수증 산출 기준입니다.</div>
         </div>
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px;">
             <div class="glass-panel" style="padding:16px;">
-                <div style="font-size:14px; font-weight:900; color:#38BDF8; margin-bottom:8px;">⚖️ 1. 구단 가중 이적 평점 & 입장 자동 반전 공식</div>
+                <div style="font-size:14px; font-weight:900; color:#38BDF8; margin-bottom:8px;">⚖️ 1. 구단 가중 평점 & 구단 간 협상 손익 영수증</div>
                 <div style="font-size:12px; color:#E2E8F0; line-height:1.7;">
 - <b>이적료 비례 가중 평균 (Weighted Average):</b><br>
-                      &nbsp;&nbsp;소액 영입이 대형 영입과 같은 비중을 갖지 않도록 <b>거래 이적료에 비례한 가중 평균</b> 산출<br>
-- <b>FA / 임대 최소 가중치 보장 (500만 €):</b><br>
-                      &nbsp;&nbsp;이적료 €0인 자유계약(FA) 꿀영입도 최소 <b>500만 €</b>의 가중치를 부여하여 구단 평점에 정당하게 반영<br>
-- <b>영입(IN) ↔ 방출(OUT) 평점 자동 반전:</b><br>
-                      &nbsp;&nbsp;영입 구단 입장에서 거품(오버페이)으로 기록된 딜은 파는 구단(원소속팀) 성적표에서 <b>(15.00 - 원래 평점)</b>으로 자동 반전되어 <b>높은 매각 수완 점수</b>로 기록됨
+                      &nbsp;&nbsp;소액 거래가 대형 거래와 같은 비중을 갖지 않도록 <b>실제 이적료(FA/임대는 최소 5m 보장)에 비례한 가중 평균</b> 산출<br>
+- <b>구단 간 협상 손익 영수증 (Buy vs Sell Matchup):</b><br>
+                      &nbsp;&nbsp;영입 구단의 평점이 <b>★X점</b>일 때 판매 구단의 매각 평점은 <b>★(15.00 - X)점</b>으로 자동 대칭 산출되어 양 구단 중 어느 쪽이 협상 우위를 점했는지 정밀 판정
                 </div>
             </div>
             <div class="glass-panel" style="padding:16px;">
-                <div style="font-size:14px; font-weight:900; color:#10B981; margin-bottom:8px;">💰 2. 예산 효율지수 (%) & 6각형 구단 밸런스</div>
+                <div style="font-size:14px; font-weight:900; color:#10B981; margin-bottom:8px;">💰 2. 협상 가성비 지수(%) & 이적시장 수지(Balance)</div>
                 <div style="font-size:12px; color:#E2E8F0; line-height:1.7;">
-- <b>예산 효율지수 산출 공식:</b><br>
+- <b>협상 가성비 지수 산출 공식:</b><br>
                       <span style="color:#34D399; font-weight:800;">78% + [ (적정가 총합 - 실제 영입 지출 총합) ÷ 적정가 총합 × 45 ]</span><br>
-- <b>85% ~ 98%:</b> 적정가보다 저렴하게 쓸어 담은 거상 구단<br>
-- <b>75% ~ 84%:</b> 적정가 수준에서 합리적으로 지출한 구단 (기준 78%)<br>
-- <b>50% ~ 74%:</b> 오버페이 프리미엄 지출이 많았던 구단<br>
-- <b>선수단 젊음/포텐 축:</b> (32.0 - 영입생 평균나이) × 5.2 + 45<br>
-- <b>스쿼드 밸런스 축:</b> 65점 + (영입 수 × 6점) + (방출 수 × 3점)
+- <b>이적시장 수지 (Transfer Balance = 방출수익 - 영입지출):</b><br>
+                      &nbsp;&nbsp;판매 흑자 시 <b style="color:#FBBF24;">+골드 옐로우</b>, 지출 적자 시 <b style="color:#FB7185;">-네온 로즈</b> 표기 및 <b>영입자금 자체 조달률(방출수익÷영입지출%)</b> 자동 병기<br>
+- <b>포지션 & 연령 투자 비중 바:</b> 공격/중원/수비/GK 지출 비율 및 U23/전성기/베테랑 비중 시각화
                 </div>
             </div>
         </div>
