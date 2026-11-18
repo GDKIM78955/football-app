@@ -2333,7 +2333,7 @@ with tab4:
 
 _part2_end = True
 # ==============================================================================
-# [PART 3] TAB 5 (중간 점검) · TAB 6 (A vs B 비교) · TAB 7 (이적시장 수지 +/- & 골드/로즈 컬러 적용판)
+# [PART 3] TAB 5 (중간 점검) · TAB 6 (A vs B 비교) · TAB 7 (이적시장 수지 & 4대 카드 풀옵션 팩트 지표 탑재판)
 # ==============================================================================
 
 # ================= TAB 5: 시즌 중 라운드별 중간 점검 시뮬레이터 =================
@@ -2807,7 +2807,7 @@ with tab6:
                 """
                 render_copyable_infographic(h2h_board_html, filename=f"h2h_{p_curr_name}_vs_{t_name}", height=530)
 
-# ================= TAB 7: 구단/리그별 결산 & 전술판 데이터룸 (이적시장 수지 +/- 및 골드/로즈 컬러 적용판) =================
+# ================= TAB 7: 구단/리그별 결산 & 전술판 데이터룸 (풀옵션 팩트 지표 + 이적시장 수지 탑재판) =================
 with tab7:
     st.subheader("🏆 이적시장 구단별 종합 성적표 (6각형 구단 레이더 & 전술판) & 리그 파워 랭킹 (TOP 3 포디움)")
 
@@ -2835,12 +2835,12 @@ with tab7:
 
                 total_in_spent = team_in_df["실제이적료(만€)"].astype(float).sum() if not team_in_df.empty and "실제이적료(만€)" in team_in_df.columns else 0.0
                 total_out_income = team_out_df["실제이적료(만€)"].astype(float).sum() if not team_out_df.empty and "실제이적료(만€)" in team_out_df.columns else 0.0
-                
+
                 # [핵심 개편] 이적시장 수지 (Transfer Balance = 방출 수익 - 영입 지출)
                 # 돈을 벌었으면 +(골드 옐로우 #FBBF24), 돈을 더 썼으면 -(네온 로즈 #FB7185)
                 transfer_balance = total_out_income - total_in_spent
                 bal_col = "#FBBF24" if transfer_balance >= 0 else "#FB7185"
-                bal_type_txt = "판매 흑자 (수익)" if transfer_balance >= 0 else "영입 지출 (적자)"
+                bal_type_txt = "판매 흑자" if transfer_balance >= 0 else "영입 적자"
 
                 def get_adjusted_deal_score(row, is_buy_side):
                     recorded_score = float(row.get("이적평점", 7.50))
@@ -2874,7 +2874,51 @@ with tab7:
                 youth_idx = int(min(98, max(52, (32.0 - in_avg_age) * 5.2 + 45)))
                 squad_depth_idx = int(min(98, max(58, 65 + len(team_in_df) * 6 + len(team_out_df) * 3)))
 
-                club_rad_cats = ['영입 타겟 평점', '매각 협상 수완', '예산/가성비 효율', '즉시 전력 보강', '선수단 젊음/포텐', '스쿼드 밸런스']
+                # [4대 KPI 카드 하단 풀옵션 팩트 지표 자동 산출]
+                # 1번 카드: 최고 지출 선수 & 적정가 대비 총 절감/오버페이
+                if not team_in_df.empty and total_in_spent > 0:
+                    top_in_r = team_in_df.loc[team_in_df["실제이적료(만€)"].astype(float).idxmax()]
+                    top_in_txt = f"최고지출: {top_in_r.get('선수명','-')} (€{float(top_in_r.get('실제이적료(만€)',0))/100:.1f}m)"
+                    fair_gap_v = total_in_spent - in_fair_sum
+                    gap_lbl = f"적정가대비 -€{abs(fair_gap_v)/100:.1f}m 절감" if fair_gap_v <= 0 else f"적정가대비 +€{fair_gap_v/100:.1f}m 오버페이"
+                    gap_col = "#34D399" if fair_gap_v <= 0 else "#FB7185"
+                else:
+                    top_in_txt, gap_lbl, gap_col = "유상 영입 없음", "적정가 차액 €0m", "#64748B"
+
+                # 2번 카드: 최고 매각 선수 & 유상/무상 방출 인원
+                if not team_out_df.empty:
+                    paid_out_cnt = int((team_out_df["실제이적료(만€)"].astype(float) > 0).sum())
+                    free_out_cnt = len(team_out_df) - paid_out_cnt
+                    out_split_txt = f"유상 매각 {paid_out_cnt}명 · FA/임대 {free_out_cnt}명"
+                    if total_out_income > 0:
+                        top_out_r = team_out_df.loc[team_out_df["실제이적료(만€)"].astype(float).idxmax()]
+                        top_out_txt = f"최고매각: {top_out_r.get('선수명','-')} (€{float(top_out_r.get('실제이적료(만€)',0))/100:.1f}m)"
+                    else:
+                        top_out_txt = "이적료 수익 없음"
+                else:
+                    top_out_txt, out_split_txt = "방출 내역 없음", "총 0명 방출"
+
+                # 3번 카드: 영입자금 자체 조달률 (방출 수익 / 영입 지출)
+                self_fund_pct = (total_out_income / total_in_spent * 100.0) if total_in_spent > 0 else (100.0 if total_out_income > 0 else 0.0)
+                fund_desc_txt = f"영입자금 자체 조달률 {self_fund_pct:.1f}%"
+
+                # 4번 카드: 연령대 구성 (U-23 영건 / 전성기 / 베테랑) & 세대교체 폭
+                if not team_in_df.empty and "나이" in team_in_df.columns:
+                    in_ages_s = team_in_df["나이"].astype(float)
+                    u23_cnt = int((in_ages_s <= 23).sum())
+                    prime_cnt = int(((in_ages_s >= 24) & (in_ages_s <= 28)).sum())
+                    vet_cnt = len(team_in_df) - u23_cnt - prime_cnt
+                    age_comp_txt = f"U23 영건 {u23_cnt} · 전성기 {prime_cnt}" + (f" · 베테랑 {vet_cnt}" if vet_cnt > 0 else "")
+                    if not team_out_df.empty and "나이" in team_out_df.columns:
+                        out_avg_age = float(team_out_df["나이"].astype(float).mean())
+                        age_diff_v = in_avg_age - out_avg_age
+                        age_shift_txt = f"방출 평균({out_avg_age:.1f}세) 대비 {age_diff_v:+.1f}세 변화"
+                    else:
+                        age_shift_txt = f"총 {len(all_team_trades)}건 이적 거래 완료"
+                else:
+                    age_comp_txt, age_shift_txt = "영입 선수 없음", f"총 {len(all_team_trades)}건 거래 완료"
+
+                club_rad_cats = ['영입 타겟 평점', '매각 협상 수완', '영입 가성비 효율', '즉시 전력 보강', '선수단 젊음/포텐', '스쿼드 밸런스']
                 club_rad_vals = [
                     int(min(98, max(50, in_avg_sc * 10))),
                     int(min(98, max(50, out_avg_sc * 10))),
@@ -2886,7 +2930,7 @@ with tab7:
                 svg_club_radar = build_svg_radar(club_rad_cats, club_rad_vals, color_a="#38BDF8", size=295)
 
                 donut_club = build_svg_donut_ring(weighted_avg_score, 10.0, cg_col, "구단 가중평점", size=105)
-                donut_cost_eff = build_svg_donut_ring(float(cost_eff_idx), 100.0, "#10B981", "예산 효율지수", size=105)
+                donut_cost_eff = build_svg_donut_ring(float(cost_eff_idx), 100.0, "#10B981", "협상 가성비 지수", size=105)
                 pitch_html = build_tactical_pitch_html(team_in_df)
 
                 club_rep_logo = resolve_club_logo(sel_team_name)
@@ -2956,10 +3000,30 @@ with tab7:
                 </div>
 
                 <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:12px; text-align:center; margin-bottom:16px;">
-                    <div class="kpi-card" style="border-top:3px solid #38BDF8;"><div style="font-size:11px; color:#94A3B8;">총 영입 지출액 (IN · {len(team_in_df)}명)</div><div style="font-size:19px; font-weight:900; color:#38BDF8; margin-top:4px;">{fmt_tm_kor(total_in_spent, multiline=True)}</div><div style="font-size:11px; color:#64748B; margin-top:2px;">{format_currency_desc(total_in_spent).split(' | ')[0]}</div></div>
-                    <div class="kpi-card" style="border-top:3px solid #10B981;"><div style="font-size:11px; color:#94A3B8;">총 방출 수익 (OUT · {len(team_out_df)}명)</div><div style="font-size:19px; font-weight:900; color:#10B981; margin-top:4px;">{fmt_tm_kor(total_out_income, multiline=True)}</div><div style="font-size:11px; color:#64748B; margin-top:2px;">{format_currency_desc(total_out_income).split(' | ')[0]}</div></div>
-                    <div class="kpi-card" style="border-top:3px solid {bal_col};"><div style="font-size:11px; color:#94A3B8;">이적시장 수지 (Balance)</div><div style="font-size:19px; font-weight:900; color:{bal_col}; margin-top:4px;">{fmt_tm_kor(transfer_balance, signed=True, multiline=True)}</div><div style="font-size:11px; color:{bal_col}; font-weight:700; margin-top:2px;">{format_currency_desc(abs(transfer_balance)).split(' | ')[0]} {bal_type_txt}</div></div>
-                    <div class="kpi-card" style="border-top:3px solid #A855F7;"><div style="font-size:11px; color:#94A3B8;">영입생 평균 연령</div><div style="font-size:21px; font-weight:900; color:#C084FC; margin-top:8px;">만 {in_avg_age:.1f}세</div><div style="font-size:11px; color:#64748B; margin-top:6px;">총 {len(all_team_trades)}건 거래 완료</div></div>
+                    <div class="kpi-card" style="border-top:3px solid #38BDF8;">
+                        <div style="font-size:11px; color:#94A3B8;">총 영입 지출액 (IN · {len(team_in_df)}명)</div>
+                        <div style="font-size:19px; font-weight:900; color:#38BDF8; margin-top:4px;">{fmt_tm_kor(total_in_spent, multiline=True)}</div>
+                        <div style="font-size:11px; color:#CBD5E1; font-weight:700; margin-top:4px;">{format_currency_desc(total_in_spent).split(' | ')[0]} · {top_in_txt}</div>
+                        <div style="font-size:10.5px; color:{gap_col}; font-weight:800; margin-top:2px;">({gap_lbl})</div>
+                    </div>
+                    <div class="kpi-card" style="border-top:3px solid #10B981;">
+                        <div style="font-size:11px; color:#94A3B8;">총 방출 수익 (OUT · {len(team_out_df)}명)</div>
+                        <div style="font-size:19px; font-weight:900; color:#10B981; margin-top:4px;">{fmt_tm_kor(total_out_income, multiline=True)}</div>
+                        <div style="font-size:11px; color:#CBD5E1; font-weight:700; margin-top:4px;">{format_currency_desc(total_out_income).split(' | ')[0]} · {top_out_txt}</div>
+                        <div style="font-size:10.5px; color:#6EE7B7; font-weight:700; margin-top:2px;">({out_split_txt})</div>
+                    </div>
+                    <div class="kpi-card" style="border-top:3px solid {bal_col};">
+                        <div style="font-size:11px; color:#94A3B8;">이적시장 수지 (Balance)</div>
+                        <div style="font-size:19px; font-weight:900; color:{bal_col}; margin-top:4px;">{fmt_tm_kor(transfer_balance, signed=True, multiline=True)}</div>
+                        <div style="font-size:11px; color:{bal_col}; font-weight:800; margin-top:4px;">{format_currency_desc(abs(transfer_balance)).split(' | ')[0]} {bal_type_txt}</div>
+                        <div style="font-size:10.5px; color:#E2E8F0; font-weight:700; margin-top:2px;">({fund_desc_txt})</div>
+                    </div>
+                    <div class="kpi-card" style="border-top:3px solid #A855F7;">
+                        <div style="font-size:11px; color:#94A3B8;">영입생 평균 연령 & 구성</div>
+                        <div style="font-size:20px; font-weight:900; color:#C084FC; margin-top:6px;">만 {in_avg_age:.1f}세</div>
+                        <div style="font-size:11px; color:#D8B4FE; font-weight:800; margin-top:6px;">{age_comp_txt}</div>
+                        <div style="font-size:10.5px; color:#94A3B8; font-weight:700; margin-top:2px;">({age_shift_txt})</div>
+                    </div>
                 </div>
 
                 <div style="display:grid; grid-template-columns: 0.92fr 1.08fr; gap:14px; margin-bottom:16px; align-items:stretch;">
@@ -2984,7 +3048,7 @@ with tab7:
                     </div>
                 </div>
                 """
-                render_copyable_infographic(html_club_board, filename=f"club_report_{sel_team_name}", height=980)
+                render_copyable_infographic(html_club_board, filename=f"club_report_{sel_team_name}", height=1000)
 
         elif "리그별" in rank_mode:
             c_rk1, c_rk2 = st.columns(2)
@@ -3029,9 +3093,9 @@ with tab7:
                         else: w_score = 7.50
 
                         t_league_label = str(in_trades["이적팀리그"].iloc[0]).strip() if not in_trades.empty and "이적팀리그" in in_trades.columns else ""
-                        # 방출 수익 - 영입 지출 (돈 벌면 +, 돈 쓰면 -)
                         bal_raw = int(out_income - in_spent)
-                        team_stat_rows.append({"이적팀명": t_name, "소속리그": t_league_label, "가중이적평점": round(w_score, 2), "영입(IN)": len(in_trades), "방출(OUT)": len(out_trades), "총영입액": fmt_tm_kor(in_spent), "총방출액": fmt_tm_kor(out_income), "이적수지(Balance)": fmt_tm_kor(bal_raw, signed=True), "_in_raw": int(in_spent), "_out_raw": int(out_income), "_bal_raw": bal_raw})
+                        fund_r = round((out_income / in_spent * 100.0), 1) if in_spent > 0 else (100.0 if out_income > 0 else 0.0)
+                        team_stat_rows.append({"이적팀명": t_name, "소속리그": t_league_label, "가중이적평점": round(w_score, 2), "영입(IN)": len(in_trades), "방출(OUT)": len(out_trades), "총영입액": fmt_tm_kor(in_spent), "총방출액": fmt_tm_kor(out_income), "이적수지(Balance)": fmt_tm_kor(bal_raw, signed=True), "자금조달률(%)": f"{fund_r}%", "_in_raw": int(in_spent), "_out_raw": int(out_income), "_bal_raw": bal_raw})
 
                     ranked_df = pd.DataFrame(team_stat_rows).sort_values(by="가중이적평점", ascending=False).reset_index(drop=True)
                     ranked_df.index = ranked_df.index + 1
